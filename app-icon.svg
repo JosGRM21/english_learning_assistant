@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="100%" stop-color="#312E81" />
+    </linearGradient>
+  </defs>
+  <!-- Rounded Base -->
+  <rect width="512" height="512" rx="112" fill="url(#grad)" />
+  
+  <!-- Subtle inner border -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="#FFFFFF" stroke-opacity="0.15" stroke-width="8" />
+
+  <!-- ELA Typography -->
+  <text x="50%" y="45%" text-anchor="middle" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="140" letter-spacing="4">ELA</text>
+
+  <!-- Subtitle -->
+  <text x="50%" y="62%" text-anchor="middle" fill="#A5B4FC" font-family="system-ui, -apple-system, sans-serif" font-weight="600" font-size="34" letter-spacing="2">ENGLISH ASSISTANT</text>
+  
+  <!-- Accent Stars / Sparkles -->
+  <circle cx="120" cy="130" r="10" fill="#FBBF24" />
+  <circle cx="392" cy="130" r="14" fill="#34D399" />
+  <circle cx="256" cy="380" r="8" fill="#F472B6" />
+</svg>

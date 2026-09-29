@@ -1,0 +1,22 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-editorial: 'Newsreader', Georgia, serif;
+  --font-phonetic: 'Charis SIL', 'Noto Sans Phonetic', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* Base resets & smooth transitions */
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
