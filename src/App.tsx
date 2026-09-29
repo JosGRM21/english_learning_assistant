@@ -2,50 +2,72 @@ import { useEffect, useState, useMemo } from 'react';
 import {
   Sparkles,
   BookOpen,
-  Brain,
   CheckCircle2,
   Moon,
   Sun,
   RotateCw,
   Search,
   AlertTriangle,
-  Database,
   ArrowRight,
   Ear,
   PenTool,
   Cpu,
   Volume2,
   Volume1,
+  LayoutDashboard,
+  Zap,
+  BarChart2,
+  Settings,
 } from 'lucide-react';
 import { createTestDatabase } from './infrastructure/db/database';
 import { seedDatabase } from './infrastructure/db/seed-data';
 import { VocabRepository } from './infrastructure/db/repositories/VocabRepository';
 import { FsrsScheduler } from './core/srs/FsrsScheduler';
 import { ContextRotator } from './core/srs/ContextRotator';
-import { VocabItem, VocabContextExample, CefrLevel } from './core/types/vocab';
-import { SrsCard, FsrsGrade } from './core/types/srs';
+import { VocabItem, VocabContextExample } from './core/types/vocab';
+import { SrsCard, FsrsGrade, ReviewLog } from './core/types/srs';
 import { AudioService } from './infrastructure/audio/AudioService';
 import { ConnectedSpeechPill } from './components/phonology/ConnectedSpeechPill';
 import { MinimalPairsGym } from './components/phonology/MinimalPairsGym';
 import { SocraticWritingStudio } from './components/writing/SocraticWritingStudio';
 import { QuotaMatrixMonitor } from './components/ai/QuotaMatrixMonitor';
+import { OverviewDashboard } from './components/dashboard/OverviewDashboard';
+import { WeaknessHeatmap } from './components/diagnostics/WeaknessHeatmap';
+import { SpeedDrillArena } from './components/drills/SpeedDrillArena';
+import { GradedReaderView } from './components/reader/GradedReaderView';
+import { BackupSettingsModal } from './components/settings/BackupSettingsModal';
 
-type AppTab = 'srs' | 'minimal_pairs' | 'writing' | 'quota_matrix' | 'catalog';
+import { HabitsManager } from './core/habits/HabitsManager';
+import { WeaknessEngine } from './core/diagnostics/WeaknessEngine';
+import { UserStreak, DailyQuest } from './core/types/habits';
+import { WeaknessMetric } from './core/types/diagnostics';
+import { OneClickCardPayload } from './core/types/reader';
+
+type AppTab =
+  | 'dashboard'
+  | 'srs'
+  | 'minimal_pairs'
+  | 'writing'
+  | 'drills'
+  | 'reader'
+  | 'weaknesses'
+  | 'quota_matrix'
+  | 'catalog'
+  | 'settings';
 
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
-  const [activeTab, setActiveTab] = useState<AppTab>('srs');
-  const [dbReady, setDbReady] = useState(false);
+  const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
   const [vocabList, setVocabList] = useState<VocabItem[]>([]);
   const [selectedVocab, setSelectedVocab] = useState<VocabItem | null>(null);
   const [availableContexts, setAvailableContexts] = useState<VocabContextExample[]>([]);
   const [currentContext, setCurrentContext] = useState<VocabContextExample | null>(null);
   const [srsCard, setSrsCard] = useState<SrsCard | null>(null);
+  const [reviewLogs, setReviewLogs] = useState<ReviewLog[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCefr, setSelectedCefr] = useState<CefrLevel | 'ALL'>('ALL');
   const [showAnswer, setShowAnswer] = useState(false);
   const [reviewCount, setReviewCount] = useState(0);
 
@@ -53,6 +75,66 @@ export default function App() {
   const scheduler = useMemo(() => new FsrsScheduler(0.9), []);
   const rotator = useMemo(() => new ContextRotator(), []);
   const audioService = useMemo(() => new AudioService(), []);
+  const habitsManager = useMemo(() => new HabitsManager(), []);
+  const weaknessEngine = useMemo(() => new WeaknessEngine(), []);
+
+  // Habits and Streaks state
+  const [streak, setStreak] = useState<UserStreak>({
+    id: 'streak_local',
+    userId: 'user_local',
+    currentStreak: 5,
+    longestStreak: 12,
+    lastActivityDate: new Date().toISOString().split('T')[0],
+    availableFreezes: 2,
+    updatedAt: new Date().toISOString(),
+  });
+
+  const [quests, setQuests] = useState<DailyQuest[]>(() =>
+    habitsManager.generateDailyQuests('user_local'),
+  );
+
+  // Weaknesses state
+  const [weaknesses, setWeaknesses] = useState<WeaknessMetric[]>([
+    {
+      id: 'wm_01',
+      userId: 'user_local',
+      errorTaxonomyId: 'err_01',
+      taxonomyCode: 'L1_PREP_DEPEND_ON',
+      labelEs: 'Uso incorrecto de "depend of" en vez de "depend on"',
+      domain: 'GRAMMAR',
+      occurrencesLast7Days: 4,
+      totalOccurrences: 6,
+      weaknessScore: 6.8, // Critical!
+      lastDetectedAt: new Date().toISOString(),
+      isCritical: true,
+    },
+    {
+      id: 'wm_02',
+      userId: 'user_local',
+      errorTaxonomyId: 'err_02',
+      taxonomyCode: 'L1_SYNTAX_AM_AGREE',
+      labelEs: 'Sintaxis no estándar: "I am agree" en vez de "I agree"',
+      domain: 'GRAMMAR',
+      occurrencesLast7Days: 2,
+      totalOccurrences: 5,
+      weaknessScore: 4.5,
+      lastDetectedAt: new Date().toISOString(),
+      isCritical: false,
+    },
+    {
+      id: 'wm_03',
+      userId: 'user_local',
+      errorTaxonomyId: 'err_03',
+      taxonomyCode: 'LEX_FALSE_FRIEND_ACTUALLY',
+      labelEs: 'Falso amigo: "actually" (en realidad) vs "currently"',
+      domain: 'LEXICON',
+      occurrencesLast7Days: 1,
+      totalOccurrences: 3,
+      weaknessScore: 2.8,
+      lastDetectedAt: new Date().toISOString(),
+      isCritical: false,
+    },
+  ]);
 
   // Sync dark mode class
   useEffect(() => {
@@ -83,7 +165,6 @@ export default function App() {
             setCurrentContext(contexts[0]);
           }
 
-          // Initial card state
           setSrsCard({
             id: 'card_demo_01',
             userId: 'user_local',
@@ -99,8 +180,6 @@ export default function App() {
             createdAt: new Date().toISOString(),
           });
         }
-
-        setDbReady(true);
       } catch (err) {
         console.error('Failed to initialize database:', err);
       }
@@ -148,8 +227,15 @@ export default function App() {
   const handleRate = (grade: FsrsGrade) => {
     if (!srsCard) return;
     const now = new Date();
-    const { updatedCard } = scheduler.schedule(srsCard, grade, now);
+    const { updatedCard, log } = scheduler.schedule(srsCard, grade, now);
     setSrsCard(updatedCard);
+    const fullLog: ReviewLog = {
+      id: `rev_${Date.now()}`,
+      cardId: srsCard.id,
+      reviewedAt: now.toISOString(),
+      ...log,
+    };
+    setReviewLogs((prev) => [...prev, fullLog]);
     setReviewCount((prev) => prev + 1);
     setShowAnswer(false);
 
@@ -158,18 +244,92 @@ export default function App() {
 
     // Rotate context on review for next repetition
     handleRotateContext();
+
+    // Update VOCAB_SRS quest progress
+    const { quests: updatedQuests } = habitsManager.updateQuestProgress(quests, 'VOCAB_SRS', 1);
+    setQuests(updatedQuests);
+
+    // Refresh streak
+    const streakResult = habitsManager.updateStreak(streak);
+    setStreak(streakResult.streak);
+  };
+
+  // 1-Click Flashcard extraction from Graded Reader
+  const handleSaveFromReader = async (payload: OneClickCardPayload) => {
+    const newItem: VocabItem = {
+      id: `voc_extracted_${Date.now()}`,
+      word: payload.cleanWord || payload.word,
+      grammaticalDimension: 'CONTENT',
+      partOfSpeech: 'NOUN',
+      definitionEn: `Vocabulary term extracted from reading: "${payload.word}"`,
+      translationEs: payload.translationEs || 'Término extraído',
+      ipaGeneralAmerican: payload.ipa || 'ˌɛk.strækt',
+      cefrLevel: payload.cefrLevel,
+      isFalseFriend: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    const newContext: VocabContextExample = {
+      id: `ctx_extracted_${Date.now()}`,
+      vocabId: newItem.id,
+      sentenceEn: payload.sentenceEn,
+      sentenceEs: payload.sentenceEs,
+      clozeTarget: payload.word,
+      cefrLevel: payload.cefrLevel,
+      createdAt: new Date().toISOString(),
+    };
+
+    setVocabList((prev) => [newItem, ...prev]);
+    setSelectedVocab(newItem);
+    setAvailableContexts([newContext]);
+    setCurrentContext(newContext);
+
+    setSrsCard({
+      id: `card_${newItem.id}`,
+      userId: 'user_local',
+      targetType: 'VOCAB',
+      targetId: newItem.id,
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    });
+  };
+
+  // Handle Micro-Workout completion
+  const handleResolveWeakness = (metricId: string) => {
+    setWeaknesses((prev) =>
+      prev.map((w) => {
+        if (w.id === metricId) {
+          const newScore = Math.max(0, w.weaknessScore - 2.5);
+          return {
+            ...w,
+            weaknessScore: newScore,
+            isCritical: weaknessEngine.isCritical(newScore),
+          };
+        }
+        return w;
+      }),
+    );
+
+    // Update quest progress
+    const { quests: updated } = habitsManager.updateQuestProgress(quests, 'MICRO_WORKOUT', 1);
+    setQuests(updated);
   };
 
   // Filtered vocabulary list
   const filteredVocab = useMemo(() => {
     return vocabList.filter((item) => {
-      const matchesSearch =
+      return (
         item.word.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.translationEs.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCefr = selectedCefr === 'ALL' || item.cefrLevel === selectedCefr;
-      return matchesSearch && matchesCefr;
+        item.translationEs.toLowerCase().includes(searchQuery.toLowerCase())
+      );
     });
-  }, [vocabList, searchQuery, selectedCefr]);
+  }, [vocabList, searchQuery]);
 
   // Preview intervals for FSRS buttons
   const previewIntervals = useMemo(() => {
@@ -179,7 +339,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FBFBF9] dark:bg-[#0B0D13] text-gray-900 dark:text-gray-100 transition-colors duration-300 font-sans">
-      {/* Top Navigation Bar */}
+      {/* Top Header */}
       <header className="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-[#131722]/85 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -191,13 +351,25 @@ export default function App() {
                 English Learning Assistant
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Local-First • SLA Science • FSRS v5 • Fonología • IA Socrática
+                FSRS v5 • Fonología • IA Socrática • Hábitos & Drills • Graded Reader ($i+1$)
               </p>
             </div>
           </div>
 
-          {/* Tab buttons */}
-          <nav className="hidden md:flex items-center space-x-1 bg-gray-100 dark:bg-gray-800/60 p-1 rounded-2xl border border-gray-200/60 dark:border-gray-700/60">
+          {/* Tab Navigation (Desktop) */}
+          <nav className="hidden xl:flex items-center space-x-1 bg-gray-100 dark:bg-gray-800/60 p-1 rounded-2xl border border-gray-200/60 dark:border-gray-700/60">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'dashboard'
+                  ? 'bg-white dark:bg-[#131722] text-indigo-600 dark:text-indigo-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Inicio</span>
+            </button>
+
             <button
               onClick={() => setActiveTab('srs')}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -219,7 +391,19 @@ export default function App() {
               }`}
             >
               <Ear className="w-3.5 h-3.5" />
-              <span>Gym Pares Mínimos</span>
+              <span>Pares Mínimos</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('drills')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'drills'
+                  ? 'bg-white dark:bg-[#131722] text-amber-500 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>Speed Drills</span>
             </button>
 
             <button
@@ -235,6 +419,30 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab('reader')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'reader'
+                  ? 'bg-white dark:bg-[#131722] text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Graded Reader ($i+1$)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('weaknesses')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'weaknesses'
+                  ? 'bg-white dark:bg-[#131722] text-rose-600 dark:text-rose-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <BarChart2 className="w-3.5 h-3.5" />
+              <span>Debilidades</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('quota_matrix')}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'quota_matrix'
@@ -243,26 +451,27 @@ export default function App() {
               }`}
             >
               <Cpu className="w-3.5 h-3.5" />
-              <span>Matriz 2D IA</span>
+              <span>Matriz IA</span>
             </button>
 
             <button
-              onClick={() => setActiveTab('catalog')}
+              onClick={() => setActiveTab('settings')}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'catalog'
+                activeTab === 'settings'
                   ? 'bg-white dark:bg-[#131722] text-indigo-600 dark:text-indigo-400 shadow-xs'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Catálogo ({filteredVocab.length})</span>
+              <Settings className="w-3.5 h-3.5" />
+              <span>Respaldos</span>
             </button>
           </nav>
 
+          {/* Right Header Status */}
           <div className="flex items-center space-x-3">
             <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
               <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-              Fases 0, 1, 2 y 3 Operativas
+              Fases 0 a 5 Operativas
             </div>
 
             <button
@@ -275,8 +484,16 @@ export default function App() {
           </div>
         </div>
 
-        {/* Mobile Tab row */}
-        <div className="md:hidden flex items-center overflow-x-auto px-4 py-2 border-t border-gray-100 dark:border-gray-800/80 gap-1 text-xs">
+        {/* Scrollable Sub-nav on smaller screens */}
+        <div className="xl:hidden flex items-center overflow-x-auto px-4 py-2 border-t border-gray-100 dark:border-gray-800/80 gap-1 text-xs">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium ${
+              activeTab === 'dashboard' ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-400'
+            }`}
+          >
+            Inicio
+          </button>
           <button
             onClick={() => setActiveTab('srs')}
             className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium ${
@@ -294,6 +511,14 @@ export default function App() {
             Pares Mínimos
           </button>
           <button
+            onClick={() => setActiveTab('drills')}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium ${
+              activeTab === 'drills' ? 'bg-amber-500 text-white' : 'text-gray-600 dark:text-gray-400'
+            }`}
+          >
+            Speed Drills
+          </button>
+          <button
             onClick={() => setActiveTab('writing')}
             className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium ${
               activeTab === 'writing' ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-400'
@@ -302,68 +527,57 @@ export default function App() {
             Taller Socrático
           </button>
           <button
+            onClick={() => setActiveTab('reader')}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium ${
+              activeTab === 'reader' ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400'
+            }`}
+          >
+            Graded Reader
+          </button>
+          <button
+            onClick={() => setActiveTab('weaknesses')}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium ${
+              activeTab === 'weaknesses' ? 'bg-rose-600 text-white' : 'text-gray-600 dark:text-gray-400'
+            }`}
+          >
+            Debilidades
+          </button>
+          <button
             onClick={() => setActiveTab('quota_matrix')}
             className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium ${
               activeTab === 'quota_matrix' ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-400'
             }`}
           >
-            Matriz Cuotas
+            Matriz IA
           </button>
           <button
-            onClick={() => setActiveTab('catalog')}
+            onClick={() => setActiveTab('settings')}
             className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium ${
-              activeTab === 'catalog' ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-400'
+              activeTab === 'settings' ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-400'
             }`}
           >
-            Catálogo
+            Respaldos
           </button>
         </div>
       </header>
 
-      {/* Main Container */}
+      {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* System Architecture Banner */}
-        <section className="mb-8 p-6 rounded-2xl bg-white dark:bg-[#131722] border border-gray-200 dark:border-gray-800/80 shadow-xs">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                Motor de Aprendizaje Integral ELA
-              </span>
-              <h2 className="text-xl font-bold mt-1 text-gray-900 dark:text-white">
-                FSRS v5 • Fonología Articulada • Gimnasio Auditivo • IA Socrática con Failover 2D
-              </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 max-w-3xl">
-                Arquitectura limpia modular: retención DSR calibrada al 90%, detección de fenómenos
-                de discurso conectado (linking, elisión, weak forms), gimnasio de discriminación con ventana
-                de 2.0s y taller de escritura con retroalimentación socrática y visualización diff.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-3 py-1.5 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 flex items-center gap-1.5">
-                <Database className="w-3.5 h-3.5 text-indigo-500" />
-                SQLite: {dbReady ? '15 Tablas WAL' : 'Iniciando...'}
-              </span>
-              <span className="px-3 py-1.5 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 flex items-center gap-1.5">
-                <Brain className="w-3.5 h-3.5 text-emerald-500" />
-                FSRS: DSR v5
-              </span>
-              <span className="px-3 py-1.5 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 flex items-center gap-1.5">
-                <Ear className="w-3.5 h-3.5 text-purple-500" />
-                Fonología: Web Speech + Audio API
-              </span>
-              <span className="px-3 py-1.5 rounded-lg text-xs font-mono bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 flex items-center gap-1.5">
-                <Cpu className="w-3.5 h-3.5 text-amber-500" />
-                Gemini 2D Pool: 80 RPD/Key
-              </span>
-            </div>
-          </div>
-        </section>
+        {/* Tab 0: Overview Dashboard & Habits */}
+        {activeTab === 'dashboard' && (
+          <OverviewDashboard
+            streak={streak}
+            quests={quests}
+            weaknesses={weaknesses}
+            reviewCount={reviewCount}
+            onNavigateTab={(tab) => setActiveTab(tab as AppTab)}
+            onStartMicroWorkout={() => setActiveTab('weaknesses')}
+          />
+        )}
 
         {/* Tab 1: SRS Active Flashcards & Phonology */}
         {activeTab === 'srs' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Left Column: SRS Interactive Workspace (7 Cols) */}
             <div className="lg:col-span-7 space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -377,10 +591,8 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Flashcard Component */}
               {selectedVocab && (
                 <div className="bg-white dark:bg-[#131722] rounded-3xl p-8 border border-gray-200 dark:border-gray-800/80 shadow-md relative overflow-hidden">
-                  {/* Header Pills */}
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center space-x-2">
                       <span className="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
@@ -399,7 +611,6 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Term, IPA & Dual-Speed Audio Buttons */}
                   <div className="text-center py-6 border-b border-gray-100 dark:border-gray-800/60">
                     <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-2">
                       {selectedVocab.word}
@@ -414,7 +625,6 @@ export default function App() {
                       </p>
                     </div>
 
-                    {/* Quick Audio Controls */}
                     <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => audioService.speak(selectedVocab.word, 1.0)}
@@ -436,7 +646,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Cloze Context Example with Encoding Variability & Connected Speech */}
                   <div className="py-6">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -463,7 +672,6 @@ export default function App() {
                           {currentContext.sentenceEs}
                         </p>
 
-                        {/* Connected Speech Phonology Engine Integration */}
                         <ConnectedSpeechPill
                           sentence={currentContext.sentenceEn}
                           audioService={audioService}
@@ -474,7 +682,6 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Answer reveal toggle */}
                   {!showAnswer ? (
                     <button
                       onClick={() => setShowAnswer(true)}
@@ -485,7 +692,6 @@ export default function App() {
                     </button>
                   ) : (
                     <div className="space-y-6 pt-2">
-                      {/* Definition & Translation */}
                       <div className="p-4 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40">
                         <p className="text-sm font-semibold text-gray-900 dark:text-white">
                           {selectedVocab.translationEs}
@@ -501,7 +707,6 @@ export default function App() {
                         )}
                       </div>
 
-                      {/* FSRS Rating Buttons */}
                       <div>
                         <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
                           Calificación FSRS (Calcula Próximo Intervalo para Retención 90%):
@@ -549,7 +754,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* DSR Metrics Display */}
                       {srsCard && (
                         <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-800">
                           <span>
@@ -572,7 +776,7 @@ export default function App() {
               )}
             </div>
 
-            {/* Right Column: Mini Vocab Selector (5 Cols) */}
+            {/* Right Column: Mini Vocab Selector */}
             <div className="lg:col-span-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -583,7 +787,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Search Input */}
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3.5 top-3 text-gray-400" />
                 <input
@@ -595,7 +798,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Scrollable Vocab List */}
               <div className="bg-white dark:bg-[#131722] rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden max-h-[500px] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800/60">
                 {filteredVocab.map((item) => (
                   <div
@@ -642,119 +844,55 @@ export default function App() {
           <MinimalPairsGym audioService={audioService} />
         )}
 
-        {/* Tab 3: Socratic Writing Studio */}
+        {/* Tab 3: Speed Drills */}
+        {activeTab === 'drills' && (
+          <SpeedDrillArena
+            audioService={audioService}
+            onDrillCompleted={() => {
+              const { quests: updated } = habitsManager.updateQuestProgress(quests, 'SPEED_DRILL', 1);
+              setQuests(updated);
+            }}
+          />
+        )}
+
+        {/* Tab 4: Socratic Writing Studio */}
         {activeTab === 'writing' && (
           <SocraticWritingStudio audioService={audioService} />
         )}
 
-        {/* Tab 4: Quota Matrix 2D Monitor */}
+        {/* Tab 5: Graded Reader (i+1) */}
+        {activeTab === 'reader' && (
+          <GradedReaderView
+            vocabList={vocabList}
+            audioService={audioService}
+            onSaveToFlashcards={handleSaveFromReader}
+          />
+        )}
+
+        {/* Tab 6: Weakness Heatmap & Micro-Workouts */}
+        {activeTab === 'weaknesses' && (
+          <WeaknessHeatmap
+            weaknesses={weaknesses}
+            audioService={audioService}
+            onWeaknessResolved={handleResolveWeakness}
+          />
+        )}
+
+        {/* Tab 7: Quota Matrix 2D Monitor */}
         {activeTab === 'quota_matrix' && (
           <QuotaMatrixMonitor />
         )}
 
-        {/* Tab 5: Complete Lexicon Catalog */}
-        {activeTab === 'catalog' && (
-          <div className="space-y-6">
-            <div className="bg-white dark:bg-[#131722] rounded-3xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span className="p-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
-                  <BookOpen className="w-5 h-5" />
-                </span>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Catálogo Léxico Completo ({filteredVocab.length} ítems)
-                  </h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Banco de datos sembrado en SQLite con transcripciones IPA General American,
-                    definiciones lexicográficas y advertencias de interferencia L1.
-                  </p>
-                </div>
-              </div>
-
-              {/* CEFR Level Filter Pills */}
-              <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 text-xs">
-                {(['ALL', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const).map((lvl) => (
-                  <button
-                    key={lvl}
-                    onClick={() => setSelectedCefr(lvl)}
-                    className={`px-3 py-1.5 rounded-xl font-medium transition-colors cursor-pointer ${
-                      selectedCefr === lvl
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    {lvl}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Vocab Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredVocab.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-white dark:bg-[#131722] rounded-2xl p-5 border border-gray-200 dark:border-gray-800 shadow-xs flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-base text-gray-900 dark:text-white">
-                          {item.word}
-                        </span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
-                          {item.cefrLevel}
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => audioService.speak(item.word)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                        title="Pronunciar"
-                      >
-                        <Volume2 className="w-4 h-4 text-indigo-500" />
-                      </button>
-                    </div>
-
-                    <div
-                      className="text-xs text-indigo-600 dark:text-indigo-400 font-mono mb-2"
-                      style={{ fontFamily: 'var(--font-phonetic)' }}
-                    >
-                      /{item.ipaGeneralAmerican}/
-                    </div>
-
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">
-                      {item.translationEs}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
-                      {item.definitionEn}
-                    </p>
-
-                    {item.isFalseFriend && (
-                      <div className="mt-3 p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-[11px] text-rose-800 dark:text-rose-300">
-                        <strong>⚠️ Falso Amigo:</strong> {item.falseFriendNote}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800/80 flex items-center justify-between text-xs">
-                    <span className="text-gray-400 uppercase font-mono text-[10px]">
-                      {item.partOfSpeech}
-                    </span>
-                    <button
-                      onClick={() => {
-                        handleSelectVocab(item);
-                        setActiveTab('srs');
-                      }}
-                      className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium text-xs cursor-pointer"
-                    >
-                      Repasar en SRS →
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* Tab 8: Backup & Settings */}
+        {activeTab === 'settings' && (
+          <BackupSettingsModal
+            userId="user_local"
+            cards={srsCard ? [srsCard as unknown as Record<string, unknown>] : []}
+            reviewLogs={reviewLogs}
+            errors={weaknesses as unknown as Record<string, unknown>[]}
+            streak={streak as unknown as Record<string, unknown>}
+            quests={quests as unknown as Record<string, unknown>[]}
+          />
         )}
       </main>
     </div>
