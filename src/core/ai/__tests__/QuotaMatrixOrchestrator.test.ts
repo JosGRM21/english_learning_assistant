@@ -94,4 +94,56 @@ describe('QuotaMatrixOrchestrator', () => {
     expect(ms).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
     expect(isoDate).toBeDefined();
   });
+
+  it('aggregates quota per API key correctly with 80 total daily limit', () => {
+    // Record 5 requests on 3.8 and 10 on 3.7 for key_1
+    for (let i = 0; i < 5; i++) {
+      orchestrator.recordSuccess('key_1', 'gemini-3.8-flash');
+    }
+    for (let i = 0; i < 10; i++) {
+      orchestrator.recordSuccess('key_1', 'gemini-3.7-flash');
+    }
+
+    const summary = orchestrator.getKeyQuotaSummary('key_1');
+    expect(summary).toBeDefined();
+    expect(summary?.dailyLimit).toBe(80);
+    expect(summary?.totalRequestsToday).toBe(15);
+    expect(summary?.remainingRequests).toBe(65);
+    expect(summary?.rpdStatus).toBe('AVAILABLE');
+    expect(summary?.modelBreakdown['gemini-3.8-flash']).toBe(5);
+    expect(summary?.modelBreakdown['gemini-3.7-flash']).toBe(10);
+  });
+
+  it('allows adding, removing, and toggling API keys dynamically', () => {
+    const newKey: ApiKeyEntry = {
+      id: 'key_custom',
+      label: 'New User Added Key',
+      secretKey: 'AIzaSy_CustomKey_999',
+      maskedKey: 'AIzaSy...999',
+      isActive: true,
+      isPrimary: false,
+    };
+
+    orchestrator.addApiKey(newKey);
+    expect(orchestrator.getApiKeys().length).toBe(3);
+
+    const summary = orchestrator.getKeyQuotaSummary('key_custom');
+    expect(summary).toBeDefined();
+    expect(summary?.dailyLimit).toBe(80);
+
+    orchestrator.toggleApiKey('key_custom');
+    const toggled = orchestrator.getApiKeys().find((k) => k.id === 'key_custom');
+    expect(toggled?.isActive).toBe(false);
+
+    orchestrator.removeApiKey('key_custom');
+    expect(orchestrator.getApiKeys().length).toBe(2);
+    expect(orchestrator.getKeyQuotaSummary('key_custom')).toBeUndefined();
+  });
+
+  it('manages default model configuration', () => {
+    expect(orchestrator.getDefaultModel()).toBe('gemini-3.8-flash');
+    orchestrator.setDefaultModel('gemini-3.7-flash');
+    expect(orchestrator.getDefaultModel()).toBe('gemini-3.7-flash');
+  });
 });
+

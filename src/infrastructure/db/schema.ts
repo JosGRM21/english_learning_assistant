@@ -12,6 +12,13 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
 );
 
+INSERT OR IGNORE INTO users (id, username, target_accent, current_cefr_target, default_ai_model, api_key_rotation_mode)
+VALUES ('user_local', 'local_student', 'GENERAL_AMERICAN', 'B1', 'gemini-3.8-flash', 'FAILOVER_ON_QUOTA');
+
+INSERT OR IGNORE INTO users (id, username, target_accent, current_cefr_target, default_ai_model, api_key_rotation_mode)
+VALUES ('default_user', 'default_student', 'GENERAL_AMERICAN', 'B1', 'gemini-3.8-flash', 'FAILOVER_ON_QUOTA');
+
+
 CREATE TABLE IF NOT EXISTS ai_api_keys (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,

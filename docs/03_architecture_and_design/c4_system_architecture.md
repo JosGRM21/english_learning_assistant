@@ -1,149 +1,180 @@
 # Arquitectura del Sistema (Modelo C4)
 ## English Learning Assistant (ELA)
 
-Este documento especifica la arquitectura del sistema utilizando el **Modelo C4** (Contexto, Contenedores, Componentes y Patrones de Código), diseñado para comunicar la estructura del software con claridad técnica estricta.
+Este documento especifica la arquitectura del sistema utilizando el **Modelo C4** (Contexto, Contenedores, Componentes y Patrones de Código), diseñado para comunicar la estructura del software con claridad técnica estricta y alineación con los principios pedagógicos de [`docs/02_pedagogical_framework/`](../02_pedagogical_framework/).
 
 ---
 
 ## 1. Nivel 1: Diagrama de Contexto del Sistema (System Context)
 
-El diagrama de contexto ilustra cómo el usuario interactúa con ELA y los límites del sistema con servicios externos.
+El diagrama de contexto ilustra cómo el usuario interactúa con ELA y los límites del sistema con subsistemas y servicios externos.
 
 ```mermaid
 C4Context
     title Diagrama de Contexto - English Learning Assistant (ELA)
 
-    Person(user, "Estudiante Hispanohablante", "Usuario que busca dominar el vocabulario, habla conectada y escritura en inglés.")
+    Person(user, "Estudiante Hispanohablante", "Usuario adulto que busca dominar el vocabulario, habla conectada, prosodia y fluidez escrita en inglés en tiempo récord.")
     
-    System(ela, "English Learning Assistant (ELA)", "Aplicación de software para práctica deliberada, repetición espaciada FSRS, análisis fonético y evaluación asistida por IA.")
+    System(ela, "English Learning Assistant (ELA)", "Aplicación de escritorio local-first para práctica deliberada, FSRS, análisis fonético-prosódico, mitigación L1, TBLT y tutoría socrática con IA.")
 
-    System_Ext(gemini, "Google Gemini API", "Servicio de IA Generativa en la nube para evaluación cualitativa de redacción y retroalimentación pedagógica.")
-    System_Ext(audio_subsys, "Motor TTS / Audio OS", "Sintetizador Web Speech / Neural Voices para reproducción de fonemas y oraciones.")
-    SystemDb_Ext(os_storage, "Almacenamiento Local del SO", "Sistema de archivos local y base de datos SQLite para persistencia 100% privada.")
+    System_Ext(gemini, "Google Gemini API", "Servicio de IA Generativa en la nube (familia Gemini 3.x Flash) para evaluación cualitativa TBLT de 4 competencias, andamiaje socrático y simplificación CEFR.")
+    System_Ext(audio_subsys, "Motor TTS & Captura de Micrófono", "Sintetizador Web Speech / Neural Voices para reproducción y Web Audio API para análisis de tono fundamental F0.")
+    SystemDb_Ext(os_storage, "Almacenamiento Local del SO", "Sistema de archivos local y base de datos SQLite (WAL mode) para persistencia 100% privada y cifrado de claves.")
 
-    Rel(user, ela, "Estudia tarjetas SRS, analiza habla conectada, escribe textos y revisa tareas diarias")
-    Rel(ela, gemini, "Envía textos redactados con rúbrica pedagógica y recibe corrección estructurada JSON", "HTTPS / REST")
-    Rel(ela, audio_subsys, "Solicita síntesis de voz a velocidad normal y reducida (0.75x)", "Web Audio API / IPC")
-    Rel(ela, os_storage, "Lee y escribe estado de usuario, tarjetas, fallas y progreso", "SQLite / File I/O")
+    Rel(user, ela, "Practica repetición activa, shadowing prosódico, drills de velocidad, misiones TBLT y lecturas i+1")
+    Rel(ela, gemini, "Envía borradores de redacción, oraciones y textos con schemas JSON tipados", "HTTPS / REST")
+    Rel(ela, audio_subsys, "Solicita síntesis de voz multi-hablante (1.0x / 0.75x) y captura señal de micrófono", "Web Audio API / MediaStreams")
+    Rel(ela, os_storage, "Lee y escribe estado de usuario, tarjetas FSRS, métricas de proceduralización y fallas", "SQLite3 / File I/O")
 ```
 
 ---
 
 ## 2. Nivel 2: Diagrama de Contenedores (Container Diagram)
 
-El sistema se compone de contenedores de ejecución ligera que garantizan una experiencia local-first ultrarrápida:
+El sistema se compone de contenedores de ejecución ligera que garantizan una experiencia local-first de latencia ultrabaja:
 
 ```mermaid
 C4Container
     title Diagrama de Contenedores - ELA
 
-    Person(user, "Estudiante", "Interactúa mediante teclado y ratón")
+    Person(user, "Estudiante", "Interactúa mediante teclado, ratón y micrófono")
 
-    Container(frontend, "Capa de Presentación (UI/UX)", "Next.js / React, Tailwind CSS, Lucide Icons", "Interfaz gráfica intuitiva: Dashboard de hábitos, reproductor SRS, analizador fonético y taller de redacción.")
+    Container(frontend, "Capa de Presentación (UI/UX)", "React / Next.js, Tailwind CSS, Lucide Icons, Canvas FFT Visualizer", "Interfaz gráfica 'Warm Minimalist': Dashboard SRL, Reproductor FSRS, Gimnasio HVPT, Prosody Studio, TBLT Studio y Smart Reader.")
     
-    Container(backend, "Capa de Lógica de Negocio (Core API / IPC)", "Node.js (TypeScript) o Python (FastAPI / Tauri Core)", "Orquesta los algoritmos FSRS, matching de reglas fonéticas, analítica de errores y validación de rachas.")
+    Container(backend, "Capa de Lógica de Negocio (Core Application Engine)", "TypeScript / Tauri Rust Core", "Orquesta los algoritmos FSRS 4.5, proceduralización RT, análisis fonético/prosódico, detección L1 y gateway de IA.")
 
-    ContainerDb(database, "Base de Datos Local", "SQLite3 con WAL mode activado", "Almacena tarjetas SRS, catálogo léxico, reglas fonéticas, historial de errores, textos y métricas de racha.")
+    ContainerDb(database, "Base de Datos Local", "SQLite3 con WAL mode y claves foráneas", "Almacena catálogo léxico, reglas fonéticas/prosódicas, tarjetas FSRS, misiones TBLT, métricas de error y cuotas 2D.")
 
-    Container(audio_engine, "Subsistema de Audio", "Web Speech API / Native TTS", "Procesa reproducción de audio con control de velocidad (1.0x / 0.75x) y caché de fonemas.")
+    Container(audio_engine, "Subsistema de Audio y Prosodia", "Web Audio API / AnalyserNode (FFT) / Native Speech", "Procesa reproducción de estímulos auditivos, cálculo de F0 para entonación y caché de fonemas.")
 
-    Container_Ext(gemini_api, "Google Gemini API", "Familia gemini-3.x-flash (3.5, 3.6, 3.7, 3.8)", "Inferencia de lenguaje natural para corrección gramatical y pragmática.")
+    Container_Ext(gemini_api, "Google Gemini API Gateway", "Familia gemini-3.x-flash (3.5, 3.6, 3.7, 3.8)", "Inferencia con respuesta JSON estructurada para feedback socrático en 4 niveles y evaluación TBLT.")
 
-    Rel(user, frontend, "Usa la aplicación", "GUI")
-    Rel(frontend, backend, "Invoca operaciones de dominio y eventos", "REST / tRPC / IPC")
-    Rel(backend, database, "Persistencia transaccional de datos", "SQL / Prisma / SQLAlchemy")
-    Rel(frontend, audio_engine, "Reproduce audio fonético", "Web Audio API")
-    Rel(backend, gemini_api, "Solicitudes de evaluación estructurada", "HTTPS / JSON Payload")
+    Rel(user, frontend, "Usa la aplicación con atajos de teclado y voz", "GUI / Mic")
+    Rel(frontend, backend, "Invoca comandos de dominio, eventos y consultas", "IPC / Typed Channels")
+    Rel(backend, database, "Persistencia transaccional de datos", "SQL / Better-SQLite3 / SQL.js")
+    Rel(frontend, audio_engine, "Captura audio y grafica ondas acústicas", "Web Audio API")
+    Rel(backend, gemini_api, "Solicitudes HTTPS tipadas con fallback 2D", "HTTPS / JSON Payload")
 ```
 
 ---
 
 ## 3. Nivel 3: Diagrama de Componentes (Component Diagram)
 
-Detalla los componentes internos dentro del contenedor de lógica de negocio (**Core Application Engine**):
+Detalla la arquitectura modular desacoplada dentro del contenedor de lógica de negocio (**Core Application Engine**):
 
 ```mermaid
 graph TB
     subgraph CoreEngine["Contenedor: Core Application Engine"]
-        subgraph ModSRS["Módulo FSRS, Contextos & Drills"]
-            FSRSScheduler["FsrsScheduler<br/>(Cálculo DSR: Dificultad, Estabilidad, Retención)"]
-            CardManager["CardManager<br/>(Gestor de lotes y filtro de interleaving)"]
-            ContextRotator["ContextRotator<br/>(Rotador de oraciones cloze variadas)"]
-            SpeedDrillEngine["SpeedDrillEngine<br/>(Temporizador regresivo de 3-5s y métricas)"]
+        subgraph ModSRS["1. Dominio FSRS & Proceduralización"]
+            FSRSScheduler["FsrsScheduler<br/>(Cálculo DSR: D, S, R)"]
+            CardManager["CardManager<br/>(Lotes & Filtro Interleaving)"]
+            ContextRotator["ContextRotator<br/>(Rotación de oraciones cloze)"]
+            ProceduralEngine["ProceduralizationEngine<br/>(Métrica RT < 1.5s x3 & Ley Potencia)"]
+            SpeedDrillArena["SpeedDrillArenaService<br/>(Temporizador 3-5s & Bucle N+3/N+7)"]
         end
 
-        subgraph ModPho["Módulo de Habla Conectada & Pares Mínimos"]
-            PhoneticParser["PhoneticParser<br/>(Tokenizador léxico e IPA fonémico)"]
-            RuleMatcher["ConnectedSpeechMatcher<br/>(Detector de elisión, asimilación y enlace)"]
-            MinimalPairsUnit["MinimalPairsTrainer<br/>(Discriminación acústica forzada y pares mínimos)"]
+        subgraph ModPhoPro["2. Dominio Fonética, Habla Conectada & Prosodia"]
+            PhoneticParser["PhoneticParser<br/>(Tokenizador léxico e IPA)"]
+            ConnectedSpeechMatcher["ConnectedSpeechMatcher<br/>(Elisión, Asimilación, Enlace, Schwa)"]
+            ProsodyEngine["ProsodyEngine<br/>(Acento Nuclear, Thought Groups, Curvas F0)"]
+            PitchTracker["PitchTrackerService<br/>(Autocorrelación FFT & Shadowing)"]
+            HvptUnit["HvptAudioBankService<br/>(4-6 voces nativas & Forced Choice)"]
         end
 
-        subgraph ModWrt["Módulo de Escritura & IA"]
-            WritingGateway["WritingGateway<br/>(Gestión de submissions y micro-writing)"]
-            GeminiClient["GeminiAdapter<br/>(Llamadas tipadas con structured JSON schemas)"]
-            SocraticOrchestrator["SocraticFeedbackOrchestrator<br/>(Gestor de pistas Fase 1 y auto-corrección)"]
-            FeedbackFormatter["PedagogicalFeedbackFormatter<br/>(Generador de diffs y explicaciones)"]
+        subgraph ModTransfer["3. Dominio Interferencia L1 & Semántica"]
+            L1Engine["L1TransferEngine<br/>(Pro-Drop, TAM, Preposiciones, #sC, Mudas)"]
+            ThirdPersonExtinguisher["ThirdPersonExtinguisher<br/>(Drills de sustitución rápida 2.0s)"]
+            ConceptualFraming["ConceptualFramingEngine<br/>(Thinking for Speaking: Marco Satelital)"]
+            PrepositionTopo["PrepositionTopoEngine<br/>(Esquemas IN/ON/AT de Lakoff)"]
+            PolysemyDisambiguator["PolysemyDisambiguator<br/>(Make/Do, Say/Tell, Hear/Listen)"]
         end
 
-        subgraph ModInp["Módulo de Input Comprensible (i+1)"]
-            ReaderEngine["GradedReaderEngine<br/>(Gestor de artículos e historias CEFR)"]
-            NoticingAnnotator["NoticingAnnotator<br/>(Subrayado reactivo de tarjetas en estudio)"]
+        subgraph ModTbltWrt["4. Dominio TBLT & Tutoría Socrática IA"]
+            TbltOrchestrator["TbltMissionEngine<br/>(Ciclo Pre/During/Post-Task)"]
+            CompetenceScorer["CommunicativeCompetenceScorer<br/>(Rúbricas 4 Competencias Canale-Swain)"]
+            SocraticOrchestrator["SocraticFeedbackOrchestrator<br/>(Andamiaje 4 Niveles ZPD)"]
+            MicroWritingStudio["MicroWritingService<br/>(Consignas ultracortas 15-35 palabras)"]
+            GeminiGateway["GeminiAiGateway<br/>(Pool Multi-Key & Cascada 2D)"]
         end
 
-        subgraph ModDia["Módulo de Diagnóstico de Fallas"]
-            ErrorRecorder["ErrorTelemetryRecorder<br/>(Catalogador de errores de interlenguaje)"]
-            HeatmapCalculator["WeaknessHeatmapEngine<br/>(Ponderación temporal de fallas)"]
-            WorkoutFactory["WorkoutFactory<br/>(Generador de Micro-Workouts dirigidos)"]
+        subgraph ModReader["5. Dominio Input Comprensible"]
+            ReaderEngine["GradedReaderEngine<br/>(Gestor de artículos y biblioteca CEFR)"]
+            CoverageProfiler["LexicalCoverageProfiler<br/>(Análisis de umbrales 95/98% NGSL)"]
+            BottomUpEngine["BottomUpListeningEngine<br/>(Protocolo 3 pasos: Ciego/Tónico/Conectado)"]
+            TextSimplifier["TextSimplifierService<br/>(Reescritura al 95% con Gemini)"]
         end
 
-        subgraph ModCfg["Módulo de Configuración de IA & Pool de Claves"]
-            ApiKeyPoolManager["ApiKeyPoolManager<br/>(Gestor multi-llaves, cifrado AES y failover por cuota)"]
-            ModelSelector["ModelSelectorService<br/>(Selector y asignador de modelos 3.x Flash)"]
-            QuotaMatrix["QuotaMatrixOrchestrator<br/>(Matriz 2D de cuotas 80 RPD y reset PT)"]
+        subgraph ModDiagnostics["6. Dominio Diagnóstico & Métricas"]
+            ErrorRecorder["ErrorTelemetryRecorder<br/>(Taxonomía Corder + Códigos L1)"]
+            HeatmapEngine["WeaknessHeatmapEngine<br/>(Decaimiento temporal exponencial)"]
+            WorkoutFactory["WorkoutFactory<br/>(Generador Micro-Workouts 5 min)"]
         end
 
-        subgraph ModHab["Módulo de Hábitos & Rachas"]
-            QuestEvaluator["DailyQuestEvaluator<br/>(Comprobador de metas del día)"]
-            StreakManager["StreakStateManager<br/>(Gestor de racha y consumo de Streak Freeze)"]
+        subgraph ModHabits["7. Dominio Autorregulación & Hábitos"]
+            SrlOrchestrator["SrlCycleOrchestrator<br/>(Zimmerman: Previsión/Desempeño/Reflexión)"]
+            StreakManager["StreakStateManager<br/>(Never Miss Twice & Streak Freezes)"]
+            BacklogThrottler["BacklogThrottlerService<br/>(Prevención de Review Hell)"]
+        end
+
+        subgraph ModConfig["8. Dominio Configuración & Resiliencia"]
+            ApiKeyPoolManager["ApiKeyPoolManager<br/>(Cifrado AES-256 & Failover)"]
+            QuotaMatrix["QuotaMatrixOrchestrator<br/>(80 RPD/key & Reset PT)"]
         end
     end
 
-    WritingGateway --> SocraticOrchestrator
-    SocraticOrchestrator --> GeminiClient
-    GeminiClient --> ApiKeyPoolManager
-    ApiKeyPoolManager --> QuotaMatrix
-    GeminiClient --> ModelSelector
-    GeminiClient --> FeedbackFormatter
-    FeedbackFormatter --> ErrorRecorder
+    %% Relaciones entre componentes
     CardManager --> FSRSScheduler
     CardManager --> ContextRotator
     CardManager --> ErrorRecorder
-    SpeedDrillEngine --> ErrorRecorder
-    PhoneticParser --> RuleMatcher
-    RuleMatcher --> MinimalPairsUnit
-    ReaderEngine --> NoticingAnnotator
-    NoticingAnnotator --> CardManager
-    ErrorRecorder --> HeatmapCalculator
-    HeatmapCalculator --> WorkoutFactory
-    CardManager --> QuestEvaluator
-    WritingGateway --> QuestEvaluator
-    MinimalPairsUnit --> QuestEvaluator
-    ReaderEngine --> QuestEvaluator
-    QuestEvaluator --> StreakManager
+    ProceduralEngine --> SpeedDrillArena
+    SpeedDrillArena --> ErrorRecorder
+    
+    PhoneticParser --> ConnectedSpeechMatcher
+    ConnectedSpeechMatcher --> ProsodyEngine
+    ProsodyEngine --> PitchTracker
+    HvptUnit --> ErrorRecorder
+
+    L1Engine --> ThirdPersonExtinguisher
+    L1Engine --> ErrorRecorder
+    ConceptualFraming --> PrepositionTopo
+    ConceptualFraming --> PolysemyDisambiguator
+
+    TbltOrchestrator --> GeminiGateway
+    TbltOrchestrator --> CompetenceScorer
+    SocraticOrchestrator --> GeminiGateway
+    MicroWritingStudio --> GeminiGateway
+    GeminiGateway --> ApiKeyPoolManager
+    ApiKeyPoolManager --> QuotaMatrix
+
+    ReaderEngine --> CoverageProfiler
+    CoverageProfiler --> TextSimplifier
+    TextSimplifier --> GeminiGateway
+    ReaderEngine --> BottomUpEngine
+
+    ErrorRecorder --> HeatmapEngine
+    HeatmapEngine --> WorkoutFactory
+
+    CardManager --> SrlOrchestrator
+    TbltOrchestrator --> SrlOrchestrator
+    SpeedDrillArena --> SrlOrchestrator
+    SrlOrchestrator --> StreakManager
+    CardManager --> BacklogThrottler
 ```
 
 ---
 
-## 4. Nivel 4: Patrones de Diseño y Principios de Código
-
-Para garantizar la mantenibilidad y desacoplamiento del sistema, se adoptan los siguientes patrones:
+## 4. Nivel 4: Patrones de Diseño y Principios Arquitectónicos
 
 1. **Repository Pattern (Patrón Repositorio):**
-   - Aísla la capa de acceso a datos (`ICardRepository`, `IVocabRepository`, `IErrorRepository`). Si en el futuro se migra de SQLite a PostgreSQL en la nube, el dominio permanece intacto.
-2. **Strategy Pattern (Patrón Estrategia) para Prompts de IA:**
-   - La interfaz `IEvaluationStrategy` permite alternar entre estrategias de inferencia según el modelo seleccionado de la familia 3.x Flash (`gemini-3.5-flash`, `gemini-3.6-flash`, `gemini-3.7-flash` y `gemini-3.8-flash`) para calibrar latencia y profundidad de análisis pedagógico.
-3. **State Machine Pattern (Máquina de Estados) para Rachas y FSRS:**
-   - La vida de una tarjeta pasa por estados formales: `New` $\rightarrow$ `Learning` $\rightarrow$ `Review` $\rightarrow$ `Relearning`.
-   - La racha diaria opera bajo una máquina de estados determinista (`Pending` $\rightarrow$ `Completed` $\rightarrow$ `Frozen` $\rightarrow$ `Broken`).
-4. **Observer Pattern / Event Bus (Bus de Eventos Interno):**
-   - Cuando ocurre el evento `CardReviewedEvent` o `WritingEvaluatedEvent`, los suscriptores (`ErrorRecorder`, `DailyQuestEvaluator`) reaccionan asíncronamente sin acoplamiento directo.
+   - Aísla la persistencia de datos tras interfaces agnósticas (`ICardRepository`, `IVocabRepository`, `IErrorRepository`, `ITbltRepository`, `IProsodyRepository`).
+2. **Strategy Pattern (Patrón Estrategia) para Evaluación y Scaffolding:**
+   - La interfaz `IEvaluationStrategy` desacopla los distintos tipos de inferencia pedagógica (`TbltEvaluationStrategy`, `SocraticScaffoldingStrategy`, `TextSimplificationStrategy`, `VocabularyEnrichmentStrategy`).
+3. **State Machine Pattern (Máquina de Estados Finita) Determinista:**
+   - Vida de tarjetas FSRS: `NEW` $\rightarrow$ `LEARNING` $\rightarrow$ `REVIEW` $\rightarrow$ `RELEARNING`.
+   - Proceduralización: `DECLARATIVE` $\rightarrow$ `COMPILING` $\rightarrow$ `PROCEDURALIZED` (certificación a $RT < 1.5$ s en 3 sesiones).
+   - Racha diaria: `PENDING` $\rightarrow$ `COMPLETED` $\rightarrow$ `FROZEN` $\rightarrow$ `GRACE_PERIOD` $\rightarrow$ `RESET`.
+   - Decodificación auditiva: `STEP1_BLIND` $\rightarrow$ `STEP2_TONIC` $\rightarrow$ `STEP3_FULL_CONNECTED`.
+4. **Observer Pattern / Event Bus Desacoplado:**
+   - Eventos de dominio centrales (`CardReviewedEvent`, `ErrorCommittedEvent`, `DrillCompletedEvent`, `TbltSubmittedEvent`) notifican a los suscriptores (`WeaknessHeatmapEngine`, `DailyQuestEvaluator`, `StreakStateManager`) de forma asíncrona sin acoplamiento temporal ni espacial.
+5. **Circuit Breaker & Fallback 2D para IA:**
+   - Protección contra HTTP 429 (`RESOURCE_EXHAUSTED`): conmutación horizontal de clave y degradación vertical de modelo (3.8 $\rightarrow$ 3.7 $\rightarrow$ 3.6 $\rightarrow$ 3.5 Flash).

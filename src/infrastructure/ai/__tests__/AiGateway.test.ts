@@ -3,6 +3,7 @@ import { MockAiGateway } from '../MockAiGateway';
 import {
   SocraticFeedbackResponseSchema,
   WritingEvaluationResponseSchema,
+  VocabEnrichmentResponseSchema,
 } from '../schemas';
 
 describe('MockAiGateway', () => {
@@ -75,4 +76,41 @@ describe('MockAiGateway', () => {
       expect(prepError?.native_reformulation).toContain('depend on');
     });
   });
+
+  describe('lookupVocabWord', () => {
+    it('returns structured enrichment for false friend word (actually)', async () => {
+      const response = await gateway.lookupVocabWord('actually');
+
+      expect(() => VocabEnrichmentResponseSchema.parse(response)).not.toThrow();
+      expect(response.word).toBe('actually');
+      expect(response.isFalseFriend).toBe(true);
+      expect(response.falseFriendNote).toContain('actualmente');
+      expect(response.ipaGeneralAmerican).toBeTruthy();
+      expect(response.exampleSentenceEn).toContain('actually');
+      expect(response.exampleSentenceEs).toBeTruthy();
+    });
+
+    it('returns structured enrichment for standard vocabulary (resilient)', async () => {
+      const response = await gateway.lookupVocabWord('resilient');
+
+      expect(() => VocabEnrichmentResponseSchema.parse(response)).not.toThrow();
+      expect(response.word).toBe('resilient');
+      expect(response.isFalseFriend).toBe(false);
+      expect(response.partOfSpeech).toBe('ADJECTIVE');
+      expect(response.cefrLevel).toBe('B2');
+      expect(response.morphologicalFamily).toContain('resilience');
+    });
+
+    it('returns valid fallback enrichment for arbitrary uncataloged words', async () => {
+      const response = await gateway.lookupVocabWord('serendipitously');
+
+      expect(() => VocabEnrichmentResponseSchema.parse(response)).not.toThrow();
+      expect(response.word).toBe('serendipitously');
+      expect(response.partOfSpeech).toBe('ADVERB');
+      expect(response.definitionEn).toBeTruthy();
+      expect(response.translationEs).toBeTruthy();
+      expect(response.exampleSentenceEn).toContain('serendipitously');
+    });
+  });
 });
+

@@ -2,11 +2,72 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Kysely } from 'kysely';
 import { DatabaseSchema } from '../../../core/types/database';
 import { createTestDatabase } from '../database';
-import { seedDatabase } from '../seed-data';
 import { CardRepository } from '../repositories/CardRepository';
 import { VocabRepository } from '../repositories/VocabRepository';
 import { FsrsScheduler } from '../../../core/srs/FsrsScheduler';
 import { SrsCard } from '../../../core/types/srs';
+
+async function insertTestFixtures(db: Kysely<DatabaseSchema>) {
+  await db
+    .insertInto('vocab_items')
+    .values([
+      {
+        id: 'voc_b1_01',
+        word: 'depend',
+        grammatical_dimension: 'CONTENT',
+        part_of_speech: 'VERB',
+        definition_en: 'To be determined or decided by something else.',
+        translation_es: 'Depender',
+        ipa_general_american: 'dɪˈpɛnd',
+        ipa_received_pronunciation: 'dɪˈpend',
+        cefr_level: 'B1',
+        is_false_friend: 0,
+        false_friend_note: null,
+        morphological_family_json: JSON.stringify(['dependent', 'dependence']),
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 'voc_b2_actually',
+        word: 'actually',
+        grammatical_dimension: 'FUNCTION',
+        part_of_speech: 'ADVERB',
+        definition_en: 'In truth or in fact.',
+        translation_es: 'En realidad / De hecho',
+        ipa_general_american: 'ˈæktʃuəli',
+        ipa_received_pronunciation: 'ˈæktʃuəli',
+        cefr_level: 'B2',
+        is_false_friend: 1,
+        false_friend_note: 'No significa "actualmente" (currently).',
+        morphological_family_json: JSON.stringify(['actual']),
+        created_at: new Date().toISOString(),
+      },
+    ])
+    .execute();
+
+  await db
+    .insertInto('vocab_context_examples')
+    .values([
+      {
+        id: 'ctx_01',
+        vocab_id: 'voc_b1_01',
+        sentence_en: 'Success depends on hard work.',
+        sentence_es: 'El éxito depende del trabajo duro.',
+        cloze_target: 'depend on',
+        cefr_level: 'B1',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 'ctx_02',
+        vocab_id: 'voc_b1_01',
+        sentence_en: 'It all depends on the weather tomorrow.',
+        sentence_es: 'Todo depende del clima mañana.',
+        cloze_target: 'depends on',
+        cefr_level: 'B1',
+        created_at: new Date().toISOString(),
+      },
+    ])
+    .execute();
+}
 
 describe('Database Integration & Repositories', () => {
   let db: Kysely<DatabaseSchema>;
@@ -16,7 +77,6 @@ describe('Database Integration & Repositories', () => {
 
   beforeEach(async () => {
     db = await createTestDatabase();
-    await seedDatabase(db);
     cardRepo = new CardRepository(db);
     vocabRepo = new VocabRepository(db);
   });
@@ -25,23 +85,25 @@ describe('Database Integration & Repositories', () => {
     await db.destroy();
   });
 
-  it('successfully initializes all 15 tables and seeds initial vocabulary', async () => {
+  it('successfully initializes all 15 tables with a clean zero-record state', async () => {
     const vocabCount = await db
       .selectFrom('vocab_items')
       .select((eb) => eb.fn.count('id').as('count'))
       .executeTakeFirst();
 
-    expect(Number(vocabCount?.count)).toBeGreaterThanOrEqual(25);
+    expect(Number(vocabCount?.count)).toBe(0);
 
-    const phoneticRulesCount = await db
-      .selectFrom('phonetic_rules')
+    const cardsCount = await db
+      .selectFrom('srs_cards')
       .select((eb) => eb.fn.count('id').as('count'))
       .executeTakeFirst();
 
-    expect(Number(phoneticRulesCount?.count)).toBeGreaterThanOrEqual(5);
+    expect(Number(cardsCount?.count)).toBe(0);
   });
 
   it('searches vocabulary items with false friend flags and filters', async () => {
+    await insertTestFixtures(db);
+
     const results = await vocabRepo.searchVocabs('actually');
     expect(results.length).toBeGreaterThan(0);
     const item = results[0];
@@ -51,12 +113,16 @@ describe('Database Integration & Repositories', () => {
   });
 
   it('retrieves context examples for a vocabulary item', async () => {
+    await insertTestFixtures(db);
+
     const contexts = await vocabRepo.getContextExamples('voc_b1_01'); // 'depend'
     expect(contexts.length).toBeGreaterThanOrEqual(2);
     expect(contexts[0].clozeTarget).toBe('depend on');
   });
 
   it('creates, reviews, and updates an SRS card with FSRS scheduling', async () => {
+    await insertTestFixtures(db);
+
     // 1. Create a user first
     const userId = 'user_test_01';
     await db
@@ -126,6 +192,8 @@ describe('Database Integration & Repositories', () => {
   });
 
   it('fetches cards with target details and context examples', async () => {
+    await insertTestFixtures(db);
+
     const userId = 'user_test_02';
     await db
       .insertInto('users')
@@ -157,5 +225,79 @@ describe('Database Integration & Repositories', () => {
     expect(detailedCards[0].vocab?.word).toBe('depend');
     expect(detailedCards[0].allContexts.length).toBeGreaterThanOrEqual(2);
     expect(detailedCards[0].currentContext).toBeDefined();
+  });
+
+  it('creates new vocabulary items and context examples dynamically', async () => {
+    const created = await vocabRepo.createVocab({
+      word: 'thriving',
+      translationEs: 'próspero / floreciente',
+      definitionEn: 'Growing, developing, or being successful.',
+      cefrLevel: 'B2',
+      partOfSpeech: 'ADJECTIVE',
+      grammaticalDimension: 'CONTENT',
+      ipaGeneralAmerican: 'ˈθraɪvɪŋ',
+      isFalseFriend: false,
+    });
+
+    expect(created.id).toBeDefined();
+    expect(created.word).toBe('thriving');
+
+    // Add context example
+    const example = await vocabRepo.addContextExample({
+      vocabId: created.id,
+      sentenceEn: 'The company is thriving in the competitive market.',
+      sentenceEs: 'La empresa está prosperando en el mercado competitivo.',
+      clozeTarget: 'thriving',
+      cefrLevel: 'B2',
+    });
+
+    expect(example.id).toBeDefined();
+    expect(example.vocabId).toBe(created.id);
+
+    // Verify retrieval
+    const fetched = await vocabRepo.getVocabById(created.id);
+    expect(fetched).not.toBeNull();
+    expect(fetched?.translationEs).toBe('próspero / floreciente');
+
+    const contexts = await vocabRepo.getContextExamples(created.id);
+    expect(contexts.length).toBe(1);
+    expect(contexts[0].sentenceEn).toContain('thriving');
+  });
+
+  it('creates an SRS card without foreign key failure for default user_local', async () => {
+    // Create a vocab word first
+    const vocab = await vocabRepo.createVocab({
+      word: 'resilient',
+      translationEs: 'resiliente',
+      definitionEn: 'Able to recover quickly.',
+      cefrLevel: 'B2',
+      partOfSpeech: 'ADJECTIVE',
+      grammaticalDimension: 'CONTENT',
+      ipaGeneralAmerican: '/rɪˈzɪljənt/',
+      isFalseFriend: false,
+    });
+
+    // Directly create card for user_local (as useVocabList does)
+    const card = await cardRepo.createCard({
+      id: `card_resilient_${Date.now()}`,
+      userId: 'user_local',
+      targetType: 'VOCAB',
+      targetId: vocab.id,
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+    });
+
+    expect(card.id).toBeDefined();
+    expect(card.userId).toBe('user_local');
+    expect(card.targetId).toBe(vocab.id);
+
+    // Verify card is retrievable by user_local
+    const dueCards = await cardRepo.getDueCards('user_local');
+    expect(dueCards.some((c) => c.id === card.id)).toBe(true);
   });
 });

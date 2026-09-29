@@ -5,6 +5,8 @@ import {
   SocraticFeedbackResponseSchema,
   WritingEvaluationResponse,
   WritingEvaluationResponseSchema,
+  VocabEnrichmentResponse,
+  VocabEnrichmentResponseSchema,
 } from './schemas';
 import { QuotaMatrixOrchestrator, GeminiModelId } from '../../core/ai/QuotaMatrixOrchestrator';
 
@@ -124,4 +126,36 @@ Borrador original previo: "${draft1}"
       WritingEvaluationResponseSchema.parse(json),
     );
   }
+
+  public async lookupVocabWord(word: string): Promise<VocabEnrichmentResponse> {
+    const systemPrompt = `
+Eres un lexicógrafo y lingüista experto en el idioma inglés y en lingüística aplicada para hispanohablantes.
+Tu tarea es analizar la palabra, frase o término en inglés proporcionado y generar una ficha léxica completa en formato JSON.
+
+### Reglas Estrictas:
+1. word: la palabra o locución/phrasal verb en inglés (limpia, en forma base o infinitivo si aplica).
+2. translationEs: la traducción más precisa, habitual y natural al español (estándar/neutro).
+3. definitionEn: definición clara, concisa y pedagógica en inglés sencillo (estilo Cambridge / Oxford Learner's Dictionary).
+4. ipaGeneralAmerican: transcripción fonética precisa en el Alfabeto Fonético Internacional (IPA) para inglés estadounidense (General American), ej. "/rɪˈzɪljənt/".
+5. cefrLevel: nivel del Marco Común Europeo de Referencia ('A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2').
+6. partOfSpeech: una de las siguientes categorías gramaticales exactas:
+   'NOUN', 'VERB', 'ADJECTIVE', 'ADVERB', 'PREPOSITION', 'CONJUNCTION', 'ARTICLE_DETERMINER', 'PRONOUN', 'INTERJECTION'.
+7. grammaticalDimension:
+   - 'CONTENT': sustantivos, verbos léxicos, adjetivos, adverbios.
+   - 'FUNCTION': preposiciones, conjunciones, pronombres, determinantes.
+   - 'CHUNK': phrasal verbs, modismos, colocaciones o frases hechas.
+8. exampleSentenceEn: una oración de ejemplo natural, idiomática y contemporánea donde se use la palabra en contexto real.
+9. exampleSentenceEs: la traducción precisa al español de dicha oración de ejemplo.
+10. isFalseFriend: true si la palabra es un falso cognado / falso amigo para hispanohablantes (ej. 'actually', 'realize', 'sensible', 'embarrassed', 'fabric', 'library', 'constipated'), false de lo contrario.
+11. falseFriendNote: si es falso amigo, una breve explicación en español aclarando la confusión frecuente y qué significa realmente en español. Si no es falso amigo, null.
+12. morphologicalFamily: array de palabras derivadas o de la misma raíz morfológica (ej. ['resilience', 'resiliently']).
+
+Devuelve ESTRICTAMENTE un JSON válido con estas propiedades.
+`;
+
+    return this.executeWithQuotaFailover(systemPrompt, word.trim(), (json) =>
+      VocabEnrichmentResponseSchema.parse(json),
+    );
+  }
 }
+

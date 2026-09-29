@@ -5,4 +5,7 @@ export interface IVocabRepository {
   searchVocabs(query: string, cefrLevel?: CefrLevel): Promise<VocabItem[]>;
   getContextExamples(vocabId: string): Promise<VocabContextExample[]>;
   getAllVocabs(limit?: number): Promise<VocabItem[]>;
+  createVocab(vocab: Omit<VocabItem, 'id' | 'createdAt'> & { id?: string }): Promise<VocabItem>;
+  addContextExample(example: Omit<VocabContextExample, 'id' | 'createdAt'> & { id?: string }): Promise<VocabContextExample>;
 }
+

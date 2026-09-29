@@ -39,6 +39,16 @@ export interface ApiKeyEntry {
   isPrimary: boolean;
 }
 
+export interface ApiKeyQuotaSummary {
+  apiKey: ApiKeyEntry;
+  totalRequestsToday: number;
+  dailyLimit: number; // 80 (20 * 4 models)
+  remainingRequests: number;
+  rpdStatus: 'AVAILABLE' | 'EXHAUSTED_UNTIL_MIDNIGHT_PT';
+  hasRpmCooldown: boolean;
+  modelBreakdown: Record<GeminiModelId, number>;
+}
+
 export interface ResolvedRoute {
   apiKeyId: string;
   secretKey: string;
@@ -63,10 +73,113 @@ export class QuotaMatrixOrchestrator {
   private readonly defaultRpmLimit = 5;
   private readonly quotaMap = new Map<string, ModelQuotaState>(); // key: `${apiKeyId}::${modelId}`
   private apiKeys: ApiKeyEntry[] = [];
+  private defaultModel: GeminiModelId = 'gemini-3.8-flash';
 
   constructor(initialKeys: ApiKeyEntry[] = []) {
     this.setApiKeys(initialKeys);
   }
+
+  public getDefaultModel(): GeminiModelId {
+    return this.defaultModel;
+  }
+
+  public setDefaultModel(model: GeminiModelId): void {
+    if (GEMINI_MODEL_HIERARCHY.includes(model)) {
+      this.defaultModel = model;
+    }
+  }
+
+  public getApiKeys(): ApiKeyEntry[] {
+    return this.apiKeys.map((k) => ({ ...k }));
+  }
+
+  public addApiKey(key: ApiKeyEntry): void {
+    if (key.isPrimary) {
+      this.apiKeys.forEach((k) => (k.isPrimary = false));
+    }
+    const existingIndex = this.apiKeys.findIndex((k) => k.id === key.id);
+    if (existingIndex >= 0) {
+      this.apiKeys[existingIndex] = { ...key };
+    } else {
+      this.apiKeys.push({ ...key });
+    }
+    this.setApiKeys(this.apiKeys);
+  }
+
+  public removeApiKey(keyId: string): void {
+    this.apiKeys = this.apiKeys.filter((k) => k.id !== keyId);
+    if (this.apiKeys.length > 0 && !this.apiKeys.some((k) => k.isPrimary)) {
+      this.apiKeys[0].isPrimary = true;
+    }
+    for (const model of GEMINI_MODEL_HIERARCHY) {
+      this.quotaMap.delete(this.getQuotaKey(keyId, model));
+    }
+  }
+
+  public toggleApiKey(keyId: string): void {
+    const key = this.apiKeys.find((k) => k.id === keyId);
+    if (key) {
+      key.isActive = !key.isActive;
+    }
+  }
+
+  public setPrimaryApiKey(keyId: string): void {
+    this.apiKeys.forEach((k) => {
+      k.isPrimary = k.id === keyId;
+    });
+  }
+
+  public getKeyQuotaSummary(apiKeyId: string): ApiKeyQuotaSummary | undefined {
+    this.checkAndResetPtQuotas();
+    const key = this.apiKeys.find((k) => k.id === apiKeyId);
+    if (!key) return undefined;
+
+    let totalRequestsToday = 0;
+    let hasRpmCooldown = false;
+    let isExhausted = true;
+    const now = new Date();
+    const modelBreakdown: Record<GeminiModelId, number> = {
+      'gemini-3.8-flash': 0,
+      'gemini-3.7-flash': 0,
+      'gemini-3.6-flash': 0,
+      'gemini-3.5-flash': 0,
+    };
+
+    for (const model of GEMINI_MODEL_HIERARCHY) {
+      const q = this.getQuotaState(apiKeyId, model);
+      if (q) {
+        totalRequestsToday += q.requestsToday;
+        modelBreakdown[model] = q.requestsToday;
+        if (q.rpdStatus === 'AVAILABLE' && q.requestsToday < q.dailyLimit) {
+          isExhausted = false;
+        }
+        if (q.rpmCooldownUntil && now < new Date(q.rpmCooldownUntil)) {
+          hasRpmCooldown = true;
+        }
+      }
+    }
+
+    const totalLimit = this.defaultDailyLimit * GEMINI_MODEL_HIERARCHY.length; // 20 * 4 = 80
+    const remainingRequests = Math.max(0, totalLimit - totalRequestsToday);
+
+    return {
+      apiKey: { ...key },
+      totalRequestsToday,
+      dailyLimit: totalLimit,
+      remainingRequests,
+      rpdStatus: isExhausted || remainingRequests === 0 ? 'EXHAUSTED_UNTIL_MIDNIGHT_PT' : 'AVAILABLE',
+      hasRpmCooldown,
+      modelBreakdown,
+    };
+  }
+
+  public getAllKeyQuotaSummaries(): ApiKeyQuotaSummary[] {
+    this.checkAndResetPtQuotas();
+    return this.apiKeys
+      .map((k) => this.getKeyQuotaSummary(k.id))
+      .filter((s): s is ApiKeyQuotaSummary => Boolean(s));
+  }
+
 
   public setApiKeys(keys: ApiKeyEntry[]): void {
     this.apiKeys = [...keys];

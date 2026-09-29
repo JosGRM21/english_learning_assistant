@@ -21,7 +21,22 @@ export class SqlJsDriver implements Driver {
       this.initPromise = Promise.resolve();
     } else {
       this.initPromise = (async () => {
-        const SQL = await initSqlJs();
+        const isNode = typeof process !== 'undefined' && Boolean(process.versions?.node);
+        const SQL = await initSqlJs(
+          !isNode
+            ? {
+                locateFile: (file: string) => {
+                  if (file.endsWith('.wasm')) {
+                    const base =
+                      (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/';
+                    const cleanBase = base.endsWith('/') ? base : `${base}/`;
+                    return `${cleanBase}${file}`;
+                  }
+                  return file;
+                },
+              }
+            : undefined,
+        );
         this.db = new SQL.Database();
         this.db.run('PRAGMA foreign_keys = ON;');
       })();

@@ -57,3 +57,31 @@ export const WritingEvaluationResponseSchema = z.object({
 export type WritingEvaluationResponse = z.infer<typeof WritingEvaluationResponseSchema>;
 export type CorrectionItem = z.infer<typeof CorrectionItemSchema>;
 export type MicroChallenge = z.infer<typeof MicroChallengeSchema>;
+
+export const VocabEnrichmentResponseSchema = z.object({
+  word: z.string(),
+  translationEs: z.string(),
+  definitionEn: z.string(),
+  ipaGeneralAmerican: z.string(),
+  cefrLevel: z.enum(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']),
+  partOfSpeech: z.enum([
+    'NOUN',
+    'VERB',
+    'ADJECTIVE',
+    'ADVERB',
+    'PREPOSITION',
+    'CONJUNCTION',
+    'ARTICLE_DETERMINER',
+    'PRONOUN',
+    'INTERJECTION',
+  ]),
+  grammaticalDimension: z.enum(['CONTENT', 'FUNCTION', 'CHUNK']),
+  exampleSentenceEn: z.string(),
+  exampleSentenceEs: z.string(),
+  isFalseFriend: z.boolean(),
+  falseFriendNote: z.string().nullable().optional(),
+  morphologicalFamily: z.array(z.string()).default([]),
+});
+
+export type VocabEnrichmentResponse = z.infer<typeof VocabEnrichmentResponseSchema>;
+

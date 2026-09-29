@@ -1,7 +1,7 @@
 # Diseño Guiado por el Dominio (Domain-Driven Design - DDD)
 ## English Learning Assistant (ELA)
 
-Este documento modela la lógica del software utilizando los principios de **Domain-Driven Design (DDD)** de Eric Evans, separando el sistema en **Contextos Delimitados (Bounded Contexts)**, definiendo sus **Agregados**, **Entidades**, **Objetos de Valor (Value Objects)** y **Eventos de Dominio**.
+Este documento modela la arquitectura lógica de ELA bajo los principios de **Domain-Driven Design (DDD)** de Eric Evans. Define los **Contextos Delimitados (Bounded Contexts)**, **Agregados**, **Entidades**, **Objetos de Valor (Value Objects)** y **Eventos de Dominio**, estructurados para materializar rigurosamente los fundamentos científicos de [`docs/02_pedagogical_framework/`](../02_pedagogical_framework/).
 
 ---
 
@@ -9,124 +9,154 @@ Este documento modela la lógica del software utilizando los principios de **Dom
 
 ```mermaid
 graph TD
-    subgraph CoreDomain["Dominio Central (Core Domain)"]
-        BC_SRS["Bounded Context: Repetición Espaciada (SRS) & Drills"]
-        BC_PHO["Bounded Context: Fonología, Habla Conectada & Pares Mínimos"]
-        BC_WRT["Bounded Context: Escritura & Evaluación Socrática IA"]
-        BC_INP["Bounded Context: Input Comprensible & Graded Reader"]
+    subgraph CoreDomain["Dominio Central (Core Pedagogical Engines)"]
+        BC_PROC["BC 1: Repetición Espaciada (FSRS) & Proceduralización"]
+        BC_PHO["BC 2: Fonética Acústica, Habla Conectada & Prosodia"]
+        BC_TBLT["BC 3: Taller Basado en Tareas (TBLT) & Tutoría Socrática"]
+        BC_INP["BC 4: Input Comprensible & Escucha Bottom-Up"]
     end
 
-    subgraph SupportingDomain["Dominio de Soporte (Supporting Domain)"]
-        BC_LEX["Bounded Context: Catálogo Léxico & Gramatical"]
-        BC_DIA["Bounded Context: Diagnóstico & Error Heatmap"]
+    subgraph SupportingDomain["Dominio de Soporte Pedagógico"]
+        BC_SEM["BC 5: Semántica Cognitiva & Thinking for Speaking"]
+        BC_TRN["BC 6: Matriz de Neutralización de Interferencia L1"]
+        BC_LEX["BC 7: Catálogo Léxico Maestro & Chunks"]
+        BC_DIA["BC 8: Diagnóstico de Interlenguaje & Heatmap"]
     end
 
-    subgraph GenericDomain["Dominio Genérico (Generic Domain)"]
-        BC_HAB["Bounded Context: Hábitos, Rachas & Quests"]
+    subgraph GenericDomain["Dominio Genérico de Infraestructura"]
+        BC_SRL["BC 9: Autorregulación (SRL), Hábitos & Rachas"]
+        BC_AIC["BC 10: Gateway de IA & Resiliencia 2D de Cuotas"]
     end
 
-    BC_LEX -->|Suministra datos léxicos| BC_SRS
-    BC_LEX -->|Suministra reglas fonéticas| BC_PHO
-    BC_INP -->|Captura nuevos términos| BC_LEX
-    BC_SRS -->|Provee términos activos para Noticing| BC_INP
-    BC_WRT -->|Genera errores de escritura| BC_DIA
-    BC_SRS -->|Genera errores de memoria y latencia| BC_DIA
-    BC_PHO -->|Genera errores de percepción fonética| BC_DIA
-    BC_SRS -->|Notifica progreso| BC_HAB
-    BC_WRT -->|Notifica progreso| BC_HAB
-    BC_PHO -->|Notifica práctica fonética| BC_HAB
-    BC_INP -->|Notifica lectura completada| BC_HAB
-    BC_DIA -->|Crea Micro-Workouts| BC_HAB
+    BC_LEX -->|Suministra entradas léxicas| BC_PROC
+    BC_LEX -->|Suministra fonemas y reglas| BC_PHO
+    BC_SEM -->|Suministra colocaciones y esquemas| BC_TBLT
+    BC_TRN -->|Suministra reglas contrastivas| BC_DIA
+    BC_TRN -->|Suministra drills de 3ra persona y pro-drop| BC_PROC
+    BC_INP -->|Captura términos en 1 clic| BC_LEX
+    BC_PROC -->|Provee términos activos para Noticing| BC_INP
+    BC_TBLT -->|Envía textos para evaluación| BC_AIC
+    BC_TBLT -->|Emite errores morfosintácticos| BC_DIA
+    BC_PROC -->|Emite fallas de evocación y latencia| BC_DIA
+    BC_PHO -->|Emite fallas de discriminación acústica| BC_DIA
+    BC_PROC -->|Notifica repasos y drills| BC_SRL
+    BC_TBLT -->|Notifica tareas completadas| BC_SRL
+    BC_INP -->|Notifica lectura completada| BC_SRL
+    BC_DIA -->|Genera Micro-Workouts| BC_SRL
 ```
 
 ---
 
-## 2. Definición Detallada de Bounded Contexts
+## 2. Especificación Detallada de Contextos Delimitados
 
-### 2.1. Contexto Delimitado: Catálogo Léxico & Gramatical (`LexiconContext`)
-- **Propósito:** Administrar el repositorio maestro de conocimiento del idioma inglés (vocabulario, taxonomía funcional, chunks fraseológicos, falsos amigos y gramática).
-- **Entidades:**
-  - `VocabItem` (Identificador, término en inglés, categoría gramatical, traducción, nivel CEFR).
-  - `PhraseChunk` (Identificador, colocación/phrasal verb/idiom, componentes, patrón sintáctico).
-  - `GrammarRule` (Identificador, nombre, explicación contrastiva, ejemplos).
-- **Value Objects:**
-  - `GrammaticalCategory` (Content vs. Function, tipo específico).
-  - `CefrLevel` (A1, A2, B1, B2, C1, C2).
-  - `FalseFriendAlert` (Palabra española similar, significado real, prevención).
-  - `MorphologicalFamily` (Raíz, prefijos, sufijos derivados).
-
-### 2.2. Contexto Delimitado: Repetición Espaciada & Proceduralización (`SrsContext`)
-- **Propósito:** Orquestar el ciclo de vida de la memoria del estudiante utilizando FSRS y gestionar los drills de velocidad para automatización procedural.
+### 2.1. Contexto Delimitado: Repetición Espaciada & Proceduralización (`SrsProceduralContext`)
+- **Propósito:** Gobernar la consolidación mnemotécnica (modelo DSR de FSRS) y la compilación motora en ganglios basales (Ley de Potencia de Newell & Rosenbloom).
 - **Raíz del Agregado (Aggregate Root):** `SrsCard`
-  - Contiene: `cardId`, `targetType`, `targetId`, `state`, `stability`, `difficulty`, `lastReviewedAt`, `scheduledFor`.
-  - Mantiene la colección de `ReviewHistory`.
-  - Referencia al banco de `VocabContextExample` para rotación de oraciones en cada repaso.
+  - *Atributos:* `cardId`, `targetType` (VOCAB, PHRASE, GRAMMAR, PHONETICS), `targetId`, `state` (NEW, LEARNING, REVIEW, RELEARNING), `stability`, `difficulty`, `scheduledFor`, `isProceduralized` (boolean), `consecutiveFastRetrievals` (contador hacia 3).
+  - *Método de Dominio:* `evaluateReview(grade, elapsedMs)`: recalcula estabilidad y dificultad bajo FSRS 4.5. Si `elapsedMs < 1500` y respuesta correcta, incrementa `consecutiveFastRetrievals`. Al llegar a 3, conmuta `isProceduralized = true`.
 - **Entidades de Dominio:**
-  - `SpeedDrillSession` (Sesión cronometrada de 3-5 s por prompt, latencia promedio y porcentaje de precisión).
+  - `SpeedDrillSession`: sesión de ráfaga continua con `drillType`, `promptsCount`, `avgReactionTimeMs`, `proceduralPassCount`.
+  - `ErrorRecoveryLoop`: gestiona la reinyección de fallos en $N+3$ y $N+7$.
 - **Value Objects:**
-  - `FsrsGrade` (Again: 1, Hard: 2, Good: 3, Easy: 4).
-  - `MemoryState` (Estabilidad $S$, Dificultad $D$, Retención estimada $R$).
-  - `ReviewInterval` (Días calculados para el siguiente repaso).
+  - `FsrsGrade` (1: Again, 2: Hard, 3: Good, 4: Easy).
+  - `MemoryStateDSR` (Dificultad $D$, Estabilidad $S$, Retención esperada $R$).
+  - `ReactionLatency` (Milisegundos exactos con flag de ventana procedural $<1.5$ s).
 - **Eventos de Dominio:**
   - `CardReviewedDomainEvent` (Emite: cardId, grade, newStability, wasFailure).
-  - `SpeedDrillCompletedDomainEvent` (Emite: drillType, avgLatencyMs, accuracyRate).
+  - `ItemProceduralizedDomainEvent` (Emite: cardId, targetId, finalLatencyMs).
+  - `DrillFailedDomainEvent` (Dispara reinyección en $N+3$).
 
-### 2.3. Contexto Delimitado: Fonología, Habla Conectada & Pares Mínimos (`PhonologyContext`)
-- **Propósito:** Desglosar fonológicamente oraciones, transcribir en IPA y entrenar la agudeza perceptiva mediante pares mínimos y reconocimiento de habla conectada.
-- **Raíz del Agregado:** `PhoneticSentence`
-  - Contiene: texto ortográfico, tokens de palabras, lista de fenómenos fonéticos detectados en fronteras (`PhoneticBoundaryEvent`).
+---
+
+### 2.2. Contexto Delimitado: Fonética Acústica, Habla Conectada & Prosodia (`PhonologyProsodyContext`)
+- **Propósito:** Segmentar oraciones, identificar fenómenos de habla rápida, entrenar pares mínimos multi-hablante y evaluar contornos melódicos suprasegmentales.
+- **Raíz del Agregado:** `ConnectedSentence`
+  - *Atributos:* `sentenceId`, `orthographicText`, `ipaCitation`, `ipaConnected`, `boundaryEvents` (colección de enlaces, elisiones, asimilaciones y formas débiles).
+  - *Entidad Interna:* `ProsodyProfile`: contiene el acento nuclear (`nuclearStressWordIndex`), grupos de pensamiento (`thoughtGroupDelimiters //`) y contorno tonal (`pitchContourType`: Falling, Rising, FallRise, RiseFall).
 - **Entidades de Dominio:**
-  - `MinimalPairChallenge` (Ítem de contraste fonético, audio del estímulo, opciones contrastivas y tiempo límite de respuesta).
+  - `HvptMinimalPairTrial`: reto a ciegas con estímulo acústico de voz nativa ($V_1$ a $V_6$), opciones visuales y temporizador de 2.0 s.
+  - `ProsodicShadowingSession`: grabación de audio del usuario con cálculo de vector de frecuencia fundamental ($F_0$) y comparación de error cuadrático medio frente a la curva nativa.
 - **Value Objects:**
-  - `IpaTranscription` (Cadena IPA normalizada, símbolos de acento `ˈ` y `ˌ`).
-  - `ConnectedSpeechRuleType` (Elision, Assimilation, Linking_CV, Linking_VV_j, Linking_VV_w, WeakForm).
-  - `PhonemicContrast` (Par fonológico contrastado, p. ej. /iː/ vs /ɪ/).
+  - `IpaPhoneme` (Glifos IPA normalizados, diacríticos y acentos).
+  - `PitchCurveF0` (Serie temporal de frecuencias en Hertz de 50 a 400 Hz).
+  - `AcousticVowelCoordinates` (Formante $F_1$ en Hz, Formante $F_2$ en Hz en el cuadrilátero).
 - **Eventos de Dominio:**
-  - `PhoneticPracticeCompletedDomainEvent` (Emite: practiceType, accuracyRate, reactionTimeMs).
+  - `HvptTrialCompletedDomainEvent` (Emite: contrastPair, voiceId, reactionTimeMs, isCorrect).
+  - `ProsodicShadowingScoredDomainEvent` (Emite: sentenceId, prosodyMatchPercentage).
 
-### 2.4. Contexto Delimitado: Escritura & Evaluación Socrática (`WritingEvaluationContext`)
-- **Propósito:** Gestionar el ciclo de redacción libre/guiada, el andamiaje socrático en 2 fases y la evaluación analítica con Google Gemini.
-- **Raíz del Agregado:** `WritingSubmission`
-  - Contiene: `submissionId`, `promptId`, `originalText`, `createdAt`, `evaluationStatus` (Draft, InSocraticReview, Evaluated, Failed).
-  - Colección de `WritingDraftRevision` (Historial de iteraciones del usuario tras recibir pistas).
-  - Entidad interna: `EvaluationResult` (puntuación CEFR, lista de `CorrectionFeedback`).
+---
+
+### 2.3. Contexto Delimitado: Taller Basado en Tareas (TBLT) & Tutoría Socrática (`TbltWritingContext`)
+- **Propósito:** Orquestar misiones comunicativas en 3 fases y evaluar las 4 competencias comunicativas mediante andamiaje socrático en la ZPD con Gemini.
+- **Raíz del Agregado:** `TbltMissionSubmission`
+  - *Atributos:* `submissionId`, `taskId`, `userId`, `currentPhase` (PRE_TASK, DURING_TASK, POST_TASK_FONF), `originalText`, `status`.
+  - *Colección:* `DraftRevisions` (Borrador 1 $\rightarrow$ Pistas Nivel 1/2 $\rightarrow$ Borrador 2 $\rightarrow$ Resolución).
+  - *Entidad Interna:* `CommunicativeCompetenceEvaluation`: scores analíticos en Lingüística, Sociolingüística (Hedging/Registro), Discursiva (Conectores) y Estratégica (Paráfrasis).
 - **Value Objects:**
-  - `SocraticClue` (Pista reflexiva sin solución directa para guiar la autocorrección).
-  - `CorrectionFeedback` (Segmento problemático, tipo de error, explicación en español, reformulación nativa).
-  - `MicroChallenge` (Pregunta rápida generada para verificar la asimilación).
+  - `LexicalPrimingChunk` (Unidad fraseológica sugerida en Pre-Task para cebar la memoria de trabajo).
+  - `SocraticScaffoldLevel` (Level1_Elicitation, Level2_Metalinguistic, Level3_Cloze, Level4_ExplicitModel).
+  - `NoticingGapDiff` (Segmento erróneo del interlenguaje vs. reformulación nativa).
 - **Eventos de Dominio:**
-  - `SocraticCluesDeliveredDomainEvent`.
-  - `WritingEvaluatedDomainEvent` (Emite: submissionId, errorCount, errorsIdentified).
+  - `TbltPreTaskActivatedDomainEvent`.
+  - `TbltDraftSubmittedDomainEvent`.
+  - `SocraticScaffoldRequestedDomainEvent`.
+  - `TbltMissionEvaluatedDomainEvent` (Emite: scores de las 4 competencias y lista de errores de interlenguaje).
 
-### 2.5. Contexto Delimitado: Diagnóstico & Heatmap (`DiagnosticsContext`)
-- **Propósito:** Recopilar eventos de error provenientes de todos los contextos, calcular la severidad ponderada y disparar sesiones correctivas dirigidas.
-- **Raíz del Agregado:** `UserWeaknessProfile`
-  - Contiene: mapa de categorías de error con sus índices de frecuencia temporal (`WeaknessIndex`).
-- **Entidades:**
-  - `UserErrorLog` (Instancia de un fallo con marca de tiempo, contexto de texto y regla violada).
-  - `MicroWorkout` (Sesión de práctica express de 5 minutos generada automáticamente).
+---
+
+### 2.4. Contexto Delimitado: Semántica Cognitiva & Thinking for Speaking (`CognitiveSemanticsContext`)
+- **Propósito:** Desarticular las trampas de polisemia del español y guiar la transición del marco verbal al marco satelital.
+- **Agregados:**
+  - `SatelliteMotionVerb`: verbo de manera (*rush, sneak, crawl*) + satélites preposicionales (*in, out, across, through*).
+  - `TopologicalPrepositionSchema`: modelo espacial corporizado para *IN* (contenedor 3D), *ON* (superficie 2D) y *AT* (punto 0D).
+  - `PolysemicDisambiguationPair`: modelo de contraste para *Make/Do*, *Say/Tell/Speak/Talk*, *Borrow/Lend*, *Miss/Lose*.
 - **Eventos de Dominio:**
-  - `ChronicWeaknessDetectedDomainEvent` (Disparado cuando un error supera el umbral crítico).
+  - `PolysemyMasteredDomainEvent`.
 
-### 2.6. Contexto Delimitado: Hábitos & Gamificación (`HabitContext`)
-- **Propósito:** Fomentar la disciplina y la consistencia diaria del aprendiz.
-- **Raíz del Agregado:** `UserStreak`
-  - Atributos: `currentStreakCount`, `longestStreakRecord`, `lastActiveDate`, `availableFreezes`.
-- **Entidad:** `DailyQuestPlan`
-  - Lista de metas del día (`QuestItem`: SRS terminado, Fonética/Pares Mínimos, Texto/Micro-writing, Lectura i+1, Speed Drill).
+---
+
+### 2.5. Contexto Delimitado: Matriz de Neutralización de Interferencia L1 (`L1InterferenceContext`)
+- **Propósito:** Catalogar desvíos sistemáticos producidos por la lengua materna y proveer motores de erradicación inmediata.
+- **Agregados:**
+  - `L1ConflictPattern`: identificador canónico (`L1_PRO_DROP`, `L1_TAM_PRES_PERF`, `L1_PREP_DEPEND_ON`, `L1_3RD_PERSON_S`, `L1_PROTHESIS_SC`).
+  - `ThirdPersonSubstitutionDrill`: ráfaga de pronombres en 2.0 s para desfosilizar *-s*.
+  - `SilentLetterCatalog`: palabras con grafías mudas atenuadas visualmente.
 - **Eventos de Dominio:**
-  - `DailyGoalCompletedDomainEvent`.
-  - `StreakFrozenDomainEvent`.
-  - `StreakBrokenDomainEvent`.
+  - `L1InterferenceTriggeredDomainEvent` (Registra un desvío L1 en el heatmap de diagnóstico).
 
-### 2.7. Contexto Delimitado: Input Comprensible & Lectura Graduada (`ReadingInputContext`)
-- **Propósito:** Proveer un entorno de lectura inmersiva con anotación reactiva de Noticing y extracción instantánea de léxico hacia SQLite.
+---
+
+### 2.6. Contexto Delimitado: Input Comprensible & Escucha Bottom-Up (`ComprehensibleInputContext`)
+- **Propósito:** Evaluar la densidad léxica de textos y entrenar la decodificación auditiva ascendente.
 - **Raíz del Agregado:** `GradedArticle`
-  - Atributos: `articleId`, `title`, `contentHtml`, `cefrLevel`, `wordCount`, `readPercentage`.
-- **Entidades:**
-  - `NoticingTokenHighlight` (Posición de palabras activas en la memoria del estudiante destacadas en el texto).
-- **Value Objects:**
-  - `ArticleSource` (Texto propio del usuario, artículo provisto por la biblioteca ELA).
+  - *Atributos:* `articleId`, `contentRaw`, `lexicalCoveragePercentage`, `cefrClassification`, `readingMode` (EXTENSIVE $\ge 98\%$, INTENSIVE $92-95\%$, OVERLOAD $<95\%$).
+- **Entidad:** `BottomUpListeningSession`
+  - Estado secuencial: `STEP1_BLIND_AUDIO` $\rightarrow$ `STEP2_TONIC_SKELETON` $\rightarrow$ `STEP3_FULL_CONNECTED_TEXT`.
 - **Eventos de Dominio:**
-  - `WordCapturedFromReaderDomainEvent` (Disparado al hacer clic en "Añadir a FSRS", emite el término hacia `LexiconContext`).
-  - `ArticleReadingCompletedDomainEvent`.
+  - `LexicalCaptureRequestedDomainEvent` (Captura en 1 clic de una palabra desconocida hacia `SrsProceduralContext`).
+  - `TextSimplificationRequestedDomainEvent` (Solicitud de reescritura al 95% con Gemini).
+
+---
+
+### 2.7. Contexto Delimitado: Diagnóstico & Heatmap (`DiagnosticsContext`)
+- **Propósito:** Computarizar la telemetría de errores con decaimiento temporal y generar *Micro-Workouts* dirigidos.
+- **Raíz del Agregado:** `LearnerWeaknessHeatmap`
+  - Colección de `WeaknessMetric`: regla violada, ocurrencias en los últimos 7 días, score de criticidad decreciente.
+  - Generador de `MicroWorkout`: sesión de 5 minutos cuando la criticidad supera el umbral.
+- **Eventos de Dominio:**
+  - `ChronicWeaknessDetectedDomainEvent`.
+  - `MicroWorkoutCompletedDomainEvent`.
+
+---
+
+### 2.8. Contexto Delimitado: Autorregulación (SRL), Hábitos & Rachas (`SelfRegulationContext`)
+- **Propósito:** Implementar el ciclo tripartito de Zimmerman, rachas antifrágiles y prevención de *Review Hell*.
+- **Raíz del Agregado:** `UserStreak`
+  - `streakCount`, `availableFreezes`, `lastActiveDate`, `isInGracePeriod`.
+  - Lógica de dominio: *Never Miss Twice* (consumo automático de Streak Freeze o gracia de 24h).
+- **Entidades:**
+  - `DailyQuestPlan`: misiones del día calculadas dinámicamente con estimación de tiempo.
+  - `BacklogThrottler`: limita la cola diaria de FSRS a 25-30 tarjetas si el alumno regresa tras una pausa.
+- **Eventos de Dominio:**
+  - `DailyQuestsCompletedDomainEvent`.
+  - `StreakProtectedWithFreezeDomainEvent`.

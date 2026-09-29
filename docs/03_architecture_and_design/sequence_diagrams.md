@@ -1,7 +1,7 @@
 # Diagramas de Secuencia de Flujos Clave
 ## English Learning Assistant (ELA)
 
-Este documento detalla los flujos de interacción temporal entre los componentes del sistema mediante **Diagramas de Secuencia UML (Mermaid)** para los cuatro procesos más críticos de la aplicación.
+Este documento detalla los flujos de interacción temporal entre los componentes del sistema mediante **Diagramas de Secuencia UML (Mermaid)** para los procesos fundamentales del software, reflejando fielmente el marco pedagógico de [`docs/02_pedagogical_framework/`](../02_pedagogical_framework/).
 
 ---
 
@@ -119,35 +119,9 @@ sequenceDiagram
 
 ---
 
-## 4. Flujo 4: Detección de Falla Crónica y Generación de Micro-Workout
+## 4. Flujo 4: Ingesta Rápida y Auto-Enriquecimiento de Vocabulario con Gemini
 
-Describe cómo un error reiterado dispara automáticamente un entrenamiento express:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant ErrorMgr as ErrorTelemetryService
-    participant HeatmapEngine as WeaknessHeatmapEngine
-    participant WorkoutGen as MicroWorkoutGenerator
-    participant HabitMgr as HabitManager
-    participant UI as Dashboard
-
-    ErrorMgr->>HeatmapEngine: checkWeaknessThreshold('GRAM_PREP_DEPEND_ON')
-    HeatmapEngine->>HeatmapEngine: Calcula frecuencia en los últimos 7 días
-    Note over HeatmapEngine: Frecuencia detectada = 4 fallos (Umbral crítico >= 3)
-    
-    HeatmapEngine->>WorkoutGen: triggerMicroWorkout('GRAM_PREP_DEPEND_ON')
-    WorkoutGen->>WorkoutGen: Ensambla 5 ejercicios específicos (Cloze + Corrección)
-    WorkoutGen->>HabitMgr: registerBonusQuest('Micro-Workout: Preposiciones con Verbos')
-    
-    HabitMgr-->>UI: Notificación en Dashboard: "Se ha detectado una debilidad frecuente. ¡Resuelve tu Micro-Workout de 5 min!"
-```
-
----
-
-## 5. Flujo 5: Ingesta Rápida y Auto-Enriquecimiento de Vocabulario con Gemini
-
-Describe el proceso donde el usuario ingresa solo una palabra y la IA deduce toda la información lingüística, insertándola en la base de datos y programando su tarjeta FSRS:
+Describe el proceso donde el usuario ingresa solo una palabra y la IA deduce toda la información lingüística, insertándola en SQLite y programando su tarjeta FSRS:
 
 ```mermaid
 sequenceDiagram
@@ -177,130 +151,207 @@ sequenceDiagram
     VocabCtrl-->>UI: Muestra Tarjeta de Vista Previa con datos autocompletados
     
     User->>UI: Revisa y presiona "Guardar en mi Biblioteca"
-    UI->>VocabCtrl: persistEnrichedEntry(data)
+    VocabCtrl->>VocabRepo: insertVocabItem(data)
+    VocabRepo->>DB: INSERT INTO vocab_items (...)
     
-    alt Si es palabra simple
-        VocabCtrl->>VocabRepo: insertVocabItem(data)
-        VocabRepo->>DB: INSERT INTO vocab_items (...)
-    else Si es unidad fraseológica (chunk)
-        VocabCtrl->>VocabRepo: insertPhraseUnit(data)
-        VocabRepo->>DB: INSERT INTO phraseological_units (...)
-    end
-    
-    VocabCtrl->>CardRepo: createSrsCard(targetType, targetId, state='NEW', initialD=5.0)
-    CardRepo->>DB: INSERT INTO srs_cards (target_type, target_id, state='NEW', scheduled_for=now)
+    VocabCtrl->>CardRepo: createSrsCard('VOCAB', vocabId, state='NEW', initialD=5.0)
+    CardRepo->>DB: INSERT INTO srs_cards (...)
     
     VocabCtrl-->>UI: Confirmación: "¡'reluctant' guardada exitosamente y lista para tu sesión SRS!"
-    UI-->>User: Cierra modal y actualiza el contador de tarjetas nuevas
 ```
 
 ---
 
-## 6. Flujo 6: Discriminación Auditiva Forzada de Pares Mínimos y Habla Conectada
+## 5. Flujo 5: Gimnasio HVPT Multi-Voz con Elección Forzada a Ciegas (2.0s)
 
-Describe cómo el estudiante escucha un estímulo fonético a ciegas, toma una decisión rápida bajo presión de tiempo (límite de 2.0s) y analiza el contraste fonético resultante:
+Describe cómo el estudiante es expuesto a estímulos auditivos a ciegas entre 4 a 6 voces nativas con restricción estricta de tiempo:
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User as Estudiante
-    participant UI as PhoneticsLabView (Frontend)
-    participant AudioSys as AudioSubsystem (Web Audio API / Howler)
-    participant ErrorMgr as ErrorTelemetryService
-    participant HabitMgr as HabitManager
-    participant DB as SQLite Database
-
-    User->>UI: Selecciona drill de pares mínimos: contraste /iː/ vs /ɪ/
-    UI->>AudioSys: playRandomStimulus("audio/stimulus_ship.mp3")
-    AudioSys-->>User: Emite estímulo sonoro a ciegas
-    UI->>UI: Inicia temporizador regresivo de 2.0 segundos
-
-    User->>UI: Selecciona opción "ship" /ʃɪp/ (en 1.1s)
-    UI->>UI: Detiene temporizador y evalúa acierto perceptual
-    UI->>AudioSys: playFeedbackSound("correct_chime.mp3")
-    UI->>UI: Muestra panel contrastivo (/ʃiːp/ vs. /ʃɪp/) con transcripción IPA
-    User->>UI: Pulsa botón "Comparar Sonidos"
-    UI->>AudioSys: playContrastivePair("sheep_vs_ship.mp3")
-    AudioSys-->>User: Emite ambos fonemas de forma secuencial
-
-    UI->>DB: Registra métrica de agudeza fonética en `weakness_metrics`
-    UI->>HabitMgr: notifyActionCompleted('PHONETICS_PRACTICE')
-    HabitMgr-->>UI: Actualiza Daily Quest: "Laboratorio Fonético Completado ✅"
-```
-
----
-
-## 7. Flujo 7: Taller de Redacción Socrática en Dos Fases
-
-Describe el ciclo donde Gemini entrega primero pistas de andamiaje y el usuario auto-corrige su propio texto antes de revelar la versión nativa final:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Estudiante
-    participant UI as WritingStudioView
-    participant SocraticMgr as SocraticFeedbackOrchestrator
-    participant Gemini as Google Gemini (3.7 / 3.8 Flash)
+    participant UI as HvptGymView (Frontend)
+    participant AudioBank as HvptAudioBankService
+    participant Timer as ForcedChoiceTimer (2.0s)
     participant ErrorMgr as ErrorTelemetryService
     participant DB as SQLite Database
 
-    User->>UI: Redacta: "I have 22 years and it depends of my family."
-    User->>UI: Presiona "Revisión Socrática (Fase 1)"
-    UI->>SocraticMgr: requestSocraticClues(text)
-    SocraticMgr->>Gemini: POST generateContent (Prompt Socrático + SocraticFeedbackSchema)
-    Gemini-->>SocraticMgr: 200 OK { clues: ["¿Cómo se expresa la edad?", "¿Qué partícula rige depend?"] }
+    User->>UI: Inicia drill de pares mínimos: /iː/ vs /ɪ/
+    UI->>AudioBank: getRandomStimulus(contrast: "i_vs_I_colon")
+    AudioBank-->>UI: { audioBlob: "voice_03_female_rp_ship.mp3", correctWord: "ship", foil: "sheep" }
     
-    SocraticMgr->>DB: INSERT INTO writing_draft_revisions (draft_text, hints, revision=1)
-    SocraticMgr-->>UI: Renderiza editor con subrayados y preguntas guía sin dar la solución
-    
-    User->>UI: Edita texto: "I am 22 years old and it depends on my family."
-    User->>UI: Presiona "Validar Correcciones (Fase 2)"
-    UI->>SocraticMgr: submitRevisedDraft(revisedText)
-    SocraticMgr->>Gemini: POST generateContent (Prompt Evaluador Final + Schema CEFR)
-    Gemini-->>SocraticMgr: 200 OK { score: 8.5, allErrorsResolved: true, nativeReformulation }
-    
-    SocraticMgr->>DB: UPDATE writing_draft_revisions SET resolved_errors_count=2
-    SocraticMgr->>DB: INSERT INTO writing_evaluations (score=8.5, status='EVALUATED')
-    SocraticMgr-->>UI: Felicitación: "¡Resolviste ambos errores de transferencia L1 por ti mismo!"
-    UI->>User: Muestra micro-reto de afianzamiento y registra progreso
+    UI->>UI: Pantalla a ciegas (Oculta texto de opciones)
+    UI->>User: Reproduce estímulo auditivo [ʃɪp] con Voz 3 (RP)
+    UI->>UI: Revela botones [ SHIP ] vs [ SHEEP ]
+    UI->>Timer: Inicia cuenta regresiva visual (2.0 s)
+
+    alt Usuario responde "SHIP" en 1.15 segundos
+        User->>UI: Clic en [ SHIP ]
+        Timer->>UI: Cancela temporizador
+        UI->>UI: Feedback verde + sonido de convalidación
+        UI->>DB: Registra acierto con RT = 1.150 ms en weakness_metrics
+    else Temporizador llega a 0.0 s (Timeout) o Selección Errónea
+        Timer->>UI: Expiración de tiempo
+        UI->>UI: Alerta ámbar de Predicción Errónea
+        UI->>ErrorMgr: recordError(type='PHONETICS', subtag='PHO_VOWEL_COLLAPSE_I')
+        UI->>AudioBank: playContrastSequence("ship_rp", "sheep_rp")
+        AudioBank-->>User: Emite ambos sonidos en contraste inmediato
+    end
 ```
 
 ---
 
-## 8. Flujo 8: Lectura de Input Comprensible ($i+1$) y Captura en 1 Clic
+## 6. Flujo 6: Ciclo Completo TBLT en Tres Fases y Evaluación de 4 Competencias
 
-Describe cómo el usuario lee un artículo, visualiza palabras en estudio resaltadas y extrae nuevos términos hacia FSRS:
+Describe el flujo pedagógico riguroso de una tarea basada en tareas (Ellis & Skehan):
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User as Estudiante
-    participant UI as SmartReaderView
+    participant UI as TbltStudioView
+    participant TbltEngine as TbltMissionEngine
+    participant GeminiGateway as GeminiAiGateway
+    participant Gemini as Google Gemini (gemini-3.8-flash)
+    participant DB as SQLite Database
+
+    %% Fase 1: Pre-Task
+    User->>UI: Selecciona Misión B2: "Negociar prórroga de entrega con cliente"
+    UI->>TbltEngine: startPreTaskPhase(taskId)
+    TbltEngine-->>UI: { scenarioDescription, goal, primingChunks: ["take into account", "look into the matter", "would appreciate it"] }
+    UI->>User: Muestra contexto situacional y activa memoria con chunks de priming
+
+    %% Fase 2: During-Task
+    User->>UI: Inicia redacción en la Fase During-Task
+    UI->>UI: Inicia temporizador orientativo (presión comunicativa realista)
+    User->>UI: Redacta borrador y presiona "Completar Misión"
+    
+    %% Fase 3: Post-Task
+    UI->>TbltEngine: submitDuringTask(taskId, draftText)
+    TbltEngine->>GeminiGateway: evaluateTbltSubmission(draftText, rubric='4_COMPETENCIES')
+    GeminiGateway->>Gemini: POST generateContent (Prompt TBLT + AiTbltEvaluationResponse Schema)
+    Gemini-->>GeminiGateway: 200 OK { linguisticScore: 8.5, sociolinguisticScore: 9.0, discursiveScore: 8.0, strategicScore: 8.5, fonfFeedback: [...] }
+    
+    GeminiGateway-->>TbltEngine: EvaluationPayload
+    TbltEngine->>DB: INSERT INTO tblt_task_submissions (...)
+    TbltEngine-->>UI: Renderiza informe Post-Task FonF con scores de las 4 competencias
+    UI->>User: Muestra fortalezas pragmáticas, brechas sintácticas y añade nuevos giros a FSRS
+```
+
+---
+
+## 7. Flujo 7: Decodificación Auditiva Bottom-Up en Tres Pasos con Simplificación al 95%
+
+Describe cómo el alumno entrena su audición segmentando el habla continua de forma ascendente:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Estudiante
+    participant UI as GradedReaderView
     participant ReaderEngine as GradedReaderEngine
-    participant AiGateway as GeminiAiGateway
-    participant Gemini as Google Gemini (3.x Flash)
-    participant CardRepo as CardRepository
-    participant DB as SQLite Database
+    participant Profiler as LexicalCoverageProfiler
+    participant Simplifier as TextSimplifierService
+    participant GeminiGateway as GeminiAiGateway
+    participant AudioPlayer as AudioSubsystem
 
-    User->>UI: Abre artículo: "The Future of Cloud Computing"
-    UI->>ReaderEngine: loadArticleWithNoticing(articleId, userId)
-    ReaderEngine->>DB: SELECT word, id, state FROM srs_cards WHERE user_id=? AND state IN ('LEARNING', 'RELEARNING')
-    DB-->>ReaderEngine: ActiveCards[]
-    ReaderEngine->>ReaderEngine: Anota el texto subrayando los términos coincidentes
-    ReaderEngine-->>UI: Renderiza texto con Noticing reactivo activo
-
-    User->>UI: Lee y hace clic sobre palabra desconocida: "unravel"
-    UI->>ReaderEngine: quickLookup("unravel", contextSentence)
-    ReaderEngine-->>UI: Despliega popup emergente con definición IPA y traducción
+    User->>UI: Carga artículo técnico nuevo
+    UI->>Profiler: calculateCoverage(articleText, userVocabProfile)
+    Profiler-->>UI: Cobertura calculada = 91% (< 95% Sobrecarga Cognitiva)
     
-    User->>UI: Presiona "Añadir a mi Repaso FSRS"
-    UI->>AiGateway: enrichVocabularyTerm("unravel", contextSentence)
-    AiGateway->>Gemini: POST generateContent (Prompt Enriquecedor)
-    Gemini-->>AiGateway: 200 OK { fullMetadata }
-    AiGateway->>DB: INSERT INTO vocab_items (...)
-    AiGateway->>CardRepo: createSrsCard(target='VOCAB', state='NEW')
-    CardRepo->>DB: INSERT INTO srs_cards (...)
-    AiGateway-->>UI: "¡'unravel' agregada a tu cola FSRS!"
-    UI->>UI: Actualiza el texto subrayando "unravel" en color azul de aprendizaje
+    UI->>User: Alerta roja: "Texto con alta sobrecarga léxica. ¿Deseas simplificarlo al 95%?"
+    User->>UI: Presiona "Simplificar con Gemini"
+    UI->>Simplifier: simplifyText(articleText, targetCefr='B1', targetCoverage=0.95)
+    Simplifier->>GeminiGateway: requestSimplification(articleText)
+    GeminiGateway-->>Simplifier: SimplifiedArticle (96% cobertura)
+    Simplifier-->>UI: Carga texto reescrito en el lector
+
+    %% Protocolo 3 Pasos
+    User->>UI: Inicia entrenamiento de Escucha Bottom-Up
+    Note over UI,AudioPlayer: Paso 1: Audio Ciego a 1.0x (Texto 100% Oculto)
+    UI->>AudioPlayer: playAudio(1.0)
+    User->>UI: Intenta segmentar las palabras mentalmente
+    
+    Note over UI: Paso 2: Revela Texto Parcial (Solo palabras tónicas acentuadas)
+    UI->>UI: Renderiza esqueleto léxico destacando las lagunas átonas
+    
+    Note over UI,AudioPlayer: Paso 3: Revela Texto Completo con Conectores
+    UI->>UI: Dibuja enlaces, elisiones y reducciones Schwa
+    UI->>AudioPlayer: playSynchronizedAudio(1.0)
+    AudioPlayer-->>UI: Eventos de sincronización de palabra activa
 ```
 
+---
+
+## 8. Flujo 8: Speed Drills, Bucle de Micro-Recuperación (N+3/N+7) y Certificación de Proceduralización
+
+Describe el proceso de compilación motora en ganglios basales:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Estudiante
+    participant UI as SpeedDrillArenaView
+    participant DrillEngine as SpeedDrillArenaService
+    participant ProceduralEngine as ProceduralizationEngine
+    participant Timer as DrillTimer (3.0s)
+    participant DB as SQLite Database
+
+    User->>UI: Inicia ráfaga "Clause Shift: Transformación Rápida"
+    UI->>DrillEngine: startSession(type='CLAUSE_SHIFT')
+    DrillEngine-->>UI: Ítem 1: "They went to Paris" + Operador: "[NEGATIVE]"
+    UI->>Timer: Inicia cuenta regresiva (3.0 s)
+
+    alt Caso Éxito en Ventana Procedural (RT < 1.5s)
+        User->>UI: Escribe "They didn't go to Paris" en 1.120 ms
+        Timer->>UI: Cancela temporizador
+        UI->>ProceduralEngine: recordPass(cardId, latencyMs: 1120)
+        ProceduralEngine->>ProceduralEngine: Incrementa consecutiveFastRetrievals a 3
+        ProceduralEngine->>DB: UPDATE srs_cards SET is_proceduralized=1
+        ProceduralEngine-->>UI: "¡Ítem Proceduralizado Certificado en Memoria Motora!"
+    else Caso Fallo o Timeout
+        Timer->>UI: Expiración de tiempo (3.0 s)
+        UI->>UI: Flash verde de 1.0 s con respuesta correcta
+        UI->>DrillEngine: recordFailure(item1)
+        DrillEngine->>DrillEngine: Programa reinyección en caliente en turno N+3
+        DrillEngine->>DrillEngine: Programa reinyección variada en turno N+7
+        DrillEngine->>DB: INSERT INTO user_errors (...)
+        UI->>DrillEngine: Carga Ítem 2 inmediatamente
+    end
+```
+
+---
+
+## 9. Flujo 9: Prosodic Shadowing con Rastreador de Tono Fundamental ($F_0$)
+
+Describe cómo se captura la voz del usuario y se compara espectrográficamente con el modelo nativo:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Estudiante
+    participant UI as ProsodyStudioView
+    participant AudioSys as AudioSubsystem
+    participant PitchTracker as PitchTrackerService
+    participant MicStream as Web Audio API AnalyserNode (FFT)
+    participant DB as SQLite Database
+
+    User->>UI: Selecciona frase: "Actually, it starts at six." (Curva Fall-Rise \/~)
+    UI->>AudioSys: playNativeSentence()
+    AudioSys-->>User: Emite modelo nativo con contorno entonativo
+    UI->>UI: Grafica curva nativa de tono F0 en pantalla
+
+    User->>UI: Presiona "Grabar mi Shadowing"
+    UI->>MicStream: openMicrophoneStream()
+    User->>UI: Pronuncia la frase imitando la melodía
+    MicStream->>PitchTracker: streamAudioFrames(buffer)
+    PitchTracker->>PitchTracker: Calcula F0 (50-400 Hz) mediante autocorrelación
+    PitchTracker-->>UI: Vector temporal de frecuencias F0 del usuario en tiempo real
+    UI->>UI: Grafica curva del usuario superpuesta sobre la curva nativa
+
+    User->>UI: Detiene grabación
+    UI->>PitchTracker: computeProsodicMatch(userF0Vector, nativeF0Vector)
+    PitchTracker-->>UI: ProsodyScore = 92% (Excelente entonación Fall-Rise)
+    UI->>DB: INSERT INTO prosody_shadowing_records (score=92, f0_data)
+    UI->>User: Felicitación visual y opción de escuchar ambas grabaciones en estéreo
+```

@@ -1,76 +1,106 @@
 # Hoja de Ruta de Implementación Técnica (Roadmap)
-## English Learning Assistant (ELA)
+## English Learning Assistant (ELA) — Plataforma Científica Integral de Adquisición de Segundas Lenguas
 
-Este documento estructura el plan de ejecución técnica en **5 fases ordenadas por dependencia lógica**, estableciendo entregables concretos y criterios de aceptación para cada hito.
+Este documento estructura el plan de ejecución técnica en **6 fases ordenadas por dependencia arquitectónica**, garantizando la integración progresiva de todos los módulos teóricos y pedagógicos (SLA, FSRS, Fonética Acústica, Gramática Cognitiva, TBLT y Proceduralización Motora).
 
 ---
 
-## 1. Cronograma de Fases y Dependencias
+## 1. Cronograma de Fases y Dependencias Críticas
 
 ```mermaid
 gantt
-    title Hoja de Ruta de Implementación de ELA
+    title Hoja de Ruta de Implementación Integral de ELA
     dateFormat  YYYY-MM-DD
     section Fase 1
-    Capa de Datos & Algoritmo FSRS       :p1, 2026-10-01, 7d
+    Capa de Datos SQLite v2.0 & Algoritmo FSRS/Proceduralización :p1, 2026-10-01, 7d
     section Fase 2
-    Motor SRS & Habla Conectada (Audio) :p2, after p1, 10d
+    Motor FSRS, Speed Drills & Laboratorio Fonético HVPT        :p2, after p1, 10d
     section Fase 3
-    Integración Gemini & Taller Escrito :p3, after p2, 8d
+    Prosody Studio (F0 Web Audio) & Topo-Lab Cognitivo          :p3, after p2, 8d
     section Fase 4
-    Diagnóstico de Fallas & Rachas      :p4, after p3, 7d
+    IA Gemini 3.x Flash, Detección L1 & Taller Socrático         :p4, after p3, 9d
     section Fase 5
-    Empaquetado Desktop & Pulido UI     :p5, after p4, 6d
+    Estudio TBLT (4 Competencias) & Escucha Ascendente Bottom-Up :p5, after p4, 8d
+    section Fase 6
+    Analítica Heatmap, Empaquetado Desktop Tauri & Pulido Final :p6, after p5, 6d
 ```
 
 ---
 
-## 2. Detalle de Fases de Desarrollo
+## 2. Detalle de Fases de Desarrollo y Criterios de Aceptación
 
-### Fase 1: Cimientos de Datos y Algoritmo de Memoria FSRS
-- **Objetivo:** Establecer la base de datos local SQLite (15 tablas) y validar el motor matemático FSRS con variabilidad contextual y pruebas unitarias.
+### Fase 1: Cimientos de Datos SQLite v2.0 y Algoritmos de Memoria / Proceduralización
+- **Objetivo:** Desplegar el esquema relacional completo (20 tablas con integridad referencial) y validar el motor matemático FSRS junto con la máquina de estados de proceduralización.
 - **Entregables:**
-  - Script de migración de base de datos SQLite con las 15 tablas e índices validados (`sqlite_schema.sql`).
-  - Carga de datos semilla (*Seed data*): 500 palabras de contenido y función frecuentes con banco de contextos dinámicos (`vocab_context_examples`), 100 colocaciones esenciales y 50 reglas fonéticas.
-  - Implementación desacoplada de la clase `FsrsScheduler` con cálculo DSR y el rotador de contextos `ContextRotator`.
-  - Pruebas unitarias de FSRS con 100% de cobertura.
-- **Criterio de Salida:** Validación matemática de que los intervalos de repaso coinciden exactamente con la retención objetivo del 90% y rotación efectiva de oraciones cloze en cada repaso.
+  - Script de migración DDL v2.0 (`sqlite_schema.sql`) con 20 tablas maestras e índices optimizados.
+  - Carga de datos semilla (*Seed data*):
+    - 500 lemas de vocabulario con múltiples ejemplos cloze de contexto dinámico.
+    - 100 colocaciones esenciales y phrasal verbs idiomáticos.
+    - 60 pares mínimos contrastivos para discriminación HVPT.
+    - 30 reglas fonéticas de habla conectada y 15 contornos prosódicos.
+    - 20 misiones TBLT calibradas de A2 a C1.
+    - 15 esquemas topológicos y verbos de movimiento satelitales.
+  - Implementación del programador `FsrsScheduler` desacoplado con variabilidad contextual y módulo de *Throttling* (límite de 30 tarjetas/día con redistribución a 7 días).
+  - Pruebas unitarias de FSRS y cálculo de retención $R = (1 + \text{factor} \cdot \Delta t / S)^{-1}$.
+- **Criterio de Aceptación:** 100% de tests unitarios aprobados para intervalos FSRS y cero errores de integridad referencial en SQLite.
 
-### Fase 2: Módulos de Repaso Activo, Habla Conectada y Pares Mínimos
-- **Objetivo:** Construir la experiencia de tarjetas de estudio, el desglose fonético y el gimnasio de pares mínimos.
+---
+
+### Fase 2: Motor de Repaso Activo, Speed Drills y Gimnasio Fonético HVPT
+- **Objetivo:** Construir la experiencia de tarjetas de estudio con mitigación de interferencia, el motor de proceduralización motora y el gimnasio de pares mínimos a ciegas.
 - **Entregables:**
-  - Interfaz de Flashcards con soporte completo para atajos de teclado (`Espacio`, `1`, `2`, `3`, `4`) y filtro anti-interferencia (*Semantic Interleaver*).
-  - Motor de análisis de Habla Conectada: detección de enlaces consonante-vocal, intrusiones /j/ y /w/, y elisiones /t, d/.
-  - **Gimnasio de Pares Mínimos:** Discriminación rápida a ciegas de contrastes fonológicos (/iː/ vs /ɪ/, /b/ vs /v/) con temporizador de 2 segundos.
-- **Criterio de Salida:** Un usuario puede repasar una sesión completa de tarjetas, analizar los fenómenos de habla conectada de una frase y completar una ronda de discriminación auditiva de pares mínimos.
+  - Interfaz de Flashcards 3D con atajos físicos (`Espacio`, `1`, `2`, `3`, `4`) y filtro semántico intercalado (*Semantic Interleaver*).
+  - **Gimnasio de Drills de Velocidad (Speed-Run):** Temporizador estricto de 3.0 segundos, bucle de recuperación de errores $N+3 / N+7$, y cálculo de la Ley de Potencia de Newell & Rosenbloom para certificar automatización ($RT < 1.5\text{s}$ en 3 sesiones).
+  - **Gimnasio de Pares Mínimos (HVPT):** Discriminación acústica a ciegas con selector forzado en menos de 2.0 segundos y feedback articulatorio inmediato.
+- **Criterio de Aceptación:** El usuario puede completar una sesión de repaso, superar un drill de colocaciones con medición de latencia en milisegundos y entrenar contrastes auditivos sin soporte textual previo.
 
-### Fase 3: Taller Socrático de Redacción y Evaluación con Google Gemini
-- **Objetivo:** Integrar la API de Gemini para corrección pedagógica estructurada, andamiaje socrático y micro-writing.
+---
+
+### Fase 3: Prosody Studio (Web Audio FFT) y Laboratorio Cognitivo (Topo-Lab)
+- **Objetivo:** Implementar la visualización acústica en tiempo real del contorno entonativo F0 y la simulación interactiva de esquemas topológicos espaciales.
 - **Entregables:**
-  - Adaptador `GeminiAiGateway` con soporte para la familia 3.x Flash (`gemini-3.5-flash`, `gemini-3.6-flash`, `gemini-3.7-flash` y `gemini-3.8-flash`).
-  - Flujo socrático en 2 etapas: Fase 1 (Pistas de Noticing guiadas sin solución) y Fase 2 (Auto-corrección, diff visual y reformulación nativa).
-  - Modalidad de *Micro-Writing* de 1 sola oración para práctica ágil sin fricción.
-  - Módulo interactivo de *Micro-Reto* para validar la asimilación tras cada corrección.
-  - Panel de Configuración de IA con pool multi-claves y conmutación automática ante cuota excedida (HTTP 429 con Matriz 2D y reloj PT).
-- **Criterio de Salida:** El usuario redacta un texto con errores de transferencia L1, recibe pistas reflexivas de Gemini en menos de 1.5 s, auto-corrige su borrador y valida su comprensión en el micro-reto.
+  - **Prosody Studio:**
+    - Integración de Web Audio API con algoritmo de autocorrelación / YIN para extracción de F0 en tiempo real con latencia $< 150\text{ ms}$.
+    - Lienzo Canvas que superpone la curva melódica del aprendiz sobre la curva nativa de referencia.
+    - Metrónomo isocrónico de acento rítmico (*stress-timed rhythm*) y ejercicios de *prosodic shadowing*.
+  - **Topo-Lab Cognitivo:**
+    - Lienzo interactivo SVG de manipulación de contenedores y superficies (in, on, at, into, onto, through).
+    - Módulo de contraste de verbos de movimiento satelital (*Manner in Verb + Path in Satellite*).
+    - Inspector de constelaciones de polisemia radial (*run, take, get*).
+- **Criterio de Aceptación:** El lienzo F0 dibuja la curva de tono de la voz del usuario durante el shadowing y el Topo-Lab reacciona al arrastre vectorial actualizando los esquemas preposicionales.
 
-### Fase 4: Analítica de Debilidades, Drills de Velocidad y Hábitos
-- **Objetivo:** Unificar la telemetría de fallas en el Heatmap, activar la proceduralización y consolidar el bucle de hábitos.
+---
+
+### Fase 4: Inteligencia Artificial Gemini 3.x Flash, Detección L1 y Taller Socrático
+- **Objetivo:** Orquestar el gateway de IA con pool multi-claves y conmutación 429, el escáner determinista de transferencia L1 y el taller de redacción socrática.
 - **Entregables:**
-  - Colector de eventos de error que cataloga fallos procedentes de SRS, fonética y redacción.
-  - Algoritmo de decaimiento temporal y cálculo del *Weakness Score*.
-  - Vista gráfica del *Heatmap* de debilidades categorizadas y generador de *Micro-Workouts* ante fallas críticas ($\ge 6.0$).
-  - **Gimnasio de Speed-Run (Drills de Velocidad):** Ráfagas de 60 segundos con temporizador de 3-5 s para automatizar colocaciones en los ganglios basales (Modelo DP de Michael Ullman).
-  - Máquina de estados de *Daily Quests* (repaso, fonética, redacción/micro-writing, drills) y racha con *Streak Freezes*.
-- **Criterio de Salida:** Al cometer 3 fallos reiterados, se genera automáticamente un Micro-Workout y el alumno puede entrenar reflejos rápidos en el drill de velocidad cronometrado.
+  - Adaptador `GeminiAiGateway` con soporte para `gemini-3.5-flash`, `gemini-3.6-flash`, `gemini-3.7-flash` y `gemini-3.8-flash`.
+  - Matriz 2D de consumo de cuotas (80 RPD por clave, reset 00:00 PT) y failover automático en menos de 500 ms ante HTTP 429.
+  - **Escáner Determinista de Interferencia L1:** Detección instantánea vía RegEx de *pro-drop*, *existential have*, confusiones de preposiciones, *false friends* y verbos estativos antes de invocar la IA.
+  - Taller Socrático en dos fases: Pistas mayéuticas para auto-corrección sin soluciones explícitas preliminares, seguido de evaluación final con micro-reto de consolidación.
+- **Criterio de Aceptación:** El sistema intercepta errores L1 típicos al instante, solicita confirmación socrática y genera feedback pedagógico estructurado con Gemini en menos de 1.5 segundos.
 
-### Fase 5: Input Comprensible ($i+1$), Empaquetado Desktop y Modo Offline
-- **Objetivo:** Integrar el lector inmersivo, optimizar el empaquetado local y blindar la resiliencia offline.
+---
+
+### Fase 5: Estudio TBLT de Misiones y Escucha Ascendente (Bottom-Up)
+- **Objetivo:** Construir el estudio de tareas comunicativas de alta fidelidad y el laboratorio de escucha ascendente basado en cobertura léxica.
 - **Entregables:**
-  - **Lector Inteligente Graduado (*Smart Graded Reader $i+1$*):** Biblioteca de textos graduados, subrayado dinámico de términos en aprendizaje y captura léxica con auto-enriquecimiento en 1 clic.
-  - Soporte de cola local fuera de línea para textos y tarjetas pendientes de sincronización.
-  - Funcionalidad de exportación e importación completa de la base de datos en JSON/CSV.
-  - Empaquetado como aplicación local de escritorio ligera mediante **Tauri** con atajos globales y modo oscuro/claro nativo.
-  - Calibrador adaptativo periódico de pesos FSRS en segundo plano.
-- **Criterio de Salida:** La aplicación es 100% autónoma, privada y ultrarrápida, permitiendo al usuario avanzar en su rutina diaria de lectura, fonética, drills y repasos incluso sin conexión a Internet.
+  - **TBLT Mission Studio:**
+    - Flujo de 3 fases: Pre-task (banco de chunks y hedging), Task execution con cronómetro de presión (5-10 min) y Post-task review.
+    - Evaluación automatizada de las 4 competencias comunicativas (Lingüística, Sociolingüística, Discursiva, Estratégica) y calibración CEFR (A2 a C1).
+  - **Bottom-Up Listening & Lexical Profiler:**
+    - Algoritmo de cobertura léxica de Nation (K1-K2 vs K3+) con verificación de umbrales del 95% y 98%.
+    - Reproductor de escucha en 3 pasos: Audio ciego $\rightarrow$ Noticing acústico de micro-segmentos con transcripción $\rightarrow$ Re-escucha con script completo.
+    - Botón de simplificación $i+1$ de textos asistido por Gemini Flash.
+- **Criterio de Aceptación:** El estudiante completa una misión de negociación simulada recibiendo un scorecard de 4 competencias y entrena su oído con segmentos fonéticos aislados antes de ver el texto.
 
+---
+
+### Fase 6: Analítica Heatmap, Empaquetado Desktop Ligero y Pulido Final
+- **Objetivo:** Unificar la telemetría formativa en la matriz de debilidades, empaquetar la aplicación con Tauri y validar la resiliencia offline.
+- **Entregables:**
+  - Matriz visual de calor (*Heatmap*) con decaimiento temporal de errores ($\tau_{1/2} = 7\text{ días}$) y generador automático de *Micro-Workouts* ante fallas críticas ($\ge 6.0$).
+  - Máquina de estados de hábitos: Quests diarias, racha protegida con 2 *Streak Freezes* y ventana de gracia de 24 horas para prevenir el abandono.
+  - Empaquetado ligero multiplataforma con **Tauri v2** (consumo de memoria $< 120\text{ MB}$, arranque $< 500\text{ ms}$).
+  - Modo 100% offline para repasos SRS, drills de velocidad, visualización fonética y Topo-Lab (sincronizando cola de IA cuando haya red).
+- **Criterio de Aceptación:** Binario de escritorio instalado y probado en Windows, con navegación completa por atajos de teclado y funcionamiento fluido sin conexión externa para módulos locales.

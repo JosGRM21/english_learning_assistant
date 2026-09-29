@@ -6,6 +6,18 @@ import { TauriSqliteDialect } from 'kysely-dialect-tauri';
 import Database from '@tauri-apps/plugin-sql';
 
 /**
+ * Checks whether the app is executing inside a Tauri desktop webview runtime.
+ */
+export function isTauri(): boolean {
+  if (typeof window === 'undefined') return false;
+  return Boolean(
+    (window as unknown as { isTauri?: boolean }).isTauri ||
+      '__TAURI_INTERNALS__' in window ||
+      '__TAURI__' in window,
+  );
+}
+
+/**
  * Executes the DDL statements to create all 15 tables and indexes.
  */
 export async function initializeDatabase(db: Kysely<DatabaseSchema>): Promise<void> {

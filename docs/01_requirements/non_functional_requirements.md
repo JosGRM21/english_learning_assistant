@@ -28,6 +28,9 @@ Este documento especifica los atributos de calidad, restricciones técnicas y re
 ### RNF-PERF-06: Rendimiento y Tokenización del Lector Interactivo (Smart Reader)
 - La carga, tokenización sintáctica y cruce con la base de datos de tarjetas en estado `LEARNING` para un artículo de hasta 5.000 palabras debe ejecutarse en **menos de 120 ms**.
 
+### RNF-PERF-07: Procesamiento de Audio y Rastreo de Tono F0 en Prosodic Shadowing
+- La captura de audio por micrófono y el análisis de tono fundamental ($F_0$) mediante autocorrelación / FFT en el estudio de prosodia debe computarse con una latencia de procesamiento inferior a **150 ms**, permitiendo la renderización visual fluida de la curva de entonación en tiempo real (30+ FPS).
+
 ---
 
 ## 2. Privacidad y Seguridad (RNF-SEC)

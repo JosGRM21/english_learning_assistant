@@ -6,6 +6,8 @@ import {
   WritingEvaluationResponseSchema,
   SocraticClue,
   CorrectionItem,
+  VocabEnrichmentResponse,
+  VocabEnrichmentResponseSchema,
 } from './schemas';
 
 export class MockAiGateway implements IAiGateway {
@@ -157,4 +159,129 @@ export class MockAiGateway implements IAiGateway {
 
     return WritingEvaluationResponseSchema.parse(result);
   }
+
+  public async lookupVocabWord(word: string): Promise<VocabEnrichmentResponse> {
+    await new Promise((r) => setTimeout(r, 60));
+
+    const normalized = word.trim().toLowerCase();
+
+    const mockEntries: Record<string, VocabEnrichmentResponse> = {
+      resilient: {
+        word: 'resilient',
+        translationEs: 'resiliente, con capacidad de recuperación',
+        definitionEn: 'Able to quickly recover or bounce back from difficult conditions or setbacks.',
+        ipaGeneralAmerican: '/rɪˈzɪljənt/',
+        cefrLevel: 'B2',
+        partOfSpeech: 'ADJECTIVE',
+        grammaticalDimension: 'CONTENT',
+        exampleSentenceEn: 'She remained resilient in the face of numerous professional challenges.',
+        exampleSentenceEs: 'Ella se mantuvo resiliente frente a numerosos desafíos profesionales.',
+        isFalseFriend: false,
+        falseFriendNote: null,
+        morphologicalFamily: ['resilience', 'resiliently'],
+      },
+      actually: {
+        word: 'actually',
+        translationEs: 'en realidad, de hecho',
+        definitionEn: 'Used to emphasize what is real or true, contrasting with what might be believed.',
+        ipaGeneralAmerican: '/ˈæk.tʃu.ə.li/',
+        cefrLevel: 'B1',
+        partOfSpeech: 'ADVERB',
+        grammaticalDimension: 'CONTENT',
+        exampleSentenceEn: 'I thought the test was tomorrow, but it is actually today.',
+        exampleSentenceEs: 'Pensé que el examen era mañana, pero en realidad es hoy.',
+        isFalseFriend: true,
+        falseFriendNote: "No significa 'actualmente' (en este momento), sino 'en realidad' o 'de hecho'. Para 'actualmente', usa 'currently' o 'at present'.",
+        morphologicalFamily: ['actual', 'actuality'],
+      },
+      breakthrough: {
+        word: 'breakthrough',
+        translationEs: 'avance crucial, descubrimiento importante',
+        definitionEn: 'An important discovery or event that helps solve a problem or make significant progress.',
+        ipaGeneralAmerican: '/ˈbreɪkˌθruː/',
+        cefrLevel: 'B2',
+        partOfSpeech: 'NOUN',
+        grammaticalDimension: 'CONTENT',
+        exampleSentenceEn: 'Scientists made a major breakthrough in renewable energy storage.',
+        exampleSentenceEs: 'Los científicos lograron un avance crucial en el almacenamiento de energía renovable.',
+        isFalseFriend: false,
+        falseFriendNote: null,
+        morphologicalFamily: ['break through'],
+      },
+      seldom: {
+        word: 'seldom',
+        translationEs: 'rara vez, casi nunca',
+        definitionEn: 'Not often; rarely occurring.',
+        ipaGeneralAmerican: '/ˈsɛl.dəm/',
+        cefrLevel: 'B2',
+        partOfSpeech: 'ADVERB',
+        grammaticalDimension: 'CONTENT',
+        exampleSentenceEn: 'They seldom go out to restaurants during the week.',
+        exampleSentenceEs: 'Ellos rara vez van a restaurantes entre semana.',
+        isFalseFriend: false,
+        falseFriendNote: null,
+        morphologicalFamily: [],
+      },
+      'look forward to': {
+        word: 'look forward to',
+        translationEs: 'esperar con ilusión / entusiasmo',
+        definitionEn: 'To feel pleased and excited about something that is going to happen.',
+        ipaGeneralAmerican: '/lʊk ˈfɔːr.wərd tuː/',
+        cefrLevel: 'B1',
+        partOfSpeech: 'VERB',
+        grammaticalDimension: 'CHUNK',
+        exampleSentenceEn: 'I look forward to hearing from you soon.',
+        exampleSentenceEs: 'Espero con entusiasmo saber de ti pronto.',
+        isFalseFriend: false,
+        falseFriendNote: null,
+        morphologicalFamily: [],
+      },
+      embarrassed: {
+        word: 'embarrassed',
+        translationEs: 'avergonzado/a, apenado/a',
+        definitionEn: 'Feeling ashamed, uncomfortable, or awkward with oneself or others.',
+        ipaGeneralAmerican: '/ɪmˈber.əst/',
+        cefrLevel: 'B1',
+        partOfSpeech: 'ADJECTIVE',
+        grammaticalDimension: 'CONTENT',
+        exampleSentenceEn: 'He was embarrassed when he forgot his colleague’s name.',
+        exampleSentenceEs: 'Él se sintió avergonzado cuando olvidó el nombre de su colega.',
+        isFalseFriend: true,
+        falseFriendNote: "No significa 'embarazada' (que en inglés es 'pregnant'), sino 'avergonzado/a' o 'apenado/a'.",
+        morphologicalFamily: ['embarrass', 'embarrassment', 'embarrassing'],
+      },
+    };
+
+    if (mockEntries[normalized]) {
+      return VocabEnrichmentResponseSchema.parse(mockEntries[normalized]);
+    }
+
+    // Dynamic heuristic fallback for any arbitrary term
+    const cleanWord = word.trim();
+    const isMultiWord = cleanWord.includes(' ');
+    const isAdverb = cleanWord.endsWith('ly');
+    const isAdjective = cleanWord.endsWith('ful') || cleanWord.endsWith('able') || cleanWord.endsWith('ive') || cleanWord.endsWith('ous');
+    const isVerb = cleanWord.startsWith('to ') || isMultiWord;
+
+    const detectedPos = isVerb ? 'VERB' : isAdverb ? 'ADVERB' : isAdjective ? 'ADJECTIVE' : 'NOUN';
+    const dimension = isMultiWord ? 'CHUNK' : 'CONTENT';
+
+    const fallback: VocabEnrichmentResponse = {
+      word: cleanWord,
+      translationEs: `traducción de ${cleanWord}`,
+      definitionEn: `A term representing ${cleanWord} used in standard English communication.`,
+      ipaGeneralAmerican: `/${cleanWord.toLowerCase().replace(/[^a-z]/g, '')}/`,
+      cefrLevel: 'B1',
+      partOfSpeech: detectedPos,
+      grammaticalDimension: dimension,
+      exampleSentenceEn: `Learning how to use "${cleanWord}" correctly enhances fluency.`,
+      exampleSentenceEs: `Aprender a usar "${cleanWord}" correctamente mejora la fluidez.`,
+      isFalseFriend: false,
+      falseFriendNote: null,
+      morphologicalFamily: [],
+    };
+
+    return VocabEnrichmentResponseSchema.parse(fallback);
+  }
 }
+

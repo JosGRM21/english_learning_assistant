@@ -323,6 +323,89 @@ Guiar al estudiante mediante preguntas mayéuticas para que descubra y corrija s
 
 ---
 
+### Vista 11: Prosody Studio (F0 Pitch Contour & Stress-Timing Metronome)
+
+#### Propósito Cognitivo:
+Permitir al aprendiz visualizar la curva de frecuencia fundamental (F0 en Hz) y la isocronía rítmica (*stress-timed rhythm*) del inglés frente a la naturaleza silábica (*syllable-timed*) del español, eliminando la sordera prosódica mediante retroalimentación visual en tiempo real.
+
+#### Composición de Layout:
+- **Contenedor:** `max-w-4xl mx-auto my-10 px-6 space-y-6`.
+- **Selector de Frase y Patrón Entonativo:** Dropdown estilizado con patrones canónicos (*Wh- Falling, Yes/No Rising, Tag Questions, Contrastive Stress*).
+- **Lienzo Visualizador de Curva F0 (The Pitch Canvas):**
+  - Contenedor Canvas: `w-full h-64 bg-slate-950 rounded-2xl p-4 border border-slate-800 relative overflow-hidden shadow-inner`.
+  - Capa Nativa (Sky 400 `#38BDF8`): Curva Bezier suavizada continua que representa la melodía de referencia.
+  - Capa de Grabación del Aprendiz (Amber 500 `#F59E0B`): Trazado superpuesto generado por Web Audio API FFT en tiempo real con latencia <150 ms.
+- **Metrónomo Isocrónico Stress-Timed:**
+  - Píldoras rítmicas pulsantes marcando las sílabas acentuadas a intervalos temporales iguales, contrastadas con las sílabas átonas reducidas a Schwa.
+- **Controles de Shadowing:**
+  - Botón circular de reproducción nativa, botón de grabación de voz con atajo `<kbd>R</kbd>` y dial de tempo ajustable de 80 a 140 BPM.
+- **Consola de Diagnóstico Prosódico:**
+  - Tarjeta de análisis automático con porcentaje de alineación tonal, duración de pausas y detección de transferencia silábica L1.
+
+---
+
+### Vista 12: Laboratorio Cognitivo y Topológico (Topo-Lab)
+
+#### Propósito Cognitivo:
+Proporcionar anclaje visual y espacial para internalizar las preposiciones espaciales y los verbos de movimiento satelitales del inglés mediante esquemas de imagen corporizados (*image schemas* de Lakoff & Johnson), superando la ambigüedad de la traducción directa al español "en".
+
+#### Composición de Layout:
+- **Contenedor:** `max-w-4xl mx-auto my-10 px-6 space-y-6`.
+- **Selector de Esquema Topológico:** Píldoras de selección rápida: *IN (Contenedor 3D)*, *ON (Superficie 2D)*, *AT (Punto 0D)*, *INTO / ONTO / THROUGH (Vectores Dinámicos)*.
+- **Lienzo Interactivo SVG / Canvas (The Spatial Box):**
+  - Contenedor SVG: `w-full h-72 bg-[#F8F9FA] dark:bg-[#0E1119] rounded-2xl border border-gray-200/80 dark:border-white/5 flex items-center justify-center relative select-none shadow-sm`.
+  - Objetos Geométricos Vectoriales: Cubo semitransparente con perspectiva isométrica, plano superficial y nodo de trayectoria arrastrable (*drag-and-drop*).
+  - Al arrastrar el nodo a través de las superficies, el sistema emite un sutil chasquido auditivo háptico y conmuta dinámicamente la etiqueta textual (*at the door -> into the room -> on the floor*).
+- **Módulo de Tipología Satelital (*Manner vs. Path*):**
+  - Demostración gráfica interactiva que desglosa cómo el inglés codifica la manera en el verbo (*tiptoe, sprint, barge*) y la trayectoria en la partícula satelital (*into, across, past*).
+- **Inspector Radial de Polisemia:**
+  - Visualizador en grafo de árbol o constelación para verbos de alta frecuencia (*run a business, run late, run out of time*), mostrando cómo los significados abstractos emergen metafóricamente del núcleo físico.
+
+---
+
+### Vista 13: Misiones TBLT (Task-Based Language Teaching Studio)
+
+#### Propósito Cognitivo:
+Sumergir al estudiante en escenarios comunicativos de alta fidelidad pragmática con presión temporal moderada, donde el foco esté en resolver una meta auténtica (negociación, soporte a clientes, aclaración de disputas) más que en recitar reglas gramaticales abstractas.
+
+#### Composición de Layout:
+- **Contenedor:** `max-w-4xl mx-auto my-10 px-6 space-y-6`.
+- **Módulo de Fases TBLT:**
+  - Indicador de 3 fases estilo stepper: *1. Pre-Task Briefing* $\rightarrow$ *2. Task Execution* $\rightarrow$ *3. Post-Task AI Review*.
+- **Fase 1: Pre-Task Briefing:**
+  - Tarjeta de contexto con expediente del cliente/caso, objetivos comunicativos mandatorios y banco de colocaciones y marcadores de *hedging* recomendados.
+- **Fase 2: Task Execution Editor:**
+  - Cabecera con cronómetro de presión real de 5 a 10 minutos con visualización ámbar.
+  - Editor de texto libre con contador de palabras y envío con atajo `Ctrl+Enter`.
+- **Fase 3: Post-Task Communicative Scorecard:**
+  - Rejilla de 4 cuadrantes evaluando las competencias de Canale & Swain:
+    - *Competencia Lingüística* (Precisión morfosintáctica y léxico).
+    - *Competencia Sociolingüística* (Registro, politeness y nivel de hedging diplomático).
+    - *Competencia Discursiva* (Estructura de párrafos y conectores lógicos).
+    - *Competencia Estratégica* (Resolución del problema y alcance pragmático).
+  - Puntuación global CEFR y panel desplegable de reformulaciones nativas.
+
+---
+
+### Vista 14: Escucha Ascendente (Bottom-Up Listening) & Lexical Profiler
+
+#### Propósito Cognitivo:
+Entrenar el decodificador acústico fonológico del cerebro mediante el aislamiento progresivo de cadenas de habla continua sin el auxilio prematuro del texto visual, garantizando la comprensión de habla natural rápida.
+
+#### Composición de Layout:
+- **Contenedor:** `max-w-3xl mx-auto my-10 px-6 space-y-6`.
+- **Paso 1: Audio Ciego (Blind Audio):**
+  - Gran botón central de escucha sin soporte ortográfico. El estudiante debe formular mentalmente la hipótesis del mensaje antes de ver una sola letra.
+- **Paso 2: Noticing Acústico y Transcripción Fonética:**
+  - Reproductor de micro-segmentos con pausas automáticas entre chunks de habla.
+  - Caja de transcripción inmediata de lo que se percibe acústicamente.
+  - Al validar, el sistema muestra la comparativa entre la transcripción ortográfica y la fonética conectada real (*"whatcha wanna do"* vs *"what do you want to do"*).
+- **Paso 3: Integración y Lexical Profiler:**
+  - Despliegue del texto completo con categorización léxica Nation (familias K1, K2 en gris neutro, K3+ en azul destacado).
+  - Indicador numérico del porcentaje de cobertura léxica del texto (debe superar el 95% para lectura independiente).
+
+---
+
 ## 4. Estados Vacíos (Empty States), Cargas y Notificaciones Transitorias
 
 ### 4.1 Estados Vacíos Minimalistas

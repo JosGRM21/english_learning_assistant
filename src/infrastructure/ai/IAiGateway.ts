@@ -1,6 +1,12 @@
-import { SocraticFeedbackResponse, WritingEvaluationResponse } from './schemas';
+import {
+  SocraticFeedbackResponse,
+  WritingEvaluationResponse,
+  VocabEnrichmentResponse,
+} from './schemas';
 
 export interface IAiGateway {
   evaluateSocraticPhase1(userText: string, cefrTarget?: string): Promise<SocraticFeedbackResponse>;
   evaluateFinalPhase2(draft1: string, draft2: string, cefrTarget?: string): Promise<WritingEvaluationResponse>;
+  lookupVocabWord(word: string): Promise<VocabEnrichmentResponse>;
 }
+

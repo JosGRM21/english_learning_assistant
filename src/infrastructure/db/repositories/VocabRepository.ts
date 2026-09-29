@@ -98,4 +98,80 @@ export class VocabRepository implements IVocabRepository {
 
     return rows.map((row) => this.toDomainVocab(row));
   }
+
+  async createVocab(vocab: Omit<VocabItem, 'id' | 'createdAt'> & { id?: string }): Promise<VocabItem> {
+    const id = vocab.id ?? `voc_custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const createdAt = new Date().toISOString();
+    const morphJson = vocab.morphologicalFamilyJson ? JSON.stringify(vocab.morphologicalFamilyJson) : JSON.stringify([]);
+
+    await this.db
+      .insertInto('vocab_items')
+      .values({
+        id,
+        word: vocab.word.trim(),
+        grammatical_dimension: vocab.grammaticalDimension,
+        part_of_speech: vocab.partOfSpeech,
+        subcategory: vocab.subcategory ?? null,
+        definition_en: vocab.definitionEn.trim(),
+        translation_es: vocab.translationEs.trim(),
+        ipa_general_american: vocab.ipaGeneralAmerican?.trim() || '',
+        ipa_received_pronunciation: vocab.ipaReceivedPronunciation?.trim() || null,
+        cefr_level: vocab.cefrLevel,
+        is_false_friend: vocab.isFalseFriend ? 1 : 0,
+        false_friend_note: vocab.falseFriendNote?.trim() || null,
+        morphological_family_json: morphJson,
+      })
+      .execute();
+
+    return {
+      id,
+      word: vocab.word.trim(),
+      grammaticalDimension: vocab.grammaticalDimension,
+      partOfSpeech: vocab.partOfSpeech,
+      subcategory: vocab.subcategory ?? null,
+      definitionEn: vocab.definitionEn.trim(),
+      translationEs: vocab.translationEs.trim(),
+      ipaGeneralAmerican: vocab.ipaGeneralAmerican?.trim() || '',
+      ipaReceivedPronunciation: vocab.ipaReceivedPronunciation?.trim() || null,
+      cefrLevel: vocab.cefrLevel,
+      isFalseFriend: vocab.isFalseFriend,
+      falseFriendNote: vocab.falseFriendNote?.trim() || null,
+      morphologicalFamilyJson: vocab.morphologicalFamilyJson ?? [],
+      createdAt,
+    };
+  }
+
+  async addContextExample(
+    example: Omit<VocabContextExample, 'id' | 'createdAt'> & { id?: string },
+  ): Promise<VocabContextExample> {
+    const id = example.id ?? `ctx_custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const createdAt = new Date().toISOString();
+
+    await this.db
+      .insertInto('vocab_context_examples')
+      .values({
+        id,
+        vocab_id: example.vocabId ?? null,
+        phrase_id: example.phraseId ?? null,
+        sentence_en: example.sentenceEn.trim(),
+        sentence_es: example.sentenceEs.trim(),
+        cloze_target: example.clozeTarget.trim(),
+        audio_url: example.audioUrl ?? null,
+        cefr_level: example.cefrLevel,
+      })
+      .execute();
+
+    return {
+      id,
+      vocabId: example.vocabId ?? null,
+      phraseId: example.phraseId ?? null,
+      sentenceEn: example.sentenceEn.trim(),
+      sentenceEs: example.sentenceEs.trim(),
+      clozeTarget: example.clozeTarget.trim(),
+      audioUrl: example.audioUrl ?? null,
+      cefrLevel: example.cefrLevel,
+      createdAt,
+    };
+  }
 }
+

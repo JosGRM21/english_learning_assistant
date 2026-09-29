@@ -50,6 +50,21 @@ export class CardRepository implements ICardRepository {
 
   async createCard(card: Omit<SrsCard, 'createdAt'>): Promise<SrsCard> {
     const createdAt = new Date().toISOString();
+
+    // Ensure the referenced user exists to guarantee foreign key integrity
+    await this.db
+      .insertInto('users')
+      .values({
+        id: card.userId,
+        username: card.userId,
+        target_accent: 'GENERAL_AMERICAN',
+        current_cefr_target: 'B1',
+        default_ai_model: 'gemini-3.8-flash',
+        api_key_rotation_mode: 'FAILOVER_ON_QUOTA',
+      })
+      .onConflict((oc) => oc.column('id').doNothing())
+      .execute();
+
     await this.db
       .insertInto('srs_cards')
       .values({
