@@ -42,6 +42,7 @@
     "howler": "2.2.4",
     "immer": "11.1.18",
     "katex": "^0.18.9",
+    "kokoro-js": "^1.2.1",
     "kysely": "0.29.6",
     "kysely-dialect-tauri": "2.0.1",
     "lucide-react": "1.48.0",
