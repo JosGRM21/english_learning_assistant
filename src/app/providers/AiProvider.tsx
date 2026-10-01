@@ -1,23 +1,33 @@
-import React, { createContext, useMemo } from 'react';
+import React, { createContext, useMemo, useState, useCallback } from 'react';
 import { IAiGateway } from '@/infrastructure/ai/IAiGateway';
 import { GeminiAiGateway } from '@/infrastructure/ai/GeminiAiGateway';
-import { QuotaMatrixOrchestrator } from '@/core/ai/QuotaMatrixOrchestrator';
+import {
+  QuotaMatrixOrchestrator,
+  GeminiModelId,
+  GEMINI_MODEL_HIERARCHY,
+  ApiKeyEntry,
+} from '@/core/ai/QuotaMatrixOrchestrator';
 import {
   SocraticFeedbackResponse,
   WritingEvaluationResponse,
   VocabEnrichmentResponse,
 } from '@/infrastructure/ai/schemas';
 
+export const STORAGE_KEYS_KEY = 'ela_ai_api_keys';
+export const STORAGE_DEFAULT_MODEL_KEY = 'ela_default_ai_model';
+
 export interface AiContextValue {
   aiGateway: IAiGateway;
   orchestrator: QuotaMatrixOrchestrator;
+  defaultModel: GeminiModelId;
+  setDefaultModel: (model: GeminiModelId) => void;
 }
 
 export const AiContext = createContext<AiContextValue | null>(null);
 
-function loadInitialKeys() {
+function loadInitialKeys(): ApiKeyEntry[] {
   try {
-    const raw = typeof window !== 'undefined' ? localStorage.getItem('ela_ai_api_keys') : null;
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS_KEY) : null;
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -26,7 +36,7 @@ function loadInitialKeys() {
           parsed[0].isActive = true;
           parsed[0].isPrimary = true;
           try {
-            localStorage.setItem('ela_ai_api_keys', JSON.stringify(parsed));
+            localStorage.setItem(STORAGE_KEYS_KEY, JSON.stringify(parsed));
           } catch {
             // ignore
           }
@@ -38,6 +48,18 @@ function loadInitialKeys() {
     // ignore
   }
   return [];
+}
+
+function loadInitialModel(): GeminiModelId {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_DEFAULT_MODEL_KEY) : null;
+    if (raw && GEMINI_MODEL_HIERARCHY.includes(raw as GeminiModelId)) {
+      return raw as GeminiModelId;
+    }
+  } catch {
+    // ignore
+  }
+  return 'gemini-3.8-flash';
 }
 
 class DelegatingAiGateway implements IAiGateway {
@@ -80,15 +102,37 @@ class DelegatingAiGateway implements IAiGateway {
 }
 
 export function AiProvider({ children }: { children: React.ReactNode }) {
-  const orchestrator = useMemo(() => new QuotaMatrixOrchestrator(loadInitialKeys()), []);
+  const [defaultModel, setDefaultModelState] = useState<GeminiModelId>(loadInitialModel);
+
+  const orchestrator = useMemo(
+    () => new QuotaMatrixOrchestrator(loadInitialKeys(), loadInitialModel()),
+    [],
+  );
   const aiGateway = useMemo(() => new DelegatingAiGateway(orchestrator), [orchestrator]);
+
+  const setDefaultModel = useCallback(
+    (model: GeminiModelId) => {
+      setDefaultModelState(model);
+      orchestrator.setDefaultModel(model);
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_DEFAULT_MODEL_KEY, model);
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [orchestrator],
+  );
 
   const value = useMemo<AiContextValue>(
     () => ({
       aiGateway,
       orchestrator,
+      defaultModel,
+      setDefaultModel,
     }),
-    [aiGateway, orchestrator],
+    [aiGateway, orchestrator, defaultModel, setDefaultModel],
   );
 
   return <AiContext.Provider value={value}>{children}</AiContext.Provider>;

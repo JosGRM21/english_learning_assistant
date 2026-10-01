@@ -1,15 +1,15 @@
 import {
-  LayoutDashboard,
+  // LayoutDashboard, // En desarrollo: temporalmente deshabilitado en UI
   BookmarkCheck,
   Sparkles,
-  Ear,
-  Zap,
+  // Ear, // En desarrollo: temporalmente deshabilitado en UI
+  // Zap, // En desarrollo: temporalmente deshabilitado en UI
   PenTool,
-  BookOpen,
-  BarChart2,
+  // BookOpen, // En desarrollo: temporalmente deshabilitado en UI
+  // BarChart2, // En desarrollo: temporalmente deshabilitado en UI
   Cpu,
   Settings,
-  Compass,
+  // Compass, // En desarrollo: temporalmente deshabilitado en UI
   LucideIcon,
 } from 'lucide-react';
 
@@ -40,6 +40,8 @@ export interface NavGroup {
 }
 
 export const APP_TABS: TabDefinition[] = [
+  // Funcionalidad en desarrollo: No se muestra temporalmente en el sidebar/UI
+  /*
   {
     id: 'dashboard',
     label: 'Inicio',
@@ -47,6 +49,7 @@ export const APP_TABS: TabDefinition[] = [
     activeColorClass: 'text-indigo-600 dark:text-indigo-400',
     description: 'Resumen de racha, misiones diarias y progreso general',
   },
+  */
   {
     id: 'vocab',
     label: 'Vocabulario',
@@ -56,11 +59,13 @@ export const APP_TABS: TabDefinition[] = [
   },
   {
     id: 'srs',
-    label: 'SRS & Fonología',
+    label: 'SRS & Fonética',
     icon: Sparkles,
     activeColorClass: 'text-indigo-600 dark:text-indigo-400',
     description: 'Repaso espaciado inteligente con tarjetas interactivas y fonética aplicada',
   },
+  // Funcionalidad en desarrollo: No se muestra temporalmente en el sidebar/UI
+  /*
   {
     id: 'reader',
     label: 'Lectura Graduada',
@@ -75,13 +80,16 @@ export const APP_TABS: TabDefinition[] = [
     activeColorClass: 'text-purple-600 dark:text-purple-400',
     description: 'Verbos de movimiento en inglés y desambiguación de significados',
   },
+  */
   {
     id: 'writing',
     label: 'Taller de Redacción',
     icon: PenTool,
     activeColorClass: 'text-indigo-600 dark:text-indigo-400',
-    description: 'Práctica guiada de redacción con retroalimentación reflexiva y socrática',
+    description: 'Práctica guiada de redacción con pistas de mejora y evaluación detallada',
   },
+  // Funcionalidad en desarrollo: No se muestra temporalmente en el sidebar/UI
+  /*
   {
     id: 'drills',
     label: 'Entrenamiento Rápido',
@@ -103,6 +111,7 @@ export const APP_TABS: TabDefinition[] = [
     activeColorClass: 'text-rose-600 dark:text-rose-400',
     description: 'Diagnóstico 3D y mapa de calor de errores recurrentes',
   },
+  */
   {
     id: 'quota_matrix',
     label: 'Modelos de IA',
@@ -122,15 +131,33 @@ export const APP_TABS: TabDefinition[] = [
 export const NAV_GROUPS: NavGroup[] = [
   {
     name: 'Aprendizaje',
-    tabs: ['dashboard', 'vocab', 'srs', 'reader'],
+    tabs: [
+      // Funcionalidad en desarrollo: No se muestra temporalmente en el sidebar/UI
+      // 'dashboard',
+      'vocab',
+      'srs',
+      // Funcionalidad en desarrollo: No se muestra temporalmente en el sidebar/UI
+      // 'reader',
+    ],
   },
+  // Funcionalidad en desarrollo: Fonología & Semántica temporalmente deshabilitada en la UI
+  /*
   {
     name: 'Fonología & Semántica',
-    tabs: ['semantics', 'minimal_pairs'],
+    tabs: [
+      // 'semantics',
+      // 'minimal_pairs',
+    ],
   },
+  */
   {
     name: 'Producción & Práctica',
-    tabs: ['writing', 'drills', 'weaknesses'],
+    tabs: [
+      'writing',
+      // Funcionalidad en desarrollo: No se muestra temporalmente en el sidebar/UI
+      // 'drills',
+      // 'weaknesses',
+    ],
   },
   {
     name: 'Sistema & Configuración',

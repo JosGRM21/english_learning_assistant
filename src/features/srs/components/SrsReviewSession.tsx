@@ -4,7 +4,6 @@ import {
   BookOpen,
   ArrowRight,
   Layers,
-  Flame,
 } from 'lucide-react';
 import { useSrsSession } from '../hooks/useSrsSession';
 import { SrsCardDisplay } from './SrsCardDisplay';
@@ -132,11 +131,6 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
                 <span>•</span>
                 <span>
                   Completadas: <strong className="text-emerald-600 dark:text-emerald-400 font-sans">{completedCount}</strong>
-                </span>
-                <span>•</span>
-                <span className="flex items-center gap-1 text-amber-500 font-sans font-medium">
-                  <Flame className="w-3 h-3" />
-                  {streak.currentStreak}d racha
                 </span>
               </div>
             </div>

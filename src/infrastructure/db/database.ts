@@ -4,6 +4,7 @@ import { SQLITE_DDL_SCHEMA } from './schema';
 import { SqlJsDialect } from './dialects/SqlJsDialect';
 import { TauriSqliteDialect } from 'kysely-dialect-tauri';
 import Database from '@tauri-apps/plugin-sql';
+import { runMigrations } from './migrations';
 
 /**
  * Checks whether the app is executing inside a Tauri desktop webview runtime.
@@ -18,7 +19,7 @@ export function isTauri(): boolean {
 }
 
 /**
- * Executes the DDL statements to create all 15 tables and indexes.
+ * Executes the DDL statements to create all 15 tables and indexes, and runs migrations.
  */
 export async function initializeDatabase(db: Kysely<DatabaseSchema>): Promise<void> {
   // Split statements by semicolon, ignoring empty segments
@@ -29,6 +30,9 @@ export async function initializeDatabase(db: Kysely<DatabaseSchema>): Promise<vo
   for (const statement of statements) {
     await sql.raw(statement).execute(db);
   }
+
+  // Run schema migrations for existing persistent databases
+  await runMigrations(db);
 }
 
 /**

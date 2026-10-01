@@ -264,23 +264,53 @@ export function useWritingSession() {
     [isPlayingTts, audioService],
   );
 
-  // Add correction to SRS deck
+  // Add correction to SRS deck with contextual sentence Cloze
   const handleAddCorrectionToSrs = useCallback(
-    async (correction: CorrectionItem) => {
+    async (correction: CorrectionItem, draftContext = '') => {
       if (!vocabRepo || !cardRepo) {
         setSrsSuccessMessage('Base de datos no lista');
         return;
       }
 
       try {
+        const textToSearch = draftContext || draft2 || draft1;
+        let contextualSentence = '';
+        if (textToSearch) {
+          const sentences = textToSearch.split(/(?<=[.?!])\s+/);
+          const found = sentences.find(
+            (s) =>
+              s.toLowerCase().includes(correction.native_reformulation.toLowerCase()) ||
+              s.toLowerCase().includes(correction.error_span.toLowerCase()),
+          );
+          if (found) {
+            contextualSentence = found.trim();
+          }
+        }
+
+        // Generate Cloze prompt if sentence exists
+        let clozePrompt = '';
+        if (contextualSentence) {
+          const regex = new RegExp(
+            correction.native_reformulation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+            'i',
+          );
+          if (regex.test(contextualSentence)) {
+            clozePrompt = contextualSentence.replace(regex, '[ ___ ]');
+          } else {
+            clozePrompt = contextualSentence;
+          }
+        }
+
         const vocabId = `voc_phrase_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         const vocabItem = await vocabRepo.createVocab({
           id: vocabId,
           word: correction.native_reformulation,
           grammaticalDimension: 'CHUNK',
           partOfSpeech: correction.error_type === 'PREPOSITION' ? 'PREPOSITION' : 'VERB',
-          definitionEn: `Collocation / Idiomatic structure: ${correction.native_reformulation}`,
-          translationEs: correction.explanation_es,
+          definitionEn: clozePrompt
+            ? `Context Cloze: "${clozePrompt}"`
+            : `Collocation / Idiomatic structure: ${correction.native_reformulation}`,
+          translationEs: `${correction.explanation_es}${contextualSentence ? ` (Contexto: "${contextualSentence}")` : ''}`,
           ipaGeneralAmerican: '',
           cefrLevel: targetCefr,
           isFalseFriend: correction.error_type === 'FALSE_FRIEND',
@@ -303,7 +333,11 @@ export function useWritingSession() {
         });
 
         audioService.playFeedback(true);
-        setSrsSuccessMessage(`¡Añadido a tu mazo SRS: "${correction.native_reformulation}"!`);
+        setSrsSuccessMessage(
+          clozePrompt
+            ? `¡Tarjeta Cloze contextual guardada en SRS: "${correction.native_reformulation}"!`
+            : `¡Añadido a tu mazo SRS: "${correction.native_reformulation}"!`,
+        );
         setTimeout(() => setSrsSuccessMessage(null), 3500);
       } catch (err) {
         console.error('Failed to add correction to SRS:', err);
@@ -311,7 +345,7 @@ export function useWritingSession() {
         setTimeout(() => setSrsSuccessMessage(null), 3000);
       }
     },
-    [vocabRepo, cardRepo, targetCefr, audioService],
+    [vocabRepo, cardRepo, targetCefr, audioService, draft2, draft1],
   );
 
   return {

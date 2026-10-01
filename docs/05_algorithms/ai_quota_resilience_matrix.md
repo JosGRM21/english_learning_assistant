@@ -54,27 +54,25 @@ Cuando Google devuelve un código HTTP 429, el orquestador inspecciona el payloa
 
 ---
 
-## 3. Algoritmo de Cascada en Matriz 2D (Modelo x Clave)
+## 3. Algoritmo de Rotación de Claves (Sin Failover Automático de Modelo)
 
-El orquestador resuelve la siguiente petición mediante una búsqueda de dos dimensiones (Horizontal: Claves; Vertical: Modelos):
+El orquestador resuelve la siguiente petición utilizando estrictamente el **modelo seleccionado manualmente**. No se realiza degradación ni conmutación automática de modelo ante saturación ni errores 503; el usuario gestiona el modelo de manera manual:
 
 ```mermaid
 flowchart TD
-    Start["Petición entrante<br/>(Modelo Preferido M*, Clave Primaria K*)"] --> CheckLocal{"¿(K*, M*) disponible localmente?<br/>(RPD < 20 y sin RPM cooldown)"}
+    Start["Petición entrante<br/>(Modelo Seleccionado M*, Clave Primaria K*)"] --> CheckLocal{"¿(K*, M*) disponible localmente?<br/>(RPD < 20 y sin RPM cooldown)"}
     
     CheckLocal -- Sí --> Exec["Ejecutar llamada HTTPS"]
     CheckLocal -- No --> SearchKey{"¿Existe otra clave K_j activa<br/>con modelo M* disponible?"}
     
-    SearchKey -- Sí --> SwapKey["Conmutar a (K_j, M*)"] --> Exec
-    SearchKey -- No --> SearchModel{"¿Existe otro modelo M'<br/>en la familia 3.x Flash con cuota disponible?"}
-    
-    SearchModel -- Sí --> DegradeModel["Degradar modelo en cascada:<br/>3.8 -> 3.7 -> 3.6 -> 3.5"] --> Exec
-    SearchModel -- No --> AllExhausted["Todas las claves y modelos agotados:<br/>Calcular tiempo restante hasta medianoche PT"]
+    SearchKey -- Sí --> SwapKey["Conmutar clave a (K_j, M*)"] --> Exec
+    SearchKey -- No --> AllKeysExhausted["Todas las claves agotadas para modelo M*:<br/>Lanzar QuotaExhaustedError.<br/>Cambio de modelo es MANUAL."]
 
     Exec --> CheckResponse{"¿Respuesta de Google?"}
     CheckResponse -- "200 OK" --> Success["Registrar petición (+1 RPD)<br/>Retornar JSON"]
-    CheckResponse -- "HTTP 429 RPM" --> TriggerRPM["Activar Cooldown RPM (30s) en clave actual<br/>Reintentar con siguiente clave"]
-    CheckResponse -- "HTTP 429 RPD" --> TriggerRPD["Marcar (K, M) como RPD_EXHAUSTED hasta 00:00 PT<br/>Reintentar en Cascada 2D"]
+    CheckResponse -- "HTTP 429 RPM" --> TriggerRPM["Activar Cooldown RPM (30s) en clave actual<br/>Reintentar con siguiente clave para M*"]
+    CheckResponse -- "HTTP 429 RPD" --> TriggerRPD["Marcar (K, M*) como RPD_EXHAUSTED hasta 00:00 PT<br/>Reintentar con siguiente clave para M*"]
+    CheckResponse -- "HTTP 503 / Sobrecarga" --> Error503["Lanzar Error 503 inmediato<br/>Sin failover automático de modelo"]
 ```
 
 ---

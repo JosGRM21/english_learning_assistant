@@ -7,12 +7,14 @@ export interface IAudioService {
   stop(): void;
   isBackendAvailable(): Promise<boolean>;
   getBackendVoices(): Promise<string[]>;
+  getActiveDevice?(): 'webgpu' | 'wasm';
 }
 
 export class AudioService implements IAudioService {
   private audioCtx: AudioContext | null = null;
   private currentSource: AudioBufferSourceNode | null = null;
   private audioBufferCache: Map<string, AudioBuffer> = new Map();
+  private currentAbortController: AbortController | null = null;
   private static readonly MAX_CACHE_ENTRIES = 60;
 
   constructor() {
@@ -71,6 +73,13 @@ export class AudioService implements IAudioService {
   }
 
   /**
+   * Returns whether Kokoro is running on WebGPU or WebAssembly.
+   */
+  public getActiveDevice(): 'webgpu' | 'wasm' {
+    return KokoroEngine.getActiveDevice();
+  }
+
+  /**
    * Retrieves available voices from Kokoro.
    */
   public async getBackendVoices(): Promise<string[]> {
@@ -91,7 +100,7 @@ export class AudioService implements IAudioService {
   }
 
   /**
-   * Speaks the provided text using Kokoro-ONNX (82M quantized neural speech),
+   * Speaks the provided text using Kokoro-ONNX with sentence streaming and overlapping synthesis,
    * with automatic fallback to Web Speech API if Kokoro is unavailable.
    *
    * @param text The sentence or word in English.
@@ -102,55 +111,160 @@ export class AudioService implements IAudioService {
     const trimmed = text.trim();
     if (!trimmed) return;
 
+    // Cancel any ongoing speech or synthesis
+    if (this.currentAbortController) {
+      this.currentAbortController.abort();
+      this.currentAbortController = null;
+    }
+    this.stopCurrentPlayback();
+
+    const abortController = new AbortController();
+    this.currentAbortController = abortController;
+    const { signal } = abortController;
+
     const cacheKey = `${trimmed}::${voice}::${rate.toFixed(2)}`;
     const cachedBuffer = this.audioBufferCache.get(cacheKey);
     if (cachedBuffer) {
-      await this.playAudioBuffer(cachedBuffer);
+      await this.playAudioBuffer(cachedBuffer, signal);
       return;
     }
 
-    // 1. Primary: High-fidelity Kokoro-ONNX
+    // 1. Primary: High-fidelity Kokoro-ONNX with Sentence Streaming
     try {
       const tts = await KokoroEngine.getInstance();
+      if (signal.aborted) return;
+
       if (tts) {
-        const rawAudio = await tts.generate(trimmed, {
-          voice: (voice as any) || 'af_heart',
-          speed: rate,
-        });
+        const { TextSplitterStream } = await import('kokoro-js');
+        const splitter = new TextSplitterStream();
+        splitter.push(trimmed);
+        splitter.close();
 
         const ctx = this.getAudioContext();
-        if (ctx && rawAudio && rawAudio.audio) {
-          const audioBuffer = ctx.createBuffer(1, rawAudio.audio.length, rawAudio.sampling_rate);
-          audioBuffer.getChannelData(0).set(rawAudio.audio);
+        if (!ctx) return;
 
-          if (this.audioBufferCache.size >= AudioService.MAX_CACHE_ENTRIES) {
-            const firstKey = this.audioBufferCache.keys().next().value;
-            if (firstKey) this.audioBufferCache.delete(firstKey);
+        const collectedBuffers: AudioBuffer[] = [];
+        const playbackQueue: AudioBuffer[] = [];
+        let isProducerDone = false;
+        let producerError: unknown = null;
+        const consumerRef: { notify: (() => void) | null } = { notify: null };
+
+        const wakeConsumer = () => {
+          if (consumerRef.notify) {
+            const cb = consumerRef.notify;
+            consumerRef.notify = null;
+            cb();
           }
-          this.audioBufferCache.set(cacheKey, audioBuffer);
+        };
 
-          await this.playAudioBuffer(audioBuffer);
-          return;
+        // Background producer generates audio chunks asynchronously
+        const producerPromise = (async () => {
+          try {
+            for await (const chunk of tts.stream(splitter, {
+              voice: (voice as any) || 'af_heart',
+              speed: rate,
+            })) {
+              if (signal.aborted) break;
+              if (chunk?.audio?.audio) {
+                const audioBuffer = ctx.createBuffer(
+                  1,
+                  chunk.audio.audio.length,
+                  chunk.audio.sampling_rate || 24000,
+                );
+                audioBuffer.getChannelData(0).set(chunk.audio.audio);
+                collectedBuffers.push(audioBuffer);
+                playbackQueue.push(audioBuffer);
+                wakeConsumer();
+              }
+            }
+          } catch (err) {
+            producerError = err;
+          } finally {
+            isProducerDone = true;
+            wakeConsumer();
+          }
+        })();
+
+        // Consumer plays each audio chunk as soon as it arrives, overlapping with next chunk synthesis
+        while (!signal.aborted) {
+          if (playbackQueue.length > 0) {
+            const nextBuffer = playbackQueue.shift()!;
+            await this.playAudioBuffer(nextBuffer, signal);
+          } else if (isProducerDone) {
+            break;
+          } else {
+            await new Promise<void>((resolve) => {
+              consumerRef.notify = resolve;
+            });
+          }
         }
+
+        await producerPromise;
+
+        if (signal.aborted) return;
+        if (producerError && collectedBuffers.length === 0) {
+          throw producerError;
+        }
+
+        // Cache the consolidated audio for instant future replays
+        if (collectedBuffers.length > 0) {
+          const mergedBuffer = this.mergeAudioBuffers(ctx, collectedBuffers);
+          if (mergedBuffer) {
+            if (this.audioBufferCache.size >= AudioService.MAX_CACHE_ENTRIES) {
+              const firstKey = this.audioBufferCache.keys().next().value;
+              if (firstKey) this.audioBufferCache.delete(firstKey);
+            }
+            this.audioBufferCache.set(cacheKey, mergedBuffer);
+          }
+        }
+
+        return;
       }
     } catch (err) {
       console.warn('[AudioService] Kokoro-ONNX synthesis unavailable, falling back to Web Speech:', err);
     }
 
+    if (signal.aborted) return;
+
     // 2. Fallback: Web Speech API
-    await this.speakWebSpeech(trimmed, rate);
+    await this.speakWebSpeech(trimmed, rate, signal);
   }
 
   /**
-   * Plays an AudioBuffer with precise promise completion when playback ends.
+   * Merges multiple sequential AudioBuffers into a single consolidated AudioBuffer.
    */
-  private async playAudioBuffer(buffer: AudioBuffer): Promise<void> {
+  private mergeAudioBuffers(ctx: AudioContext, buffers: AudioBuffer[]): AudioBuffer | null {
+    if (buffers.length === 0) return null;
+    if (buffers.length === 1) return buffers[0];
+
+    const totalLength = buffers.reduce((acc, b) => acc + b.length, 0);
+    const sampleRate = buffers[0].sampleRate;
+    const numberOfChannels = buffers[0].numberOfChannels;
+    const merged = ctx.createBuffer(numberOfChannels, totalLength, sampleRate);
+
+    for (let channel = 0; channel < numberOfChannels; channel++) {
+      const channelData = merged.getChannelData(channel);
+      let offset = 0;
+      for (const b of buffers) {
+        channelData.set(b.getChannelData(channel), offset);
+        offset += b.length;
+      }
+    }
+    return merged;
+  }
+
+  /**
+   * Plays an AudioBuffer with precise promise completion when playback ends, abortable via AbortSignal.
+   */
+  private async playAudioBuffer(buffer: AudioBuffer, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return;
     const ctx = this.getAudioContext();
     if (!ctx) return;
 
     if (ctx.state === 'suspended') {
       await ctx.resume();
     }
+    if (signal?.aborted) return;
 
     this.stopCurrentPlayback();
 
@@ -160,25 +274,49 @@ export class AudioService implements IAudioService {
       source.connect(ctx.destination);
       this.currentSource = source;
 
-      source.onended = () => {
+      const onAbort = () => {
+        try {
+          source.stop();
+        } catch {
+          // ignore if already stopped
+        }
         if (this.currentSource === source) {
           this.currentSource = null;
         }
         resolve();
       };
 
-      source.start(0);
+      if (signal) {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+
+      source.onended = () => {
+        if (signal) {
+          signal.removeEventListener('abort', onAbort);
+        }
+        if (this.currentSource === source) {
+          this.currentSource = null;
+        }
+        resolve();
+      };
+
+      try {
+        source.start(0);
+      } catch {
+        resolve();
+      }
     });
   }
 
   /**
    * Fallback TTS using browser's speechSynthesis.
    */
-  private async speakWebSpeech(text: string, rate: number): Promise<void> {
+  private async speakWebSpeech(text: string, rate: number, signal?: AbortSignal): Promise<void> {
     if (
       typeof window === 'undefined' ||
       !('speechSynthesis' in window) ||
-      typeof SpeechSynthesisUtterance === 'undefined'
+      typeof SpeechSynthesisUtterance === 'undefined' ||
+      signal?.aborted
     ) {
       return;
     }
@@ -202,8 +340,27 @@ export class AudioService implements IAudioService {
         utterance.voice = englishVoice;
       }
 
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
+      let settled = false;
+      const finish = () => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      };
+
+      if (signal) {
+        signal.addEventListener(
+          'abort',
+          () => {
+            window.speechSynthesis.cancel();
+            finish();
+          },
+          { once: true },
+        );
+      }
+
+      utterance.onend = () => finish();
+      utterance.onerror = () => finish();
 
       window.speechSynthesis.speak(utterance);
     });
@@ -268,6 +425,10 @@ export class AudioService implements IAudioService {
   }
 
   public stop(): void {
+    if (this.currentAbortController) {
+      this.currentAbortController.abort();
+      this.currentAbortController = null;
+    }
     this.stopCurrentPlayback();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();

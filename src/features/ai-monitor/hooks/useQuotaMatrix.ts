@@ -1,14 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAiGateway } from '@/shared/hooks/useAiGateway';
+import { STORAGE_KEYS_KEY } from '@/app/providers/AiProvider';
 import {
   GEMINI_MODEL_HIERARCHY,
   ApiKeyEntry,
   ApiKeyQuotaSummary,
-  GeminiModelId,
 } from '@/core/ai/QuotaMatrixOrchestrator';
-
-const STORAGE_KEYS_KEY = 'ela_ai_api_keys';
-const STORAGE_DEFAULT_MODEL_KEY = 'ela_default_ai_model';
 
 export const INITIAL_KEYS: ApiKeyEntry[] = [];
 
@@ -37,29 +34,12 @@ function loadStoredKeys(): ApiKeyEntry[] {
   return [];
 }
 
-function loadStoredDefaultModel(): GeminiModelId {
-  try {
-    const raw = localStorage.getItem(STORAGE_DEFAULT_MODEL_KEY);
-    if (raw && GEMINI_MODEL_HIERARCHY.includes(raw as GeminiModelId)) {
-      return raw as GeminiModelId;
-    }
-  } catch {
-    // ignore
-  }
-  return 'gemini-3.8-flash';
-}
-
 export function useQuotaMatrix() {
-  const { orchestrator } = useAiGateway();
+  const { orchestrator, defaultModel, setDefaultModel } = useAiGateway();
 
   const [keys, setKeys] = useState<ApiKeyEntry[]>(() => {
     const loaded = loadStoredKeys();
     orchestrator.setApiKeys(loaded);
-    return loaded;
-  });
-  const [defaultModel, setDefaultModelState] = useState<GeminiModelId>(() => {
-    const loaded = loadStoredDefaultModel();
-    orchestrator.setDefaultModel(loaded);
     return loaded;
   });
   const [tick, setTick] = useState(0);
@@ -68,27 +48,12 @@ export function useQuotaMatrix() {
   // Sync keys to orchestrator and localStorage
   useEffect(() => {
     orchestrator.setApiKeys(keys);
-    orchestrator.setDefaultModel(defaultModel);
     try {
       localStorage.setItem(STORAGE_KEYS_KEY, JSON.stringify(keys));
     } catch {
       // ignore
     }
-  }, [orchestrator, keys, defaultModel]);
-
-  // Sync default model
-  const setDefaultModel = useCallback(
-    (model: GeminiModelId) => {
-      setDefaultModelState(model);
-      orchestrator.setDefaultModel(model);
-      try {
-        localStorage.setItem(STORAGE_DEFAULT_MODEL_KEY, model);
-      } catch {
-        // ignore
-      }
-    },
-    [orchestrator],
-  );
+  }, [orchestrator, keys]);
 
   // Periodic PT midnight countdown
   useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Sparkles,
@@ -7,9 +7,15 @@ import {
   Loader2,
   AlertTriangle,
   SlidersHorizontal,
+  BookOpen,
 } from 'lucide-react';
 import { Button } from '@heroui/react';
-import { CefrLevel, GrammaticalDimension, PartOfSpeech } from '@/core/types/vocab';
+import {
+  CefrLevel,
+  GrammaticalDimension,
+  PartOfSpeech,
+  PART_OF_SPEECH_LABELS_ES,
+} from '@/core/types/vocab';
 import { NewVocabPayload } from '../hooks/useVocabList';
 import { useAiGateway } from '@/shared/hooks/useAiGateway';
 
@@ -40,6 +46,22 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
   const [activeTab, setActiveTab] = useState<'preview' | 'manual'>('preview');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Keyboard navigation: Escape to close, Ctrl+Enter to submit
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleSubmit(e as unknown as React.FormEvent);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, word, translationEs, definitionEn, cefrLevel, partOfSpeech]);
 
   if (!isOpen) return null;
 
@@ -74,7 +96,7 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
 
     if (!isAiConnected) {
       setErrorMsg(
-        'No hay ninguna API Key de Google Gemini activa. Ve a la pestaña "Modelos de IA" para registrar tu clave antes de consultar a la IA.'
+        'No hay ninguna API Key de Google Gemini activa. Ve a la pestaña "Modelos de IA" para registrar tu clave antes de consultar a la IA.',
       );
       return;
     }
@@ -128,7 +150,7 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
     if (!curTranslation) {
       if (!isAiConnected) {
         setErrorMsg(
-          'Para autocompletar la palabra con IA debes registrar tu clave en "Modelos de IA". O puedes completar los campos manualmente.'
+          'Para autocompletar la palabra con IA debes registrar tu clave en "Modelos de IA". O puedes completar los campos manualmente.',
         );
         setActiveTab('manual');
         return;
@@ -186,44 +208,47 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
     }
   };
 
+  const cefrLevels: CefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
   const getCefrBadgeStyle = (level: CefrLevel) => {
     switch (level) {
       case 'A1':
       case 'A2':
-        return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+        return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
       case 'B1':
       case 'B2':
-        return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800';
+        return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800';
       case 'C1':
       case 'C2':
-        return 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 dark:border-purple-800';
+        return 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-300 dark:border-purple-800';
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
-        className="w-full max-w-xl bg-white dark:bg-[#121622] rounded-3xl border border-gray-200/80 dark:border-gray-800 shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+        className="w-full max-w-xl bg-white dark:bg-[#121622] rounded-3xl border border-gray-200/80 dark:border-white/[0.08] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800/80 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-white/[0.06] flex items-center justify-between shrink-0 bg-gray-50/50 dark:bg-[#161B28]/50">
           <div className="flex items-center gap-2.5">
             <span className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
               <Sparkles className="w-4 h-4" />
             </span>
             <div>
-              <h2 className="text-base font-bold text-gray-900 dark:text-white">
+              <h2 className="text-base font-bold text-gray-900 dark:text-white font-sans">
                 Agregar Término al Catálogo
               </h2>
-              <p className="text-[11px] text-gray-400">
-                Escribe la palabra en inglés; la IA extraerá fonética, traducción, nivel CEFR y ejemplos.
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                Escribe en inglés y la IA extraerá fonética, traducción, nivel y ejemplos.
               </p>
             </div>
           </div>
           <button
             onClick={handleClose}
             className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+            title="Cerrar (Esc)"
           >
             <X className="w-4 h-4" />
           </button>
@@ -260,7 +285,7 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                 placeholder="ej: resilient, breakthrough, look forward to"
                 required
                 disabled={isEnriching || isSubmitting}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700/70 text-sm font-semibold text-gray-900 dark:text-white placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 transition-all"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700/70 text-sm font-semibold text-gray-900 dark:text-white placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 transition-all font-sans"
               />
               <Button
                 type="button"
@@ -304,22 +329,22 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
           {(hasEnriched || word.trim().length > 0) && !isEnriching && (
             <div className="space-y-3 pt-1">
               {/* Tab selector */}
-              <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800/80 pb-2">
+              <div className="flex items-center gap-2 border-b border-gray-100 dark:border-white/[0.06] pb-2">
                 <button
                   type="button"
                   onClick={() => setActiveTab('preview')}
-                  className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                  className={`text-xs font-semibold px-3 py-1 rounded-lg transition-colors cursor-pointer ${
                     activeTab === 'preview'
                       ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
                       : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   }`}
                 >
-                  Vista Rápida {hasEnriched && '✓'}
+                  Vista Previa {hasEnriched && '✓'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('manual')}
-                  className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                  className={`text-xs font-semibold px-3 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
                     activeTab === 'manual'
                       ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
                       : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
@@ -331,15 +356,15 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
               </div>
 
               {activeTab === 'preview' ? (
-                <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#161B28]/70 border border-gray-200/60 dark:border-gray-800/80 space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-gray-200/60 dark:border-gray-800/60">
+                <div className="p-4 rounded-2xl bg-gray-50/80 dark:bg-[#161B28]/80 border border-gray-200/80 dark:border-white/[0.08] space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-gray-200/60 dark:border-white/[0.06]">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-lg font-bold text-gray-900 dark:text-white">
+                      <span className="text-xl font-bold text-gray-900 dark:text-white font-sans">
                         {word}
                       </span>
                       {ipaGeneralAmerican && (
                         <span
-                          className="font-phonetic text-xs text-indigo-600 dark:text-indigo-400"
+                          className="font-phonetic text-xs font-semibold text-indigo-600 dark:text-indigo-400"
                           style={{ fontFamily: 'var(--font-phonetic)' }}
                         >
                           /{ipaGeneralAmerican}/
@@ -355,15 +380,15 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                       >
                         {cefrLevel}
                       </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-gray-200/60 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium">
-                        {partOfSpeech}
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-gray-200/70 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium">
+                        {PART_OF_SPEECH_LABELS_ES[partOfSpeech] ?? partOfSpeech}
                       </span>
                     </div>
                   </div>
 
                   {/* Translation */}
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1">
                       Traducción al Español:
                     </label>
                     <input
@@ -371,16 +396,17 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                       value={translationEs}
                       onChange={(e) => setTranslationEs(e.target.value)}
                       placeholder="Traducción al español..."
-                      className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-[#121622] border border-gray-200/80 dark:border-gray-700 text-xs font-semibold text-gray-900 dark:text-white focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-[#121622] border border-gray-200/80 dark:border-white/[0.08] text-xs font-semibold text-gray-900 dark:text-white focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
 
                   {/* Context sentence */}
                   {exampleSentenceEn && (
-                    <div className="p-2.5 rounded-xl bg-white/70 dark:bg-[#121622]/70 border border-gray-200/60 dark:border-gray-800/60 text-xs space-y-0.5">
-                      <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 block">
-                        Ejemplo:
-                      </span>
+                    <div className="p-3 rounded-xl bg-white/80 dark:bg-[#121622]/80 border border-gray-200/60 dark:border-white/[0.06] text-xs space-y-1">
+                      <div className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+                        <BookOpen className="w-3 h-3" />
+                        <span>Ejemplo Sugerido:</span>
+                      </div>
                       <p className="font-editorial italic text-gray-800 dark:text-gray-200 text-xs">
                         &ldquo;{exampleSentenceEn}&rdquo;
                       </p>
@@ -394,7 +420,7 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
 
                   {/* False friend notice if applicable */}
                   {isFalseFriend && (
-                    <div className="p-2.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-1.5">
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700/50 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                       <div>
                         <strong className="font-semibold block text-[11px]">Falso Amigo:</strong>
@@ -434,25 +460,33 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
-                        Nivel CEFR
-                      </label>
-                      <select
-                        value={cefrLevel}
-                        onChange={(e) => setCefrLevel(e.target.value as CefrLevel)}
-                        className="w-full px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white"
-                      >
-                        <option value="A1">A1 - Inicial</option>
-                        <option value="A2">A2 - Elemental</option>
-                        <option value="B1">B1 - Intermedio</option>
-                        <option value="B2">B2 - Intermedio Alto</option>
-                        <option value="C1">C1 - Avanzado</option>
-                        <option value="C2">C2 - Dominio</option>
-                      </select>
+                  {/* CEFR Level Segmented Pills */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1.5">
+                      Nivel CEFR
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      {cefrLevels.map((lvl) => {
+                        const isSel = cefrLevel === lvl;
+                        return (
+                          <button
+                            key={lvl}
+                            type="button"
+                            onClick={() => setCefrLevel(lvl)}
+                            className={`flex-1 py-1 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer border ${
+                              isSel
+                                ? getCefrBadgeStyle(lvl) + ' ring-2 ring-indigo-500'
+                                : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700'
+                            }`}
+                          >
+                            {lvl}
+                          </button>
+                        );
+                      })}
                     </div>
+                  </div>
 
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
                         Categoría Gramatical
@@ -471,6 +505,21 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                         <option value="ARTICLE_DETERMINER">Artículo / Det.</option>
                         <option value="PRONOUN">Pronombre</option>
                         <option value="INTERJECTION">Interjección</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                        Dimensión
+                      </label>
+                      <select
+                        value={grammaticalDimension}
+                        onChange={(e) => setGrammaticalDimension(e.target.value as GrammaticalDimension)}
+                        className="w-full px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white"
+                      >
+                        <option value="CONTENT">Contenido Léxico</option>
+                        <option value="FUNCTION">Palabra Funcional</option>
+                        <option value="CHUNK">Expresión / Frase</option>
                       </select>
                     </div>
                   </div>
@@ -522,36 +571,42 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
           )}
 
           {/* Footer Actions */}
-          <div className="pt-3 border-t border-gray-100 dark:border-gray-800/80 flex items-center justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="px-3.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 text-xs font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-            >
-              Cancelar
-            </button>
-            <Button
-              type="submit"
-              isDisabled={isSubmitting || isEnriching || !word.trim()}
-              className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Guardando...</span>
-                </>
-              ) : hasEnriched ? (
-                <>
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Guardar Término</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Autocompletar y Guardar</span>
-                </>
-              )}
-            </Button>
+          <div className="pt-3 border-t border-gray-100 dark:border-white/[0.06] flex items-center justify-between gap-2.5">
+            <span className="text-[10px] text-gray-400 hidden sm:inline">
+              Tip: Presiona <kbd className="font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">Ctrl+Enter</kbd> para guardar
+            </span>
+
+            <div className="flex items-center gap-2 ml-auto">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-3.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 text-xs font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <Button
+                type="submit"
+                isDisabled={isSubmitting || isEnriching || !word.trim()}
+                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Guardando...</span>
+                  </>
+                ) : hasEnriched ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Guardar Término</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Autocompletar y Guardar</span>
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </form>
       </div>

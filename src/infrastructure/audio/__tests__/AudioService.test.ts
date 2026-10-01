@@ -73,4 +73,16 @@ describe('AudioService', () => {
     audioService.stop();
     expect(cancelMock).toHaveBeenCalled();
   });
+
+  it('exposes active device (wasm or webgpu)', () => {
+    const device = audioService.getActiveDevice();
+    expect(['wasm', 'webgpu']).toContain(device);
+  });
+
+  it('handles stop gracefully even when multiple invocations occur', () => {
+    expect(() => {
+      audioService.stop();
+      audioService.stop();
+    }).not.toThrow();
+  });
 });

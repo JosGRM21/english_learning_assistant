@@ -1,13 +1,20 @@
-import { Database, AlertCircle, ChevronRight, Menu } from 'lucide-react';
+import { Database, AlertCircle, ChevronRight, Menu, Sun, Moon } from 'lucide-react';
 import { APP_TABS, AppTab } from '@/shared/constants/app-tabs';
 import { useDatabase } from '@/shared/hooks/useDatabase';
 
 export interface AppNavbarProps {
   activeTab: AppTab;
   onToggleMobileMenu?: () => void;
+  isDarkMode?: boolean;
+  onToggleDarkMode?: () => void;
 }
 
-export function AppNavbar({ activeTab, onToggleMobileMenu }: AppNavbarProps) {
+export function AppNavbar({
+  activeTab,
+  onToggleMobileMenu,
+  isDarkMode,
+  onToggleDarkMode,
+}: AppNavbarProps) {
   const { isReady, error, retry } = useDatabase();
   const currentTab = APP_TABS.find((t) => t.id === activeTab);
 
@@ -30,15 +37,10 @@ export function AppNavbar({ activeTab, onToggleMobileMenu }: AppNavbarProps) {
           <span className="font-bold text-gray-900 dark:text-white text-sm truncate">
             {currentTab?.label ?? 'Inicio'}
           </span>
-          {currentTab?.description && (
-            <span className="hidden xl:inline text-xs text-gray-400 ml-2 font-normal border-l border-gray-200 dark:border-gray-700 pl-3 truncate">
-              {currentTab.description}
-            </span>
-          )}
         </div>
       </div>
 
-      {/* Right: System & Database Status */}
+      {/* Right: Actions, System & Database Status */}
       <div className="flex items-center gap-3 shrink-0">
         {error ? (
           <button
@@ -55,6 +57,16 @@ export function AppNavbar({ activeTab, onToggleMobileMenu }: AppNavbarProps) {
             <span>Conectando DB...</span>
           </div>
         ) : null}
+
+        {onToggleDarkMode && (
+          <button
+            onClick={onToggleDarkMode}
+            className="p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+            title={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          >
+            {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+          </button>
+        )}
       </div>
     </header>
   );

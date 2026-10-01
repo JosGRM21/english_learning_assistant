@@ -48,21 +48,29 @@ export function DiffVisualizer({
   return (
     <div className="space-y-4">
       {/* Metrics Bar & View Mode Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-gray-50/80 dark:bg-[#181D2A] border border-gray-200/80 dark:border-gray-800 text-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-gray-50/80 dark:bg-[#181D2A] border border-gray-200/80 dark:border-gray-800 text-xs">
         <div className="flex items-center gap-2">
-          <GitCompare className="w-4 h-4 text-indigo-500" />
-          <span className="font-bold text-gray-800 dark:text-gray-200">
-            Comparativa Diferencial a Nivel de Palabra
-          </span>
+          <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+            <GitCompare className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="font-bold text-gray-900 dark:text-white block">
+              Comparativa Diferencial a Nivel de Palabra
+            </span>
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">
+              Evolución directa entre Borrador 1 y Borrador 2
+            </span>
+          </div>
         </div>
 
         {/* View Mode Pills */}
-        <div className="flex items-center gap-1 bg-white dark:bg-[#131722] p-1 rounded-xl border border-gray-200/60 dark:border-gray-800">
+        <div className="flex items-center gap-1 bg-white dark:bg-[#131722] p-1 rounded-xl border border-gray-200/80 dark:border-gray-800 self-start sm:self-center">
           <button
+            type="button"
             onClick={() => setViewMode('INLINE')}
-            className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
               viewMode === 'INLINE'
-                ? 'bg-indigo-600 text-white shadow-xs'
+                ? 'bg-indigo-600 text-white shadow-2xs'
                 : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
             }`}
           >
@@ -70,10 +78,11 @@ export function DiffVisualizer({
             <span>Integrado</span>
           </button>
           <button
+            type="button"
             onClick={() => setViewMode('SPLIT')}
-            className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
               viewMode === 'SPLIT'
-                ? 'bg-indigo-600 text-white shadow-xs'
+                ? 'bg-indigo-600 text-white shadow-2xs'
                 : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
             }`}
           >
@@ -81,10 +90,11 @@ export function DiffVisualizer({
             <span>Lado a Lado</span>
           </button>
           <button
+            type="button"
             onClick={() => setViewMode('CLEAN')}
-            className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
               viewMode === 'CLEAN'
-                ? 'bg-indigo-600 text-white shadow-xs'
+                ? 'bg-indigo-600 text-white shadow-2xs'
                 : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
             }`}
           >
@@ -93,12 +103,13 @@ export function DiffVisualizer({
           </button>
         </div>
 
+        {/* Diff Metrics */}
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
             <PlusCircle className="w-3.5 h-3.5" />
             +{summary.wordsAdded} palabras
           </span>
-          <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium">
+          <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-mono font-semibold">
             <MinusCircle className="w-3.5 h-3.5" />
             -{summary.wordsRemoved} eliminadas
           </span>
@@ -107,17 +118,28 @@ export function DiffVisualizer({
 
       {/* Mode 1: Inline Diff */}
       {viewMode === 'INLINE' && (
-        <div className="p-6 rounded-2xl bg-white dark:bg-[#131722] border border-gray-200 dark:border-gray-800 shadow-inner">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-            Transformación Textual (Rojo = omitido en revisión | Verde = perfeccionado):
+        <div className="p-6 rounded-2xl bg-white dark:bg-[#131722] border border-gray-200/90 dark:border-gray-800 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between text-[11px] text-gray-400 pb-2 border-b border-gray-100 dark:border-gray-800/80">
+            <span className="uppercase font-bold tracking-wider">
+              Transformación Textual
+            </span>
+            <span className="flex items-center gap-3">
+              <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
+                <span className="line-through">tachado</span> = omitido
+              </span>
+              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                <span className="underline font-semibold">verde</span> = perfeccionado
+              </span>
+            </span>
           </div>
+
           <p className="text-base leading-relaxed font-sans text-gray-800 dark:text-gray-100">
             {segments.map((seg, idx) => {
               if (seg.added) {
                 return (
                   <mark
                     key={idx}
-                    className="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 font-semibold px-1 py-0.5 rounded-sm mx-0.5 no-underline border-b-2 border-emerald-500"
+                    className="bg-emerald-100/90 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-200 font-semibold px-1.5 py-0.5 rounded mx-0.5 no-underline border-b-2 border-emerald-500 shadow-2xs"
                   >
                     {seg.value}
                   </mark>
@@ -127,7 +149,7 @@ export function DiffVisualizer({
                 return (
                   <del
                     key={idx}
-                    className="bg-rose-100/80 dark:bg-rose-950/70 text-rose-700 dark:text-rose-400 line-through px-1 py-0.5 rounded-sm mx-0.5 opacity-80"
+                    className="bg-rose-100/80 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 line-through px-1.5 py-0.5 rounded mx-0.5 opacity-80"
                   >
                     {seg.value}
                   </del>
@@ -142,7 +164,7 @@ export function DiffVisualizer({
       {/* Mode 2: Split View */}
       {viewMode === 'SPLIT' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-5 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-200 dark:border-gray-800 space-y-2">
+          <div className="p-5 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-200/90 dark:border-gray-800 space-y-2">
             <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
               {originalLabel}
             </span>
@@ -151,7 +173,7 @@ export function DiffVisualizer({
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-200 dark:border-gray-800 space-y-2">
+          <div className="p-5 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-200/90 dark:border-gray-800 space-y-2">
             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
               {updatedLabel}
             </span>
@@ -164,14 +186,15 @@ export function DiffVisualizer({
 
       {/* Mode 3: Clean Version with Copy Action */}
       {viewMode === 'CLEAN' && (
-        <div className="p-6 rounded-2xl bg-white dark:bg-[#131722] border border-gray-200 dark:border-gray-800 shadow-inner space-y-3">
-          <div className="flex items-center justify-between">
+        <div className="p-6 rounded-2xl bg-white dark:bg-[#131722] border border-gray-200/90 dark:border-gray-800 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800/80">
             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
               Versión Final Pulida Lista para Uso
             </span>
             <button
+              type="button"
               onClick={handleCopyClean}
-              className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-xs font-semibold text-gray-700 dark:text-gray-300 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-3.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-xs font-semibold text-gray-700 dark:text-gray-300 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               {copied ? (
                 <>

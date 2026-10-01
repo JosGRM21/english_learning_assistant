@@ -98,8 +98,7 @@ export function QuotaMatrixMonitor() {
                 Modelos de IA & Cuotas por API Key
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-2xl leading-relaxed">
-                Límite de <strong>80 peticiones por API Key</strong> utilizables indistintamente entre los 4
-                modelos Gemini (3.5, 3.6, 3.7 y 3.8). Failover automático y reseteo diario sincronizado.
+                Límite de <strong>80 peticiones por API Key</strong> (20 por modelo Gemini). Sin conmutación automática de modelo; el cambio de modelo es manual. Reseteo diario sincronizado a las 00:00 PT.
               </p>
             </div>
           </div>
@@ -140,8 +139,7 @@ export function QuotaMatrixMonitor() {
             <span>Seleccionar Modelo de IA por Defecto</span>
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            El modelo seleccionado será la primera opción en cada petición. Si se satura temporalmente, el
-            orquestador cambiará al siguiente disponible.
+            El modelo seleccionado será utilizado para todas las peticiones de IA. El cambio de modelo se realiza exclusivamente de forma manual.
           </p>
         </div>
 
@@ -156,32 +154,32 @@ export function QuotaMatrixMonitor() {
                 key={m}
                 type="button"
                 onClick={() => setDefaultModel(m)}
-                className={`p-4 rounded-2xl text-left border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                className={`p-3.5 sm:p-4 rounded-2xl text-left border transition-all cursor-pointer flex items-center gap-3 min-h-[72px] ${
                   isSelected
                     ? 'border-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40 ring-2 ring-indigo-500/20 shadow-xs'
                     : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 bg-gray-50/50 dark:bg-[#181D2A]'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span
-                    className={`p-2 rounded-xl shrink-0 ${
-                      isSelected
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                  </span>
-                  <span className="font-bold text-sm text-gray-900 dark:text-white truncate">
+                <span
+                  className={`p-2 rounded-xl shrink-0 ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white shadow-xs shadow-indigo-600/30'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                </span>
+
+                <div className="min-w-0 flex-1 flex flex-col justify-center">
+                  <span className="font-bold text-sm text-gray-900 dark:text-white truncate block">
                     {meta.title}
                   </span>
+                  {isSelected && (
+                    <span className="mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-600 text-white shadow-xs self-start inline-flex items-center">
+                      Por Defecto
+                    </span>
+                  )}
                 </div>
-
-                {isSelected && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-600 text-white shadow-xs shrink-0">
-                    Por Defecto
-                  </span>
-                )}
               </button>
             );
           })}

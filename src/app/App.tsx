@@ -5,7 +5,8 @@ import { AppRouter } from './AppRouter';
 import { AppTab } from '@/shared/constants/app-tabs';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
+  // Inicializado en 'vocab' temporalmente mientras 'dashboard' y otras secciones se encuentran en desarrollo
+  const [activeTab, setActiveTab] = useState<AppTab>('vocab');
 
   return (
     <AppProviders>

@@ -75,8 +75,11 @@ export class QuotaMatrixOrchestrator {
   private apiKeys: ApiKeyEntry[] = [];
   private defaultModel: GeminiModelId = 'gemini-3.8-flash';
 
-  constructor(initialKeys: ApiKeyEntry[] = []) {
+  constructor(initialKeys: ApiKeyEntry[] = [], initialModel?: GeminiModelId) {
     this.setApiKeys(initialKeys);
+    if (initialModel && GEMINI_MODEL_HIERARCHY.includes(initialModel)) {
+      this.defaultModel = initialModel;
+    }
   }
 
   public getDefaultModel(): GeminiModelId {
@@ -263,7 +266,11 @@ export class QuotaMatrixOrchestrator {
   }
 
   /**
-   * Resolves the best available (API Key, Model) route through 2D cascade.
+   * Resolves the best available API Key route for the specified model.
+   * NOTE: Automatic model failover is completely eliminated.
+   * Requests strictly use the requested/configured model.
+   * If all active keys are exhausted or unavailable for the requested model,
+   * a QuotaExhaustedError is thrown. Model switches are strictly manual.
    */
   public resolveRoute(
     preferredModel: GeminiModelId = 'gemini-3.8-flash',
@@ -279,54 +286,44 @@ export class QuotaMatrixOrchestrator {
     // Sort active keys: primary key first
     const sortedKeys = [...activeKeys].sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0));
 
-    // Determine model cascade starting from preferredModel
-    const startIndex = GEMINI_MODEL_HIERARCHY.indexOf(preferredModel);
-    const modelCascade =
-      startIndex >= 0
-        ? [
-            ...GEMINI_MODEL_HIERARCHY.slice(startIndex),
-            ...GEMINI_MODEL_HIERARCHY.slice(0, startIndex),
-          ]
-        : GEMINI_MODEL_HIERARCHY;
+    // Target model is strictly preferredModel - NO automatic model failover under any circumstance
+    const targetModel = preferredModel;
 
-    // 2D Search: Horizontal across keys, Vertical down models
-    for (const model of modelCascade) {
-      for (const key of sortedKeys) {
-        const quota = this.getQuotaState(key.id, model);
-        if (!quota) continue;
+    for (const key of sortedKeys) {
+      const quota = this.getQuotaState(key.id, targetModel);
+      if (!quota) continue;
 
-        // Check if exhausted for the day
-        if (quota.rpdStatus === 'EXHAUSTED_UNTIL_MIDNIGHT_PT' || quota.requestsToday >= quota.dailyLimit) {
-          continue;
-        }
-
-        // Check if in RPM cooldown
-        if (quota.rpmCooldownUntil) {
-          const cooldownDate = new Date(quota.rpmCooldownUntil);
-          if (now < cooldownDate) {
-            continue; // Cooldown still active, try next key
-          }
-        }
-
-        // Match found!
-        const fallbackOccurred = model !== preferredModel || key.id !== sortedKeys[0].id;
-        return {
-          apiKeyId: key.id,
-          secretKey: key.secretKey,
-          modelId: model,
-          fallbackOccurred,
-          reason: fallbackOccurred
-            ? `Routed to model ${model} on key "${key.label}" due to preferred quota saturation`
-            : undefined,
-        };
+      // Check if exhausted for the day
+      if (quota.rpdStatus === 'EXHAUSTED_UNTIL_MIDNIGHT_PT' || quota.requestsToday >= quota.dailyLimit) {
+        continue;
       }
+
+      // Check if in RPM cooldown
+      if (quota.rpmCooldownUntil) {
+        const cooldownDate = new Date(quota.rpmCooldownUntil);
+        if (now < cooldownDate) {
+          continue; // Cooldown still active, try next key
+        }
+      }
+
+      // Match found for targetModel!
+      const fallbackOccurred = key.id !== sortedKeys[0].id;
+      return {
+        apiKeyId: key.id,
+        secretKey: key.secretKey,
+        modelId: targetModel,
+        fallbackOccurred,
+        reason: fallbackOccurred
+          ? `Routed to backup key "${key.label}" due to primary key quota saturation`
+          : undefined,
+      };
     }
 
-    // If all models and keys are exhausted
+    // If all keys for targetModel are exhausted or in cooldown
     const { ms, isoDate } = this.getTimeUntilMidnightPt(now);
     const hours = (ms / (1000 * 60 * 60)).toFixed(1);
     throw new QuotaExhaustedError(
-      `All ${activeKeys.length} API keys and models exhausted. Quota will reset at midnight Pacific Time (${hours} hours remaining).`,
+      `All ${activeKeys.length} API keys exhausted for model ${targetModel}. Quota will reset at midnight Pacific Time (${hours} hours remaining).`,
       ms,
       isoDate,
     );
@@ -348,7 +345,7 @@ export class QuotaMatrixOrchestrator {
   }
 
   /**
-   * Records an HTTP 429 error and applies the appropriate 2D penalty.
+   * Records an HTTP 429 error and applies the appropriate quota penalty.
    */
   public recordHttp429(
     apiKeyId: string,
@@ -366,18 +363,12 @@ export class QuotaMatrixOrchestrator {
       lower.includes('retry-after') ||
       lower.includes('rate limit');
 
-    const isServerOverload =
-      lower.includes('503') ||
-      lower.includes('unavailable') ||
-      lower.includes('overloaded') ||
-      lower.includes('high demand');
-
-    if (isRpm || isServerOverload) {
-      // 30 seconds RPM / overload cooldown
+    if (isRpm) {
+      // 30 seconds RPM cooldown
       const cooldown = new Date(now.getTime() + 30 * 1000);
       quota.rpmCooldownUntil = cooldown.toISOString();
     } else {
-      // Exhausted until midnight PT
+      // Exhausted until midnight PT (RPD limit reached)
       quota.requestsToday = quota.dailyLimit;
       quota.rpdStatus = 'EXHAUSTED_UNTIL_MIDNIGHT_PT';
     }

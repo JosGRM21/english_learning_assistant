@@ -38,6 +38,7 @@ export function useVocabList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCefr, setSelectedCefr] = useState<string>('ALL');
   const [selectedDimension, setSelectedDimension] = useState<string>('ALL');
+  const [onlyFalseFriends, setOnlyFalseFriends] = useState(false);
   const [sortBy, setSortBy] = useState<'RECENT' | 'ALPHA_ASC' | 'ALPHA_DESC' | 'CEFR_ASC'>('RECENT');
 
   const loadVocabData = useCallback(async () => {
@@ -134,8 +135,48 @@ export function useVocabList() {
     [vocabRepo, cardRepo],
   );
 
+  const updateWord = useCallback(
+    async (id: string, updates: Partial<Omit<VocabItem, 'id' | 'createdAt'>>): Promise<VocabItem | null> => {
+      if (!vocabRepo) return null;
+      const updated = await vocabRepo.updateVocab(id, updates);
+      setWords((prev) => prev.map((w) => (w.id === id ? updated : w)));
+      return updated;
+    },
+    [vocabRepo],
+  );
+
+  const deleteWord = useCallback(
+    async (id: string): Promise<boolean> => {
+      if (!vocabRepo) return false;
+      const success = await vocabRepo.deleteVocab(id);
+      if (success) {
+        setWords((prev) => prev.filter((w) => w.id !== id));
+        setExamplesMap((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
+      return success;
+    },
+    [vocabRepo],
+  );
+
+  const resetFilters = useCallback(() => {
+    setSearchQuery('');
+    setSelectedCefr('ALL');
+    setSelectedDimension('ALL');
+    setOnlyFalseFriends(false);
+    setSortBy('RECENT');
+  }, []);
+
   const sortedFilteredWords = useMemo(() => {
     const list = words.filter((w) => {
+      // False Friends Filter
+      if (onlyFalseFriends && !w.isFalseFriend) {
+        return false;
+      }
+
       // CEFR Filter
       if (selectedCefr !== 'ALL' && w.cefrLevel !== selectedCefr) {
         return false;
@@ -176,7 +217,7 @@ export function useVocabList() {
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
     });
-  }, [words, selectedCefr, selectedDimension, searchQuery, sortBy]);
+  }, [words, onlyFalseFriends, selectedCefr, selectedDimension, searchQuery, sortBy]);
 
   const cefrCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -196,23 +237,46 @@ export function useVocabList() {
     return counts;
   }, [words]);
 
+  const falseFriendsCount = useMemo(
+    () => words.filter((w) => w.isFalseFriend).length,
+    [words],
+  );
+
+  const hasActiveFilters = useMemo(
+    () =>
+      searchQuery.trim().length > 0 ||
+      selectedCefr !== 'ALL' ||
+      selectedDimension !== 'ALL' ||
+      onlyFalseFriends ||
+      sortBy !== 'RECENT',
+    [searchQuery, selectedCefr, selectedDimension, onlyFalseFriends, sortBy],
+  );
+
   return {
     words: sortedFilteredWords,
+    allWords: words,
     totalCount: words.length,
     filteredCount: sortedFilteredWords.length,
+    falseFriendsCount,
+    hasActiveFilters,
     examplesMap,
     isLoading,
     error,
     searchQuery,
     selectedCefr,
     selectedDimension,
+    onlyFalseFriends,
     sortBy,
     cefrCounts,
     setSearchQuery,
     setSelectedCefr,
     setSelectedDimension,
+    setOnlyFalseFriends,
     setSortBy,
+    resetFilters,
     addWord,
+    updateWord,
+    deleteWord,
     refresh: loadVocabData,
   };
 }

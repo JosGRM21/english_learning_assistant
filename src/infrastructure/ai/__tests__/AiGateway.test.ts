@@ -4,6 +4,7 @@ import {
   SocraticFeedbackResponseSchema,
   WritingEvaluationResponseSchema,
   VocabEnrichmentResponseSchema,
+  stripLeadingGreetings,
 } from '../schemas';
 
 describe('MockAiGateway', () => {
@@ -167,5 +168,57 @@ describe('MockAiGateway', () => {
       expect(response.exampleSentenceEn).toContain('serendipitously');
     });
   });
+
+  describe('Greeting sanitization (stripLeadingGreetings)', () => {
+    it('strips "Hola", "¡Hola!", and greeting preambles cleanly', () => {
+      expect(stripLeadingGreetings('¡Hola! Has redactado un buen borrador.')).toBe('Has redactado un buen borrador.');
+      expect(stripLeadingGreetings('Hola, tu texto es claro.')).toBe('Tu texto es claro.');
+      expect(stripLeadingGreetings('Saludos: se han detectado observaciones.')).toBe('Se han detectado observaciones.');
+      expect(stripLeadingGreetings('Bienvenido. Aquí está el análisis.')).toBe('Aquí está el análisis.');
+      expect(stripLeadingGreetings('Texto directo sin saludo.')).toBe('Texto directo sin saludo.');
+    });
+
+    it('strips accidental greetings when parsing SocraticFeedbackResponseSchema', () => {
+      const raw = {
+        overall_impression_es: '¡Hola! Gran esfuerzo en tu primer borrador.',
+        error_count: 1,
+        allow_self_correction: true,
+        scaffolded_clues: [
+          {
+            paragraph_index: 1,
+            clue_type: 'PREPOSITION',
+            hint_question_es: 'Hola, ¿cuál es la preposición correcta?',
+            highlighted_area: 'depend of',
+            sentence_context: 'It depends of the situation.',
+          },
+        ],
+      };
+
+      const parsed = SocraticFeedbackResponseSchema.parse(raw);
+      expect(parsed.overall_impression_es).toBe('Gran esfuerzo en tu primer borrador.');
+      expect(parsed.scaffolded_clues[0].hint_question_es).toBe('¿Cuál es la preposición correcta?');
+    });
+
+    it('strips accidental greetings when parsing WritingEvaluationResponseSchema', () => {
+      const raw = {
+        overall_feedback_es: 'Hola, has corregido la mayoría de los errores del borrador previo.',
+        estimated_cefr: 'B1',
+        scores: { grammar: 8, vocabulary: 8, coherence: 8 },
+        successful_repairs: [],
+        corrections: [],
+        micro_challenge: {
+          question_es: '¿Preposición?',
+          sentence_with_blank: 'depend ___',
+          options: ['on', 'of'],
+          correct_option_index: 0,
+          explanation_es: 'depend on',
+        },
+      };
+
+      const parsed = WritingEvaluationResponseSchema.parse(raw);
+      expect(parsed.overall_feedback_es).toBe('Has corregido la mayoría de los errores del borrador previo.');
+    });
+  });
 });
+
 

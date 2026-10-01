@@ -1,20 +1,16 @@
 import {
   ChevronLeft,
   ChevronRight,
-  Sun,
-  Moon,
-  Flame,
 } from 'lucide-react';
 import { APP_TABS, AppTab, NAV_GROUPS } from '@/shared/constants/app-tabs';
-import { useHabitsStore } from '@/features/habits/store/habitsStore';
 
 export interface AppSidebarProps {
   activeTab: AppTab;
   onNavigateTab: (tab: AppTab) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-  isDarkMode: boolean;
-  onToggleDarkMode: () => void;
+  isDarkMode?: boolean;
+  onToggleDarkMode?: () => void;
 }
 
 export function AppSidebar({
@@ -22,11 +18,7 @@ export function AppSidebar({
   onNavigateTab,
   isCollapsed,
   onToggleCollapse,
-  isDarkMode,
-  onToggleDarkMode,
 }: AppSidebarProps) {
-  const streak = useHabitsStore((s) => s.streak);
-
   const tabsMap = new Map(APP_TABS.map((t) => [t.id, t]));
 
   return (
@@ -69,7 +61,7 @@ export function AppSidebar({
 
       {/* Navigation Groups */}
       <div className="flex-1 overflow-y-auto custom-scrollbar-thin px-3 py-4 space-y-6">
-        {NAV_GROUPS.map((group, groupIdx) => (
+        {NAV_GROUPS.filter((group) => group.tabs.length > 0).map((group, groupIdx) => (
           <div key={groupIdx} className="space-y-1">
             {!isCollapsed ? (
               <h2 className="px-3 text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
@@ -111,49 +103,7 @@ export function AppSidebar({
         ))}
       </div>
 
-      {/* Sidebar Footer Strip */}
-      <div className="p-3 border-t border-gray-100 dark:border-gray-800/80 space-y-2">
-        {/* Streak Pill */}
-        {!isCollapsed ? (
-          <div className="p-2.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-amber-500 text-white shadow-xs">
-                <Flame className="w-3.5 h-3.5" />
-              </span>
-              <div>
-                <div className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 leading-none">
-                  Racha Activa
-                </div>
-                <div className="text-xs font-bold text-gray-900 dark:text-white font-mono mt-0.5">
-                  {streak.currentStreak} días
-                </div>
-              </div>
-            </div>
-
-            <div className="text-[10px] text-gray-400 font-mono">
-              Freeze: {streak.availableFreezes}
-            </div>
-          </div>
-        ) : (
-          <div
-            className="flex items-center justify-center p-2 rounded-2xl bg-amber-500/10 text-amber-500 font-mono text-xs font-bold"
-            title={`Racha activa: ${streak.currentStreak} días`}
-          >
-            <Flame className="w-4 h-4" />
-          </div>
-        )}
-
-        {/* Action controls row */}
-        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-end'}`}>
-          <button
-            onClick={onToggleDarkMode}
-            className="p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-            title={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-          >
-            {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
-          </button>
-        </div>
-      </div>
+      {/* Sidebar Footer Strip (Empty or removed if not needed) */}
     </aside>
   );
 }

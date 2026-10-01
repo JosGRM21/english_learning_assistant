@@ -63,6 +63,7 @@ describe('WritingRepository Integration Tests', () => {
       overall_feedback_es: '¡Excelente corrección!',
       estimated_cefr: 'B1',
       scores: { grammar: 9.0, vocabulary: 8.5, coherence: 8.5 },
+      successful_repairs: [],
       corrections: [
         {
           error_span: 'depend of',

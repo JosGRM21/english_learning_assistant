@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Plus,
   Search,
@@ -6,48 +6,72 @@ import {
   BookmarkCheck,
   CheckCircle2,
   FolderOpen,
-  LayoutGrid,
-  Table as TableIcon,
   ArrowUpDown,
   X,
+  RotateCcw,
+  Sparkles,
 } from 'lucide-react';
 import { Button, Pagination, Select, ListBox } from '@heroui/react';
 import { useVocabList, NewVocabPayload } from '../hooks/useVocabList';
 import { VocabCard } from './VocabCard';
-import { VocabListView } from './VocabListView';
 import { AddVocabModal } from './AddVocabModal';
+import { VocabStatsBento } from './VocabStatsBento';
+import { VocabDetailDrawer } from './VocabDetailDrawer';
+import { VocabSkeletonGrid } from './VocabSkeletonCard';
+import { PageHeader } from '@/shared/ui/PageHeader';
+import { VocabItem } from '@/core/types/vocab';
 
 export function VocabCatalogView() {
   const {
     words,
     totalCount,
     filteredCount,
+    falseFriendsCount,
+    hasActiveFilters,
     examplesMap,
     isLoading,
     searchQuery,
     selectedCefr,
     selectedDimension,
+    onlyFalseFriends,
     sortBy,
     cefrCounts,
     setSearchQuery,
     setSelectedCefr,
     setSelectedDimension,
+    setOnlyFalseFriends,
     setSortBy,
+    resetFilters,
     addWord,
+    updateWord,
+    deleteWord,
   } = useVocabList();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [selectedWordForDrawer, setSelectedWordForDrawer] = useState<VocabItem | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // HeroUI Pagination state
+  // Search input ref & Ctrl+K shortcut
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Pagination state
   const ITEMS_PER_PAGE = 12;
   const [currentPage, setCurrentPage] = useState(1);
 
   // Reset page to 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCefr, selectedDimension, sortBy]);
+  }, [searchQuery, selectedCefr, selectedDimension, onlyFalseFriends, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCount / ITEMS_PER_PAGE));
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
@@ -79,24 +103,52 @@ export function VocabCatalogView() {
   };
 
   const handleAddWord = async (payload: NewVocabPayload) => {
-    await addWord(payload);
-    setSuccessToast(`¡Término "${payload.word}" añadido con éxito!`);
-    setTimeout(() => setSuccessToast(null), 4000);
+    const created = await addWord(payload);
+    showToast(`¡Término "${payload.word}" agregado al catálogo con éxito!`);
+    if (created) {
+      setSelectedWordForDrawer(created);
+    }
   };
 
-  const cefrLevels = ['ALL', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
+  const handleDeleteWord = async (id: string): Promise<boolean> => {
+    const ok = await deleteWord(id);
+    if (ok) {
+      showToast('Término eliminado del catálogo.');
+      if (selectedWordForDrawer?.id === id) {
+        setSelectedWordForDrawer(null);
+      }
+    }
+    return ok;
+  };
+
+  const handleUpdateWord = async (
+    id: string,
+    updates: Partial<VocabItem>,
+  ): Promise<VocabItem | null> => {
+    const updated = await updateWord(id, updates);
+    if (updated) {
+      showToast('Término actualizado correctamente.');
+      setSelectedWordForDrawer(updated);
+    }
+    return updated;
+  };
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
-      {successToast && (
-        <div className="p-3.5 px-4 rounded-2xl bg-emerald-600 text-white shadow-lg flex items-center justify-between animate-in slide-in-from-top-2 duration-300">
+      {toastMessage && (
+        <div className="fixed top-5 right-5 z-50 p-3.5 px-4 rounded-2xl bg-indigo-600 text-white shadow-xl flex items-center justify-between gap-3 animate-in slide-in-from-top-3 duration-300">
           <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-200" />
-            <span className="text-xs font-semibold">{successToast}</span>
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-indigo-200" />
+            <span className="text-xs font-semibold">{toastMessage}</span>
           </div>
           <button
-            onClick={() => setSuccessToast(null)}
+            onClick={() => setToastMessage(null)}
             className="text-white/80 hover:text-white cursor-pointer text-xs"
           >
             ✕
@@ -104,85 +156,63 @@ export function VocabCatalogView() {
         </div>
       )}
 
-      {/* Main Header & Actions Strip */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-1">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
-              <BookmarkCheck className="w-5 h-5" />
-            </span>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-              Banco de Vocabulario
-            </h1>
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Catálogo léxico con transcripción fonética IPA, familias semánticas y oraciones auténticas en contexto.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2.5 shrink-0">
-          {/* View mode toggle: Tarjetas vs Tabla */}
-          <div className="p-1 rounded-xl bg-gray-100 dark:bg-gray-800/80 border border-gray-200/60 dark:border-gray-700/60 flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                viewMode === 'grid'
-                  ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
-                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
-              title="Vista en modo tarjetas"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Tarjetas</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                viewMode === 'list'
-                  ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
-                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              }`}
-              title="Vista en modo tabla"
-            >
-              <TableIcon className="w-3.5 h-3.5" />
-              <span>Tabla</span>
-            </button>
-          </div>
-
-          {/* Primary Action Button */}
+      {/* Unified Page Header */}
+      <PageHeader
+        title="Banco de Vocabulario"
+        description="Catálogo léxico con transcripción fonética IPA, familias semánticas y oraciones auténticas en contexto."
+        icon={BookmarkCheck}
+        actions={
           <Button
-            onClick={() => setIsModalOpen(true)}
+            onPress={() => setIsModalOpen(true)}
             className="h-9 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md shadow-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Agregar Palabra</span>
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Unified Filter Toolbar */}
-      <div className="p-3.5 rounded-2xl bg-white dark:bg-[#121622] border border-gray-200/70 dark:border-gray-800/80 shadow-[0_2px_10px_rgba(0,0,0,0.02)] space-y-3">
+      {/* Vocab Stats Bento Mini-Dashboard */}
+      <VocabStatsBento
+        totalCount={totalCount}
+        filteredCount={filteredCount}
+        falseFriendsCount={falseFriendsCount}
+        cefrCounts={cefrCounts}
+        selectedCefr={selectedCefr}
+        onlyFalseFriends={onlyFalseFriends}
+        onSelectCefr={(cefr) => setSelectedCefr(cefr)}
+        onToggleFalseFriends={() => setOnlyFalseFriends(!onlyFalseFriends)}
+      />
+
+      {/* Command & Filter Bar */}
+      <div className="p-3.5 rounded-2xl bg-white dark:bg-[#121622] border border-gray-200/80 dark:border-white/[0.08] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Search Input */}
+          {/* Search Input with Ctrl+K badge */}
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por término en inglés, traducción, fonética o definición..."
-              className="w-full pl-9 pr-8 py-2 rounded-xl bg-gray-50 dark:bg-[#161B28] border border-gray-200/70 dark:border-gray-700/60 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 transition-all"
+              placeholder="Buscar término, traducción, fonética IPA o definición..."
+              className="w-full pl-9 pr-16 py-2 rounded-xl bg-gray-50 dark:bg-[#161B28] border border-gray-200/80 dark:border-white/[0.08] text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 transition-all font-sans"
             />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 rounded border border-gray-200/60 dark:border-gray-700/60">
+                  Ctrl+K
+                </kbd>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -195,14 +225,14 @@ export function VocabCatalogView() {
               aria-label="Criterio de ordenación"
               className="w-44 sm:w-52"
             >
-              <Select.Trigger className="h-9 px-3 text-xs bg-gray-50 dark:bg-[#161B28] border border-gray-200/70 dark:border-gray-700/60 rounded-xl flex items-center justify-between gap-2 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors cursor-pointer">
+              <Select.Trigger className="h-9 px-3 text-xs bg-gray-50 dark:bg-[#161B28] border border-gray-200/80 dark:border-white/[0.08] rounded-xl flex items-center justify-between gap-2 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors cursor-pointer">
                 <div className="flex items-center gap-1.5 truncate">
                   <ArrowUpDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                   <Select.Value className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate" />
                 </div>
                 <Select.Indicator className="text-gray-400 shrink-0" />
               </Select.Trigger>
-              <Select.Popover className="p-1 rounded-xl bg-white dark:bg-[#161B28] border border-gray-200/80 dark:border-gray-700/80 shadow-lg min-w-[200px] z-50">
+              <Select.Popover className="p-1 rounded-xl bg-white dark:bg-[#161B28] border border-gray-200/80 dark:border-white/[0.08] shadow-lg min-w-[200px] z-50">
                 <ListBox className="space-y-0.5 outline-none">
                   <ListBox.Item id="RECENT" textValue="Más recientes" className="px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200 focus:bg-indigo-50 dark:focus:bg-indigo-950/40 focus:outline-none flex items-center justify-between">
                     <span>Más recientes</span>
@@ -233,14 +263,14 @@ export function VocabCatalogView() {
               aria-label="Filtrar por dimensión léxica"
               className="w-48 sm:w-56"
             >
-              <Select.Trigger className="h-9 px-3 text-xs bg-gray-50 dark:bg-[#161B28] border border-gray-200/70 dark:border-gray-700/60 rounded-xl flex items-center justify-between gap-2 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors cursor-pointer">
+              <Select.Trigger className="h-9 px-3 text-xs bg-gray-50 dark:bg-[#161B28] border border-gray-200/80 dark:border-white/[0.08] rounded-xl flex items-center justify-between gap-2 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors cursor-pointer">
                 <div className="flex items-center gap-1.5 truncate">
                   <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                   <Select.Value className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate" />
                 </div>
                 <Select.Indicator className="text-gray-400 shrink-0" />
               </Select.Trigger>
-              <Select.Popover className="p-1 rounded-xl bg-white dark:bg-[#161B28] border border-gray-200/80 dark:border-gray-700/80 shadow-lg min-w-[210px] z-50">
+              <Select.Popover className="p-1 rounded-xl bg-white dark:bg-[#161B28] border border-gray-200/80 dark:border-white/[0.08] shadow-lg min-w-[210px] z-50">
                 <ListBox className="space-y-0.5 outline-none">
                   <ListBox.Item id="ALL" textValue="Todas las Dimensiones" className="px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200 focus:bg-indigo-50 dark:focus:bg-indigo-950/40 focus:outline-none flex items-center justify-between">
                     <span>Todas las Dimensiones</span>
@@ -261,94 +291,84 @@ export function VocabCatalogView() {
                 </ListBox>
               </Select.Popover>
             </Select>
-          </div>
-        </div>
 
-        {/* CEFR Segmented Filter Strip */}
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pt-1 pb-0.5 border-t border-gray-100 dark:border-gray-800/60">
-          <span className="text-[11px] font-semibold text-gray-400 mr-1 shrink-0">Nivel CEFR:</span>
-          {cefrLevels.map((lvl) => {
-            const isSelected = selectedCefr === lvl;
-            const count = lvl === 'ALL' ? totalCount : cefrCounts[lvl] ?? 0;
-            return (
+            {hasActiveFilters && (
               <button
-                key={lvl}
-                onClick={() => setSelectedCefr(lvl)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all shrink-0 cursor-pointer ${
-                  isSelected
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-gray-100/80 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
+                type="button"
+                onClick={resetFilters}
+                className="h-9 px-3 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
               >
-                {lvl === 'ALL' ? 'Todos' : lvl}
-                <span className={`ml-1 text-[10px] opacity-75 font-mono`}>({count})</span>
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Limpiar filtros</span>
               </button>
-            );
-          })}
+            )}
+          </div>
         </div>
       </div>
 
       {/* Content Rendering: Grid vs List */}
       {isLoading ? (
-        <div className="p-16 text-center text-gray-400 space-y-3">
-          <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-medium">Cargando catálogo léxico...</p>
-        </div>
+        <VocabSkeletonGrid count={6} />
       ) : words.length === 0 ? (
-        <div className="p-14 rounded-2xl bg-white dark:bg-[#121622] border border-gray-200/70 dark:border-gray-800/80 text-center space-y-3 shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-gray-50 dark:bg-gray-800/60 text-gray-400 mx-auto flex items-center justify-center">
-            <FolderOpen className="w-6 h-6" />
+        <div className="p-14 rounded-3xl bg-white dark:bg-[#121622] border border-gray-200/80 dark:border-white/[0.08] text-center space-y-3 shadow-xs">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-500 dark:text-indigo-400 mx-auto flex items-center justify-center">
+            {hasActiveFilters ? <FolderOpen className="w-7 h-7" /> : <Sparkles className="w-7 h-7" />}
           </div>
-          <h3 className="text-base font-bold text-gray-800 dark:text-gray-200">
-            No se encontraron palabras
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white font-sans">
+            {hasActiveFilters ? 'No se encontraron palabras con estos filtros' : 'Catálogo de vocabulario vacío'}
           </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
-            {searchQuery || selectedCefr !== 'ALL' || selectedDimension !== 'ALL'
-              ? 'Prueba ajustando los filtros de búsqueda o el nivel CEFR seleccionado.'
-              : 'Tu catálogo de vocabulario está vacío. Registra tu primera palabra para comenzar.'}
+          <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto leading-relaxed">
+            {hasActiveFilters
+              ? 'Prueba modificando el término de búsqueda o desactivando el filtro de nivel CEFR o falsos amigos.'
+              : 'Empieza a registrar palabras o expresiones en inglés para enriquecer tu léxico con fonética IPA y oraciones auténticas.'}
           </p>
-          <Button
-            onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors cursor-pointer"
-          >
-            Agregar Primera Palabra
-          </Button>
+
+          <div className="pt-2 flex items-center justify-center gap-2">
+            {hasActiveFilters ? (
+              <Button
+                onPress={resetFilters}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Restablecer Filtros</span>
+              </Button>
+            ) : (
+              <Button
+                onPress={() => setIsModalOpen(true)}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Agregar Primera Palabra</span>
+              </Button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-gray-400 px-1">
             <span>
-              Mostrando <strong className="text-gray-700 dark:text-gray-200">{filteredCount === 0 ? 0 : `${startIndex + 1}–${endIndex}`}</strong> de{' '}
-              <strong className="text-gray-700 dark:text-gray-200">{filteredCount}</strong> términos
+              Mostrando <strong className="text-gray-700 dark:text-gray-200 font-sans">{filteredCount === 0 ? 0 : `${startIndex + 1}–${endIndex}`}</strong> de{' '}
+              <strong className="text-gray-700 dark:text-gray-200 font-sans">{filteredCount}</strong> términos
               {filteredCount !== totalCount && (
                 <span className="text-gray-400"> (total: {totalCount})</span>
               )}
             </span>
-            <span className="text-[11px] text-gray-400">
-              Modo: <strong className="text-indigo-600 dark:text-indigo-400">{viewMode === 'grid' ? 'Tarjetas' : 'Tabla'}</strong>
-            </span>
           </div>
 
-          {viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {paginatedWords.map((item) => (
-                <VocabCard
-                  key={item.id}
-                  vocab={item}
-                  examples={examplesMap[item.id]}
-                />
-              ))}
-            </div>
-          ) : (
-            <VocabListView
-              words={paginatedWords}
-              examplesMap={examplesMap}
-            />
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {paginatedWords.map((item) => (
+              <VocabCard
+                key={item.id}
+                vocab={item}
+                examples={examplesMap[item.id]}
+                onSelectWord={(word) => setSelectedWordForDrawer(word)}
+              />
+            ))}
+          </div>
 
           {/* HeroUI Pagination */}
           {totalPages > 1 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-100 dark:border-gray-800/80">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-100 dark:border-white/[0.06]">
               <Pagination size="sm">
                 <Pagination.Summary className="text-xs text-gray-500 dark:text-gray-400">
                   Página {safeCurrentPage} de {totalPages} ({filteredCount} {filteredCount === 1 ? 'palabra' : 'palabras'})
@@ -405,6 +425,16 @@ export function VocabCatalogView() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onAddWord={handleAddWord}
+      />
+
+      {/* Side Sheet Detail Drawer (Lexical Inspector) */}
+      <VocabDetailDrawer
+        vocab={selectedWordForDrawer}
+        isOpen={Boolean(selectedWordForDrawer)}
+        onClose={() => setSelectedWordForDrawer(null)}
+        examples={selectedWordForDrawer ? examplesMap[selectedWordForDrawer.id] : []}
+        onDeleteWord={handleDeleteWord}
+        onUpdateWord={handleUpdateWord}
       />
     </div>
   );

@@ -173,5 +173,64 @@ export class VocabRepository implements IVocabRepository {
       createdAt,
     };
   }
+
+  async updateVocab(
+    vocabId: string,
+    updates: Partial<Omit<VocabItem, 'id' | 'createdAt'>>,
+  ): Promise<VocabItem> {
+    const updateValues: Record<string, unknown> = {};
+
+    if (updates.word !== undefined) updateValues.word = updates.word.trim();
+    if (updates.grammaticalDimension !== undefined) updateValues.grammatical_dimension = updates.grammaticalDimension;
+    if (updates.partOfSpeech !== undefined) updateValues.part_of_speech = updates.partOfSpeech;
+    if (updates.subcategory !== undefined) updateValues.subcategory = updates.subcategory;
+    if (updates.definitionEn !== undefined) updateValues.definition_en = updates.definitionEn.trim();
+    if (updates.translationEs !== undefined) updateValues.translation_es = updates.translationEs.trim();
+    if (updates.ipaGeneralAmerican !== undefined) updateValues.ipa_general_american = updates.ipaGeneralAmerican.trim();
+    if (updates.ipaReceivedPronunciation !== undefined) updateValues.ipa_received_pronunciation = updates.ipaReceivedPronunciation?.trim() || null;
+    if (updates.cefrLevel !== undefined) updateValues.cefr_level = updates.cefrLevel;
+    if (updates.isFalseFriend !== undefined) updateValues.is_false_friend = updates.isFalseFriend ? 1 : 0;
+    if (updates.falseFriendNote !== undefined) updateValues.false_friend_note = updates.falseFriendNote?.trim() || null;
+    if (updates.morphologicalFamilyJson !== undefined) {
+      updateValues.morphological_family_json = JSON.stringify(updates.morphologicalFamilyJson);
+    }
+
+    if (Object.keys(updateValues).length > 0) {
+      await this.db
+        .updateTable('vocab_items')
+        .set(updateValues)
+        .where('id', '=', vocabId)
+        .execute();
+    }
+
+    const updated = await this.getVocabById(vocabId);
+    if (!updated) {
+      throw new Error(`Vocabulario con id ${vocabId} no encontrado después de actualizar`);
+    }
+    return updated;
+  }
+
+  async deleteVocab(vocabId: string): Promise<boolean> {
+    // Delete associated SRS cards
+    await this.db
+      .deleteFrom('srs_cards')
+      .where('target_type', '=', 'VOCAB')
+      .where('target_id', '=', vocabId)
+      .execute();
+
+    // Delete context examples (safety in case SQLite FK cascade is disabled in dialect)
+    await this.db
+      .deleteFrom('vocab_context_examples')
+      .where('vocab_id', '=', vocabId)
+      .execute();
+
+    // Delete vocab item
+    const result = await this.db
+      .deleteFrom('vocab_items')
+      .where('id', '=', vocabId)
+      .executeTakeFirst();
+
+    return Number(result.numDeletedRows ?? 1) > 0;
+  }
 }
 

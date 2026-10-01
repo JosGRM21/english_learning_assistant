@@ -1,21 +1,24 @@
 import { useState } from 'react';
 import {
   HelpCircle,
-  ChevronDown,
-  ChevronUp,
   Sparkles,
   BookOpen,
   Eye,
   CheckCircle2,
   Check,
   X,
+  Lock,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
 } from 'lucide-react';
 import { SocraticClue } from '@/infrastructure/ai/schemas';
 
 export interface ZpdScaffoldingCardProps {
   clue: SocraticClue;
   index: number;
-  onHighlight?: (snippet: string | null) => void;
+  isApplied?: boolean;
+  onHighlight?: (clue: SocraticClue | null) => void;
 }
 
 const CLUE_TYPE_LABELS_ES: Record<string, string> = {
@@ -29,10 +32,23 @@ const CLUE_TYPE_LABELS_ES: Record<string, string> = {
   SPELLING: 'Ortografía y puntuación',
 };
 
-export function ZpdScaffoldingCard({ clue, index, onHighlight }: ZpdScaffoldingCardProps) {
+export function ZpdScaffoldingCard({
+  clue,
+  index,
+  isApplied = false,
+  onHighlight,
+}: ZpdScaffoldingCardProps) {
   const [currentZpdLevel, setCurrentZpdLevel] = useState<1 | 2 | 3 | 4>(1);
+  const [unlockedLevels, setUnlockedLevels] = useState<number[]>([1]);
   const [clueUserAnswer, setClueUserAnswer] = useState('');
   const [clueFeedback, setClueFeedback] = useState<'IDLE' | 'CORRECT' | 'INCORRECT'>('IDLE');
+
+  const unlockAndNavigate = (level: 1 | 2 | 3 | 4) => {
+    if (!unlockedLevels.includes(level)) {
+      setUnlockedLevels((prev) => [...prev, level]);
+    }
+    setCurrentZpdLevel(level);
+  };
 
   // Compute dynamic or fallback details
   const getZpdDetails = () => {
@@ -77,11 +93,31 @@ export function ZpdScaffoldingCard({ clue, index, onHighlight }: ZpdScaffoldingC
 
   const zpd = getZpdDetails();
 
+  const BLANK_REGEX = /\[\s*[_.-]+\s*\]|_{2,}/;
+  const hasClozeBlank = Boolean(zpd.level3Cloze && BLANK_REGEX.test(zpd.level3Cloze));
+  const fullCompletedCloze =
+    hasClozeBlank && zpd.expectedToken
+      ? zpd.level3Cloze.replace(BLANK_REGEX, zpd.expectedToken)
+      : null;
+
+  const renderCompletedCloze = () => {
+    if (!hasClozeBlank || !zpd.expectedToken) return null;
+    const parts = zpd.level3Cloze.split(BLANK_REGEX);
+    return (
+      <span className="font-mono text-xs sm:text-sm">
+        <span>{parts[0]}</span>
+        <span className="inline-block px-1.5 py-0.5 rounded-md font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/60 border border-emerald-300/80 dark:border-emerald-700/80 mx-1">
+          {zpd.expectedToken}
+        </span>
+        <span>{parts.slice(1).join('')}</span>
+      </span>
+    );
+  };
+
   const handleValidateAnswer = () => {
     if (!clueUserAnswer.trim()) return;
 
     if (!zpd.expectedToken) {
-      // If no token was specified by AI, acknowledge user attempt
       setClueFeedback('CORRECT');
       return;
     }
@@ -98,57 +134,87 @@ export function ZpdScaffoldingCard({ clue, index, onHighlight }: ZpdScaffoldingC
 
   return (
     <div
-      onMouseEnter={() => onHighlight?.(clue.highlighted_area)}
+      onMouseEnter={() => onHighlight?.(clue)}
       onMouseLeave={() => onHighlight?.(null)}
-      className="p-5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 shadow-xs transition-all duration-200 hover:border-amber-300 dark:hover:border-amber-800 space-y-4"
+      className={`p-5 rounded-2xl border shadow-xs transition-all duration-200 space-y-4 ${isApplied
+          ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-900/50 hover:border-emerald-300'
+          : 'bg-white dark:bg-[#131722] border-gray-200/90 dark:border-gray-800 hover:border-indigo-300 dark:hover:border-indigo-800'
+        }`}
     >
-      {/* Header with ZPD Level Badge */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* Header with Clue Type & Progressive Stepper */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-gray-100 dark:border-gray-800/80">
         <div className="flex items-center gap-2 flex-wrap">
-          <HelpCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-          <span className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-tight">
+          <span
+            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isApplied
+                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400'
+                : 'bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400'
+              }`}
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+          </span>
+
+          <span className="text-xs font-bold text-gray-900 dark:text-white">
             Pista #{index + 1}: {CLUE_TYPE_LABELS_ES[clue.clue_type] ?? clue.clue_type}
           </span>
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 font-semibold">
+
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-gray-100 dark:bg-[#181D2A] text-gray-800 dark:text-gray-200 font-semibold border border-gray-200/80 dark:border-gray-700">
             "{clue.highlighted_area}"
           </span>
+
+          {isApplied && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100/90 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 inline-flex items-center gap-1">
+              <Check className="w-3 h-3" />
+              <span>Aplicado en Borrador 2</span>
+            </span>
+          )}
         </div>
 
-        {/* ZPD Level Indicator Tabs */}
-        <div className="flex items-center gap-1 bg-amber-100/70 dark:bg-amber-900/40 p-1 rounded-xl">
-          {([1, 2, 3, 4] as const).map((lvl) => (
-            <button
-              key={lvl}
-              onClick={() => setCurrentZpdLevel(lvl)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all cursor-pointer ${
-                currentZpdLevel === lvl
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'text-amber-800 dark:text-amber-300 hover:bg-amber-200/60 dark:hover:bg-amber-800/40'
-              }`}
-            >
-              Nivel {lvl}
-            </button>
-          ))}
+        {/* ZPD 4-Level Stepper */}
+        <div className="flex items-center gap-1 bg-gray-100/90 dark:bg-[#181D2A] p-1 rounded-xl">
+          {([1, 2, 3, 4] as const).map((lvl) => {
+            const isUnlocked = unlockedLevels.includes(lvl);
+            const isActive = currentZpdLevel === lvl;
+
+            return (
+              <button
+                key={lvl}
+                type="button"
+                onClick={() => unlockAndNavigate(lvl)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all cursor-pointer flex items-center gap-1 ${isActive
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : isUnlocked
+                      ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-gray-800'
+                      : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                  }`}
+              >
+                {!isUnlocked && lvl > 1 && <Lock className="w-2.5 h-2.5 opacity-50" />}
+                <span>Nivel {lvl}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Level 1: Guiding Socratic Question */}
       {currentZpdLevel === 1 && (
-        <div className="space-y-2.5 animate-in fade-in duration-150">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+        <div className="space-y-3 animate-in fade-in duration-150">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Nivel 1: Pregunta Guía para Autodescubrimiento</span>
           </div>
+
           <p className="text-sm text-gray-800 dark:text-gray-100 font-medium leading-relaxed">
             {zpd.level1Question}
           </p>
-          <div className="pt-2 flex justify-end">
+
+          <div className="pt-2 flex justify-end border-t border-gray-100 dark:border-gray-800/60">
             <button
-              onClick={() => setCurrentZpdLevel(2)}
-              className="text-xs text-amber-700 dark:text-amber-300 font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer"
+              type="button"
+              onClick={() => unlockAndNavigate(2)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
             >
-              <span>¿Necesitas una pista más clara? Ver explicación contrastiva (Nivel 2)</span>
-              <ChevronDown className="w-3.5 h-3.5" />
+              <span>Siguiente</span>
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -156,28 +222,32 @@ export function ZpdScaffoldingCard({ clue, index, onHighlight }: ZpdScaffoldingC
 
       {/* Level 2: Metalinguistic / L1 Contrastive Explanation */}
       {currentZpdLevel === 2 && (
-        <div className="space-y-2.5 animate-in fade-in duration-150">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+        <div className="space-y-3 animate-in fade-in duration-150">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
             <BookOpen className="w-3.5 h-3.5" />
-            <span>Nivel 2: Explicación de Diferencias con el Español</span>
+            <span>Nivel 2: Diferencias con el Español</span>
           </div>
-          <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+
+          <p className="text-sm text-gray-800 dark:text-gray-100 font-medium leading-relaxed">
             {zpd.level2Contrastive}
           </p>
-          <div className="pt-2 flex justify-between items-center">
+
+          <div className="pt-2 flex justify-between items-center border-t border-gray-100 dark:border-gray-800/60">
             <button
-              onClick={() => setCurrentZpdLevel(1)}
-              className="text-xs text-gray-500 dark:text-gray-400 hover:underline flex items-center gap-1 cursor-pointer"
+              type="button"
+              onClick={() => unlockAndNavigate(1)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
             >
-              <ChevronUp className="w-3.5 h-3.5" />
-              <span>Volver a Nivel 1</span>
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Anterior</span>
             </button>
             <button
-              onClick={() => setCurrentZpdLevel(3)}
-              className="text-xs text-amber-700 dark:text-amber-300 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+              type="button"
+              onClick={() => unlockAndNavigate(3)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
             >
-              <span>Ver ejercicio guiado de completar (Nivel 3)</span>
-              <ChevronDown className="w-3.5 h-3.5" />
+              <span>Siguiente</span>
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -186,11 +256,12 @@ export function ZpdScaffoldingCard({ clue, index, onHighlight }: ZpdScaffoldingC
       {/* Level 3: Interactive Cloze with Validation */}
       {currentZpdLevel === 3 && (
         <div className="space-y-3 animate-in fade-in duration-150">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
             <Eye className="w-3.5 h-3.5" />
             <span>Nivel 3: Completa el Espacio en Blanco</span>
           </div>
-          <div className="p-3.5 rounded-xl bg-white dark:bg-[#121620] border border-amber-200 dark:border-amber-900/50 text-center font-mono text-sm font-bold text-amber-950 dark:text-amber-200">
+
+          <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-[#181D2A] border border-gray-200/80 dark:border-gray-800 text-center font-mono text-sm font-bold text-gray-900 dark:text-white shadow-2xs">
             {zpd.level3Cloze}
           </div>
 
@@ -206,32 +277,34 @@ export function ZpdScaffoldingCard({ clue, index, onHighlight }: ZpdScaffoldingC
                 if (e.key === 'Enter') handleValidateAnswer();
               }}
               placeholder="Escribe la corrección..."
-              className="flex-1 px-3.5 py-2 rounded-xl border border-amber-300 dark:border-amber-800 bg-white dark:bg-[#181D2A] text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+              className="flex-1 px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#181D2A] text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
             />
             <button
+              type="button"
               onClick={handleValidateAnswer}
               disabled={!clueUserAnswer.trim()}
-              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-bold transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold transition-colors cursor-pointer"
             >
               Comprobar
             </button>
           </div>
 
           {clueFeedback === 'CORRECT' && (
-            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-2">
+            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-2">
               <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>¡Exacto! Aplica este cambio en tu editor del segundo borrador.</span>
+              <span>¡Exacto! Asimilaste la estructura.</span>
             </div>
           )}
 
           {clueFeedback === 'INCORRECT' && (
-            <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-300 flex items-center justify-between gap-2">
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-300 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <X className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>Intenta nuevamente o avanza al Nivel 4 para ver el modelo nativo.</span>
+                <span>Intenta nuevamente o avanza al Nivel 4 para ver la solución.</span>
               </div>
               <button
-                onClick={() => setCurrentZpdLevel(4)}
+                type="button"
+                onClick={() => unlockAndNavigate(4)}
                 className="text-[11px] font-bold underline cursor-pointer shrink-0"
               >
                 Ver solución
@@ -239,20 +312,22 @@ export function ZpdScaffoldingCard({ clue, index, onHighlight }: ZpdScaffoldingC
             </div>
           )}
 
-          <div className="pt-1 flex justify-between items-center">
+          <div className="pt-2 flex justify-between items-center border-t border-gray-100 dark:border-gray-800/60">
             <button
-              onClick={() => setCurrentZpdLevel(2)}
-              className="text-xs text-gray-500 dark:text-gray-400 hover:underline flex items-center gap-1 cursor-pointer"
+              type="button"
+              onClick={() => unlockAndNavigate(2)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
             >
-              <ChevronUp className="w-3.5 h-3.5" />
-              <span>Volver a Nivel 2</span>
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Anterior</span>
             </button>
             <button
-              onClick={() => setCurrentZpdLevel(4)}
-              className="text-xs text-amber-700 dark:text-amber-300 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+              type="button"
+              onClick={() => unlockAndNavigate(4)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
             >
-              <span>Ver modelo nativo explícito (Nivel 4)</span>
-              <ChevronDown className="w-3.5 h-3.5" />
+              <span>Siguiente</span>
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -260,21 +335,38 @@ export function ZpdScaffoldingCard({ clue, index, onHighlight }: ZpdScaffoldingC
 
       {/* Level 4: Explicit Native Model */}
       {currentZpdLevel === 4 && (
-        <div className="space-y-2.5 animate-in fade-in duration-150">
+        <div className="space-y-3 animate-in fade-in duration-150">
           <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Nivel 4: Modelo y Estructura Nativa Estándar</span>
+            <span>Nivel 4: Oración Resuelta</span>
           </div>
-          <div className="p-3.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 text-xs font-sans font-medium text-emerald-900 dark:text-emerald-200 leading-relaxed">
-            {zpd.level4NativeModel}
+
+          <div className="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/25 border border-emerald-200/70 dark:border-emerald-800/60 text-emerald-950 dark:text-emerald-100 font-medium">
+            {fullCompletedCloze ? (
+              renderCompletedCloze()
+            ) : (
+              <p className="text-xs sm:text-sm text-emerald-900 dark:text-emerald-200 leading-relaxed font-sans font-medium">
+                {zpd.level4NativeModel}
+              </p>
+            )}
           </div>
-          <div className="pt-1 flex justify-start">
+
+          <div className="pt-2 flex justify-between items-center border-t border-gray-100 dark:border-gray-800/60">
             <button
-              onClick={() => setCurrentZpdLevel(1)}
-              className="text-xs text-gray-500 dark:text-gray-400 hover:underline flex items-center gap-1 cursor-pointer"
+              type="button"
+              onClick={() => unlockAndNavigate(3)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
             >
-              <ChevronUp className="w-3.5 h-3.5" />
-              <span>Reiniciar a Nivel 1</span>
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Anterior</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => unlockAndNavigate(1)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reiniciar</span>
             </button>
           </div>
         </div>

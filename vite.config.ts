@@ -16,6 +16,10 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+    },
     watch: {
       ignored: ['**/src-tauri/**'],
     },

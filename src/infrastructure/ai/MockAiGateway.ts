@@ -29,11 +29,12 @@ export class MockAiGateway implements IAiGateway {
         hint_question_es:
           "Revisa el verbo 'depend': en español decimos 'depende de', pero en inglés siempre se apoya sobre una superficie figurada. ¿Cuál es esa preposición?",
         highlighted_area: area,
+        sentence_context: userText.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('depend')) ?? userText,
         zpd_contrastive_es:
           'En español usamos "de" ("depende de ti"), pero en inglés el verbo "depend" rige obligatoriamente la preposición dependiente fija "on" (o formalmente "upon").',
         zpd_cloze_sentence: `${area.split(' ')[0]} [ ___ ] the circumstances`,
         zpd_expected_token: 'on',
-        zpd_native_model: `Colocación estándar nativa: "${area.replace(/\b(of|de)\b/gi, 'on')}".`,
+        zpd_native_model: `${area.split(' ')[0]} on the circumstances (Colocación nativa: depend on).`,
       });
     }
 
@@ -49,11 +50,12 @@ export class MockAiGateway implements IAiGateway {
         hint_question_es:
           "En inglés, 'agree' ya es una acción/verbo por sí mismo. ¿Es necesario añadir el verbo 'to be' antes de él?",
         highlighted_area: area,
+        sentence_context: userText.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('agree')) ?? userText,
         zpd_contrastive_es:
           'En español usamos la perífrasis "estar de acuerdo", pero en inglés "agree" es un verbo directo por sí solo. Por lo tanto, no lleva verbo "to be". Decimos "I agree", nunca "I am agree".',
         zpd_cloze_sentence: 'I [ ___ ] with your proposal completely.',
         zpd_expected_token: 'agree',
-        zpd_native_model: 'Uso nativo: "I agree with you" / "She agrees with the team".',
+        zpd_native_model: 'I agree with your proposal completely (Uso nativo: agree with).',
       });
     }
 
@@ -64,11 +66,12 @@ export class MockAiGateway implements IAiGateway {
         hint_question_es:
           "'Actually' es un falso amigo muy engañoso. ¿Recuerdas qué adverbio usamos en inglés para expresar 'en este momento/en la actualidad'?",
         highlighted_area: 'actually',
+        sentence_context: userText.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('actually')) ?? userText,
         zpd_contrastive_es:
           '"Actually" no significa "actualmente", sino "en realidad" o "de hecho". Para referirte al tiempo presente o actual en inglés se utiliza "currently", "nowadays" o "at present".',
         zpd_cloze_sentence: '[ ___ ], I am working on several high-priority tasks.',
         zpd_expected_token: 'currently',
-        zpd_native_model: 'Uso nativo: "Currently, we are analyzing the metrics" / "Actually, that is correct (de hecho)".',
+        zpd_native_model: 'Currently, I am working on several high-priority tasks (Uso nativo: "currently" en vez de "actually").',
       });
     }
 
@@ -79,11 +82,12 @@ export class MockAiGateway implements IAiGateway {
         hint_question_es:
           "¿Recuerdas cómo conceptualiza el idioma inglés la edad? ¿Se 'tiene' la edad o se 'es' de esa edad?",
         highlighted_area: 'have ... years',
+        sentence_context: userText.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('years')) ?? userText,
         zpd_contrastive_es:
           'En español "tenemos" años (posesión de tiempo), pero en la lingüística cognitiva anglosajona la edad es un estado de existencia que se expresa con el verbo "to be" ("I am 28 years old").',
         zpd_cloze_sentence: 'I [ ___ ] 25 years old.',
         zpd_expected_token: 'am',
-        zpd_native_model: 'Uso nativo: "I am 25 years old" o simplemente "I am 25".',
+        zpd_native_model: 'I am 25 years old (Uso nativo: estructura to be + edad).',
       });
     }
 
@@ -95,11 +99,12 @@ export class MockAiGateway implements IAiGateway {
         hint_question_es:
           "Tu idea se entiende claramente. ¿Podrías enriquecer esta oración utilizando un conector formal como 'furthermore' o 'on the other hand'?",
         highlighted_area: userText.slice(0, Math.min(25, userText.length)),
+        sentence_context: userText.split(/(?<=[.!?])\s+/)[0] || userText,
         zpd_contrastive_es:
           'Para alcanzar niveles intermedios-avanzados (B2/C1), conectar ideas con discourse markers enriquece la coherencia textual.',
         zpd_cloze_sentence: '[ ___ ], this approach guarantees optimal performance.',
         zpd_expected_token: 'furthermore',
-        zpd_native_model: 'Uso nativo: "Furthermore, the data indicates an upward trend."',
+        zpd_native_model: 'Furthermore, this approach guarantees optimal performance.',
       });
     }
 
@@ -117,14 +122,41 @@ export class MockAiGateway implements IAiGateway {
   }
 
   public async evaluateFinalPhase2(
-    _draft1: string,
+    draft1: string,
     draft2: string,
     cefrTarget = 'B1',
   ): Promise<WritingEvaluationResponse> {
     await new Promise((r) => setTimeout(r, 60));
 
     const corrections: CorrectionItem[] = [];
+    const successful_repairs = [];
+    const lower1 = draft1.toLowerCase();
     const lower2 = draft2.toLowerCase();
+
+    // Check learner uptake / auto-repairs
+    if ((lower1.includes('depends of') || lower1.includes('depend of')) && (lower2.includes('depends on') || lower2.includes('depend on'))) {
+      successful_repairs.push({
+        original_snippet: lower1.includes('depends of') ? 'depends of' : 'depend of',
+        corrected_snippet: lower2.includes('depends on') ? 'depends on' : 'depend on',
+        praise_es: "¡Excelente! Corregiste la preposición fija a 'depend on' de forma autónoma.",
+      });
+    }
+
+    if ((lower1.includes('am agree') || lower1.includes('are agree')) && (lower2.includes('agree') && !lower2.includes('am agree') && !lower2.includes('are agree'))) {
+      successful_repairs.push({
+        original_snippet: lower1.includes('am agree') ? 'am agree' : 'are agree',
+        corrected_snippet: 'agree',
+        praise_es: "¡Muy bien! Eliminaste el auxiliar innecesario y usaste 'agree' como verbo pleno.",
+      });
+    }
+
+    if (lower1.includes('actually') && (lower2.includes('currently') || lower2.includes('right now') || lower2.includes('at present'))) {
+      successful_repairs.push({
+        original_snippet: 'actually',
+        corrected_snippet: lower2.includes('currently') ? 'currently' : 'right now',
+        praise_es: "¡Gran precisión! Evitaste el falso amigo y utilizaste el adverbio temporal correcto.",
+      });
+    }
 
     if (lower2.includes('depends of') || lower2.includes('depend of')) {
       corrections.push({
@@ -177,6 +209,7 @@ export class MockAiGateway implements IAiGateway {
         vocabulary: 8.0,
         coherence: 8.5,
       },
+      successful_repairs,
       corrections,
       micro_challenge: {
         question_es: "¿Cuál es la preposición correcta que acompaña al verbo 'depend'?",
