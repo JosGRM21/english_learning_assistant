@@ -1,4 +1,4 @@
-import { CheckCircle2, RotateCw, BookOpen, LayoutDashboard, Flame, Clock, Award, Target } from 'lucide-react';
+import { CheckCircle2, RotateCw, Flame, Clock, Award, Target } from 'lucide-react';
 import { SrsSessionStats } from '@/core/srs/SrsSessionEngine';
 
 export interface SrsSessionCompleteProps {
@@ -14,7 +14,6 @@ export function SrsSessionComplete({
   streakDays,
   totalDeckCount,
   onRestartSession,
-  onNavigateTab,
 }: SrsSessionCompleteProps) {
   const accuracyPercentage =
     stats.totalReviewed > 0
@@ -95,38 +94,16 @@ export function SrsSessionComplete({
         </div>
 
         {/* Action Buttons */}
-        <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+        <div className="pt-4 flex items-center justify-center">
           {onRestartSession && totalDeckCount > 0 && (
             <button
               type="button"
               onClick={onRestartSession}
-              className="w-full sm:w-auto h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto h-11 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <RotateCw className="w-4 h-4" />
-              <span>Repasar Mazo de Nuevo ({totalDeckCount})</span>
+              <span>Repetir Mazo ({totalDeckCount})</span>
             </button>
-          )}
-
-          {onNavigateTab && (
-            <>
-              <button
-                type="button"
-                onClick={() => onNavigateTab('vocab')}
-                className="w-full sm:w-auto h-11 px-5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <BookOpen className="w-4 h-4 text-indigo-500" />
-                <span>Catálogo de Vocabulario</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onNavigateTab('dashboard')}
-                className="w-full sm:w-auto h-11 px-4 rounded-xl text-gray-500 hover:text-gray-800 dark:hover:text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                <span>Panel Principal</span>
-              </button>
-            </>
           )}
         </div>
       </div>

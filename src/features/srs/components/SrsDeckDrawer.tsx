@@ -109,11 +109,11 @@ export function SrsDeckDrawer({
           </div>
 
           {/* Quick Filter Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
             <button
               type="button"
               onClick={() => setFilterState('ALL')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer shrink-0 ${
                 filterState === 'ALL'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -124,7 +124,7 @@ export function SrsDeckDrawer({
             <button
               type="button"
               onClick={() => setFilterState('DUE')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer shrink-0 ${
                 filterState === 'DUE'
                   ? 'bg-amber-600 text-white shadow-xs'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -135,7 +135,7 @@ export function SrsDeckDrawer({
             <button
               type="button"
               onClick={() => setFilterState('NEW')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer shrink-0 ${
                 filterState === 'NEW'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -146,7 +146,7 @@ export function SrsDeckDrawer({
             <button
               type="button"
               onClick={() => setFilterState('REVIEW')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer shrink-0 ${
                 filterState === 'REVIEW'
                   ? 'bg-purple-600 text-white shadow-xs'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -157,7 +157,7 @@ export function SrsDeckDrawer({
           </div>
 
           {/* Cards list */}
-          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 divide-y divide-gray-100 dark:divide-gray-800/60">
+          <div className="flex-1 overflow-y-auto custom-scrollbar-thin space-y-1.5 pr-1.5 divide-y divide-gray-100 dark:divide-gray-800/60">
             {filteredCards.length === 0 ? (
               <div className="py-12 text-center text-xs text-gray-400">
                 No se encontraron tarjetas con este filtro.

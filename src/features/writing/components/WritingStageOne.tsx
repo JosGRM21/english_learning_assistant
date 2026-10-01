@@ -199,7 +199,7 @@ export function WritingStageOne({
           spellCheck={false}
           autoCorrect="off"
           autoCapitalize="off"
-          className="w-full p-4 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white text-base focus:ring-2 focus:ring-indigo-500 focus:outline-hidden transition-all leading-relaxed font-sans placeholder:text-gray-400"
+          className="w-full p-4 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white text-base focus:ring-2 focus:ring-indigo-500 focus:outline-hidden transition-all leading-relaxed font-sans placeholder:text-gray-400 custom-scrollbar"
         />
 
         {/* Word Counter & Progress */}

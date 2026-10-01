@@ -111,7 +111,7 @@ export function WritingPromptsModal({
         </div>
 
         {/* Cards Grid */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1">
+        <div className="p-6 overflow-y-auto custom-scrollbar space-y-4 flex-1">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredPrompts.map((prompt) => (
               <div

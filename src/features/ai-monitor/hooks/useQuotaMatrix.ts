@@ -52,8 +52,16 @@ function loadStoredDefaultModel(): GeminiModelId {
 export function useQuotaMatrix() {
   const { orchestrator } = useAiGateway();
 
-  const [keys, setKeys] = useState<ApiKeyEntry[]>(loadStoredKeys);
-  const [defaultModel, setDefaultModelState] = useState<GeminiModelId>(loadStoredDefaultModel);
+  const [keys, setKeys] = useState<ApiKeyEntry[]>(() => {
+    const loaded = loadStoredKeys();
+    orchestrator.setApiKeys(loaded);
+    return loaded;
+  });
+  const [defaultModel, setDefaultModelState] = useState<GeminiModelId>(() => {
+    const loaded = loadStoredDefaultModel();
+    orchestrator.setDefaultModel(loaded);
+    return loaded;
+  });
   const [tick, setTick] = useState(0);
   const [timeUntilReset, setTimeUntilReset] = useState({ ms: 0, isoDate: '' });
 
@@ -131,38 +139,63 @@ export function useQuotaMatrix() {
           newKey.isPrimary = true;
         }
         updated = [...updated, newKey];
+        orchestrator.setApiKeys(updated);
+        try {
+          localStorage.setItem(STORAGE_KEYS_KEY, JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
         return updated;
       });
       setTick((t) => t + 1);
     },
-    [],
+    [orchestrator],
   );
 
-  const removeApiKey = useCallback((keyId: string) => {
-    setKeys((prev) => {
-      const filtered = prev.filter((k) => k.id !== keyId);
-      if (filtered.length > 0 && !filtered.some((k) => k.isPrimary)) {
-        filtered[0].isPrimary = true;
-      }
-      return filtered;
-    });
-    setTick((t) => t + 1);
-  }, []);
+  const removeApiKey = useCallback(
+    (keyId: string) => {
+      setKeys((prev) => {
+        const filtered = prev.filter((k) => k.id !== keyId);
+        if (filtered.length > 0 && !filtered.some((k) => k.isPrimary)) {
+          filtered[0].isPrimary = true;
+        }
+        orchestrator.setApiKeys(filtered);
+        try {
+          localStorage.setItem(STORAGE_KEYS_KEY, JSON.stringify(filtered));
+        } catch {
+          // ignore
+        }
+        return filtered;
+      });
+      setTick((t) => t + 1);
+    },
+    [orchestrator],
+  );
 
-  const toggleApiKey = useCallback((keyId: string) => {
-    setKeys((prev) => {
-      if (prev.length <= 1) {
-        return prev.map((k) => (k.id === keyId ? { ...k, isActive: true, isPrimary: true } : k));
-      }
-      const target = prev.find((k) => k.id === keyId);
-      const activeCount = prev.filter((k) => k.isActive).length;
-      if (target?.isActive && activeCount <= 1) {
-        return prev;
-      }
-      return prev.map((k) => (k.id === keyId ? { ...k, isActive: !k.isActive } : k));
-    });
-    setTick((t) => t + 1);
-  }, []);
+  const toggleApiKey = useCallback(
+    (keyId: string) => {
+      setKeys((prev) => {
+        if (prev.length <= 1) {
+          return prev.map((k) => (k.id === keyId ? { ...k, isActive: true, isPrimary: true } : k));
+        }
+        const target = prev.find((k) => k.id === keyId);
+        const activeCount = prev.filter((k) => k.isActive).length;
+        if (target?.isActive && activeCount <= 1) {
+          return prev;
+        }
+        const updated = prev.map((k) => (k.id === keyId ? { ...k, isActive: !k.isActive } : k));
+        orchestrator.setApiKeys(updated);
+        try {
+          localStorage.setItem(STORAGE_KEYS_KEY, JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+        return updated;
+      });
+      setTick((t) => t + 1);
+    },
+    [orchestrator],
+  );
 
   const testApiKey = useCallback(
     async (secretKey: string): Promise<{ success: boolean; message: string }> => {
@@ -195,12 +228,22 @@ export function useQuotaMatrix() {
     [orchestrator],
   );
 
-  const setPrimaryApiKey = useCallback((keyId: string) => {
-    setKeys((prev) =>
-      prev.map((k) => ({ ...k, isPrimary: k.id === keyId })),
-    );
-    setTick((t) => t + 1);
-  }, []);
+  const setPrimaryApiKey = useCallback(
+    (keyId: string) => {
+      setKeys((prev) => {
+        const updated = prev.map((k) => ({ ...k, isPrimary: k.id === keyId }));
+        orchestrator.setApiKeys(updated);
+        try {
+          localStorage.setItem(STORAGE_KEYS_KEY, JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+        return updated;
+      });
+      setTick((t) => t + 1);
+    },
+    [orchestrator],
+  );
 
   const activeKeysCount = useMemo(() => keys.filter((k) => k.isActive).length, [keys]);
 

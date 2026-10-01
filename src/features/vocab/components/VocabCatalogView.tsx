@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Plus,
   Search,
@@ -7,11 +7,11 @@ import {
   CheckCircle2,
   FolderOpen,
   LayoutGrid,
-  List,
+  Table as TableIcon,
   ArrowUpDown,
   X,
 } from 'lucide-react';
-import { Button } from '@heroui/react';
+import { Button, Pagination, Select, ListBox } from '@heroui/react';
 import { useVocabList, NewVocabPayload } from '../hooks/useVocabList';
 import { VocabCard } from './VocabCard';
 import { VocabListView } from './VocabListView';
@@ -39,6 +39,44 @@ export function VocabCatalogView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // HeroUI Pagination state
+  const ITEMS_PER_PAGE = 12;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset page to 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCefr, selectedDimension, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCount / ITEMS_PER_PAGE));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, filteredCount);
+  const paginatedWords = useMemo(
+    () => words.slice(startIndex, endIndex),
+    [words, startIndex, endIndex],
+  );
+
+  const getPageNumbers = (current: number, total: number): (number | 'ellipsis')[] => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const pages: (number | 'ellipsis')[] = [1];
+    if (current > 3) {
+      pages.push('ellipsis');
+    }
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    if (current < total - 2) {
+      pages.push('ellipsis');
+    }
+    pages.push(total);
+    return pages;
+  };
 
   const handleAddWord = async (payload: NewVocabPayload) => {
     await addWord(payload);
@@ -83,31 +121,33 @@ export function VocabCatalogView() {
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
-          {/* View mode toggle */}
+          {/* View mode toggle: Tarjetas vs Tabla */}
           <div className="p-1 rounded-xl bg-gray-100 dark:bg-gray-800/80 border border-gray-200/60 dark:border-gray-700/60 flex items-center gap-1">
             <button
               type="button"
               onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 viewMode === 'grid'
                   ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
-                  : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
               }`}
-              title="Vista de cuadrícula con tarjetas"
+              title="Vista en modo tarjetas"
             >
-              <LayoutGrid className="w-4 h-4" />
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Tarjetas</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 viewMode === 'list'
                   ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
-                  : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
               }`}
-              title="Vista compacta de lista y tabla"
+              title="Vista en modo tabla"
             >
-              <List className="w-4 h-4" />
+              <TableIcon className="w-3.5 h-3.5" />
+              <span>Tabla</span>
             </button>
           </div>
 
@@ -146,40 +186,86 @@ export function VocabCatalogView() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Sorting selector */}
-            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-[#161B28] border border-gray-200/70 dark:border-gray-700/60 rounded-xl px-2.5 py-1 text-xs">
-              <ArrowUpDown className="w-3.5 h-3.5 text-gray-400" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'RECENT' | 'ALPHA_ASC' | 'ALPHA_DESC' | 'CEFR_ASC')}
-                className="bg-transparent border-none text-xs text-gray-700 dark:text-gray-300 font-medium focus:outline-hidden cursor-pointer"
-              >
-                <option value="RECENT">Más recientes</option>
-                <option value="ALPHA_ASC">Alfabético (A → Z)</option>
-                <option value="ALPHA_DESC">Alfabético (Z → A)</option>
-                <option value="CEFR_ASC">Nivel CEFR (A1 → C2)</option>
-              </select>
-            </div>
+            {/* Sorting selector with HeroUI Select */}
+            <Select
+              selectedKey={sortBy}
+              onSelectionChange={(key) => {
+                if (key) setSortBy(key as 'RECENT' | 'ALPHA_ASC' | 'ALPHA_DESC' | 'CEFR_ASC');
+              }}
+              aria-label="Criterio de ordenación"
+              className="w-44 sm:w-52"
+            >
+              <Select.Trigger className="h-9 px-3 text-xs bg-gray-50 dark:bg-[#161B28] border border-gray-200/70 dark:border-gray-700/60 rounded-xl flex items-center justify-between gap-2 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors cursor-pointer">
+                <div className="flex items-center gap-1.5 truncate">
+                  <ArrowUpDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <Select.Value className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate" />
+                </div>
+                <Select.Indicator className="text-gray-400 shrink-0" />
+              </Select.Trigger>
+              <Select.Popover className="p-1 rounded-xl bg-white dark:bg-[#161B28] border border-gray-200/80 dark:border-gray-700/80 shadow-lg min-w-[200px] z-50">
+                <ListBox className="space-y-0.5 outline-none">
+                  <ListBox.Item id="RECENT" textValue="Más recientes" className="px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200 focus:bg-indigo-50 dark:focus:bg-indigo-950/40 focus:outline-none flex items-center justify-between">
+                    <span>Más recientes</span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                  <ListBox.Item id="ALPHA_ASC" textValue="Alfabético (A → Z)" className="px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200 focus:bg-indigo-50 dark:focus:bg-indigo-950/40 focus:outline-none flex items-center justify-between">
+                    <span>Alfabético (A → Z)</span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                  <ListBox.Item id="ALPHA_DESC" textValue="Alfabético (Z → A)" className="px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200 focus:bg-indigo-50 dark:focus:bg-indigo-950/40 focus:outline-none flex items-center justify-between">
+                    <span>Alfabético (Z → A)</span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                  <ListBox.Item id="CEFR_ASC" textValue="Nivel CEFR (A1 → C2)" className="px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200 focus:bg-indigo-50 dark:focus:bg-indigo-950/40 focus:outline-none flex items-center justify-between">
+                    <span>Nivel CEFR (A1 → C2)</span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                </ListBox>
+              </Select.Popover>
+            </Select>
 
-            {/* Dimension Filter */}
-            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-[#161B28] border border-gray-200/70 dark:border-gray-700/60 rounded-xl px-2.5 py-1 text-xs">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400" />
-              <select
-                value={selectedDimension}
-                onChange={(e) => setSelectedDimension(e.target.value)}
-                className="bg-transparent border-none text-xs text-gray-700 dark:text-gray-300 font-medium focus:outline-hidden cursor-pointer"
-              >
-                <option value="ALL">Todas las Dimensiones</option>
-                <option value="CONTENT">Contenido Léxico</option>
-                <option value="FUNCTION">Palabras Funcionales</option>
-                <option value="CHUNK">Expresiones / Chunks</option>
-              </select>
-            </div>
+            {/* Dimension Filter with HeroUI Select */}
+            <Select
+              selectedKey={selectedDimension}
+              onSelectionChange={(key) => {
+                if (key) setSelectedDimension(key as string);
+              }}
+              aria-label="Filtrar por dimensión léxica"
+              className="w-48 sm:w-56"
+            >
+              <Select.Trigger className="h-9 px-3 text-xs bg-gray-50 dark:bg-[#161B28] border border-gray-200/70 dark:border-gray-700/60 rounded-xl flex items-center justify-between gap-2 hover:bg-gray-100 dark:hover:bg-gray-800/80 transition-colors cursor-pointer">
+                <div className="flex items-center gap-1.5 truncate">
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <Select.Value className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate" />
+                </div>
+                <Select.Indicator className="text-gray-400 shrink-0" />
+              </Select.Trigger>
+              <Select.Popover className="p-1 rounded-xl bg-white dark:bg-[#161B28] border border-gray-200/80 dark:border-gray-700/80 shadow-lg min-w-[210px] z-50">
+                <ListBox className="space-y-0.5 outline-none">
+                  <ListBox.Item id="ALL" textValue="Todas las Dimensiones" className="px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200 focus:bg-indigo-50 dark:focus:bg-indigo-950/40 focus:outline-none flex items-center justify-between">
+                    <span>Todas las Dimensiones</span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                  <ListBox.Item id="CONTENT" textValue="Contenido Léxico" className="px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200 focus:bg-indigo-50 dark:focus:bg-indigo-950/40 focus:outline-none flex items-center justify-between">
+                    <span>Contenido Léxico</span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                  <ListBox.Item id="FUNCTION" textValue="Palabras Funcionales" className="px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200 focus:bg-indigo-50 dark:focus:bg-indigo-950/40 focus:outline-none flex items-center justify-between">
+                    <span>Palabras Funcionales</span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                  <ListBox.Item id="CHUNK" textValue="Expresiones / Chunks" className="px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200 focus:bg-indigo-50 dark:focus:bg-indigo-950/40 focus:outline-none flex items-center justify-between">
+                    <span>Expresiones / Chunks</span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                </ListBox>
+              </Select.Popover>
+            </Select>
           </div>
         </div>
 
         {/* CEFR Segmented Filter Strip */}
-        <div className="flex items-center gap-1 overflow-x-auto pt-1 pb-0.5 border-t border-gray-100 dark:border-gray-800/60">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pt-1 pb-0.5 border-t border-gray-100 dark:border-gray-800/60">
           <span className="text-[11px] font-semibold text-gray-400 mr-1 shrink-0">Nivel CEFR:</span>
           {cefrLevels.map((lvl) => {
             const isSelected = selectedCefr === lvl;
@@ -229,17 +315,23 @@ export function VocabCatalogView() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-gray-400 px-1">
             <span>
-              Mostrando <strong className="text-gray-700 dark:text-gray-200">{filteredCount}</strong> de{' '}
-              <strong className="text-gray-700 dark:text-gray-200">{totalCount}</strong> términos
+              Mostrando <strong className="text-gray-700 dark:text-gray-200">{filteredCount === 0 ? 0 : `${startIndex + 1}–${endIndex}`}</strong> de{' '}
+              <strong className="text-gray-700 dark:text-gray-200">{filteredCount}</strong> términos
+              {filteredCount !== totalCount && (
+                <span className="text-gray-400"> (total: {totalCount})</span>
+              )}
+            </span>
+            <span className="text-[11px] text-gray-400">
+              Modo: <strong className="text-indigo-600 dark:text-indigo-400">{viewMode === 'grid' ? 'Tarjetas' : 'Tabla'}</strong>
             </span>
           </div>
 
           {viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {words.map((item) => (
+              {paginatedWords.map((item) => (
                 <VocabCard
                   key={item.id}
                   vocab={item}
@@ -249,9 +341,61 @@ export function VocabCatalogView() {
             </div>
           ) : (
             <VocabListView
-              words={words}
+              words={paginatedWords}
               examplesMap={examplesMap}
             />
+          )}
+
+          {/* HeroUI Pagination */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-gray-100 dark:border-gray-800/80">
+              <Pagination size="sm">
+                <Pagination.Summary className="text-xs text-gray-500 dark:text-gray-400">
+                  Página {safeCurrentPage} de {totalPages} ({filteredCount} {filteredCount === 1 ? 'palabra' : 'palabras'})
+                </Pagination.Summary>
+                <Pagination.Content>
+                  <Pagination.Item>
+                    <Pagination.Previous
+                      isDisabled={safeCurrentPage <= 1}
+                      onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    >
+                      <Pagination.PreviousIcon />
+                      <span className="hidden sm:inline">Anterior</span>
+                    </Pagination.Previous>
+                  </Pagination.Item>
+
+                  {getPageNumbers(safeCurrentPage, totalPages).map((p, idx) => {
+                    if (p === 'ellipsis') {
+                      return (
+                        <Pagination.Item key={`ellipsis-${idx}`}>
+                          <Pagination.Ellipsis />
+                        </Pagination.Item>
+                      );
+                    }
+                    return (
+                      <Pagination.Item key={p}>
+                        <Pagination.Link
+                          isActive={p === safeCurrentPage}
+                          onPress={() => setCurrentPage(p as number)}
+                        >
+                          {p}
+                        </Pagination.Link>
+                      </Pagination.Item>
+                    );
+                  })}
+
+                  <Pagination.Item>
+                    <Pagination.Next
+                      isDisabled={safeCurrentPage >= totalPages}
+                      onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    >
+                      <span className="hidden sm:inline">Siguiente</span>
+                      <Pagination.NextIcon />
+                    </Pagination.Next>
+                  </Pagination.Item>
+                </Pagination.Content>
+              </Pagination>
+            </div>
           )}
         </div>
       )}

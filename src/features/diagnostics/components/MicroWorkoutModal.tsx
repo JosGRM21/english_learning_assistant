@@ -31,7 +31,7 @@ export function MicroWorkoutModal({
   onClose,
 }: MicroWorkoutModalProps) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto custom-scrollbar">
       <div className="bg-white dark:bg-[#131722] rounded-3xl max-w-xl w-full p-8 border border-gray-200 dark:border-gray-800 shadow-2xl space-y-6">
         {!workoutFinished ? (
           <>

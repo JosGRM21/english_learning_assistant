@@ -34,7 +34,6 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
   const [exampleSentenceEs, setExampleSentenceEs] = useState('');
   const [isFalseFriend, setIsFalseFriend] = useState(false);
   const [falseFriendNote, setFalseFriendNote] = useState('');
-  const [createSrsCard, setCreateSrsCard] = useState(true);
 
   const [isEnriching, setIsEnriching] = useState(false);
   const [hasEnriched, setHasEnriched] = useState(false);
@@ -176,7 +175,7 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
         exampleSentenceEs: curExEs || undefined,
         isFalseFriend: curIsFalseFriend,
         falseFriendNote: curIsFalseFriend ? curFalseNote : undefined,
-        createSrsCard,
+        createSrsCard: true,
       });
 
       handleClose();
@@ -231,7 +230,7 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto custom-scrollbar space-y-4">
           {errorMsg && (
             <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-xs text-rose-800 dark:text-rose-200 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
@@ -521,24 +520,6 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
               )}
             </div>
           )}
-
-          {/* Quick SRS Card Checkbox */}
-          <label className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 dark:bg-[#161B28] border border-gray-200/60 dark:border-gray-800 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={createSrsCard}
-              onChange={(e) => setCreateSrsCard(e.target.checked)}
-              className="rounded text-indigo-600"
-            />
-            <div className="text-xs">
-              <span className="font-semibold text-gray-800 dark:text-gray-200 block">
-                Crear tarjeta de repaso espaciado (SRS) de inmediato
-              </span>
-              <span className="text-[11px] text-gray-400">
-                Se programará automáticamente en tu próxima sesión de estudio con FSRS v5.
-              </span>
-            </div>
-          </label>
 
           {/* Footer Actions */}
           <div className="pt-3 border-t border-gray-100 dark:border-gray-800/80 flex items-center justify-end gap-2.5">

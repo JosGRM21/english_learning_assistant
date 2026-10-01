@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Volume2, AlertCircle, BookOpen } from 'lucide-react';
+import { Table } from '@heroui/react';
 import { VocabItem, VocabContextExample, PART_OF_SPEECH_LABELS_ES } from '@/core/types/vocab';
 import { useAudio } from '@/shared/hooks/useAudio';
 
@@ -42,32 +43,32 @@ export function VocabListView({ words, examplesMap, onSelectWord }: VocabListVie
 
   return (
     <div className="rounded-2xl border border-gray-200/70 dark:border-gray-800/80 bg-white/90 dark:bg-[#121622]/90 backdrop-blur-md overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr className="border-b border-gray-200/60 dark:border-gray-800/60 bg-gray-50/70 dark:bg-[#161B28]/60 text-gray-400 dark:text-gray-500 font-semibold tracking-wider uppercase text-[10px]">
-              <th className="py-3 px-4">Término en Inglés</th>
-              <th className="py-3 px-3">Fonética IPA</th>
-              <th className="py-3 px-3">Nivel</th>
-              <th className="py-3 px-3">Categoría</th>
-              <th className="py-3 px-4">Traducción al Español</th>
-              <th className="py-3 px-4 hidden md:table-cell">Ejemplo Contextual</th>
-              <th className="py-3 px-3 text-right">Audio</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800/50">
+      <Table aria-label="Tabla de términos de vocabulario" className="w-full">
+        <Table.ScrollContainer className="overflow-x-auto custom-scrollbar">
+          <Table.Content aria-label="Catálogo léxico" className="w-full text-left text-xs border-collapse">
+            <Table.Header className="border-b border-gray-200/60 dark:border-gray-800/60 bg-gray-50/70 dark:bg-[#161B28]/60 text-gray-400 dark:text-gray-500 font-semibold tracking-wider uppercase text-[10px]">
+              <Table.Column isRowHeader className="py-3 px-4">Término en Inglés</Table.Column>
+              <Table.Column className="py-3 px-3">Fonética IPA</Table.Column>
+              <Table.Column className="py-3 px-3">Nivel</Table.Column>
+              <Table.Column className="py-3 px-3">Categoría</Table.Column>
+              <Table.Column className="py-3 px-4">Traducción al Español</Table.Column>
+              <Table.Column className="py-3 px-4 hidden md:table-cell">Ejemplo Contextual</Table.Column>
+              <Table.Column className="py-3 px-3 text-right">Audio</Table.Column>
+            </Table.Header>
+            <Table.Body className="divide-y divide-gray-100 dark:divide-gray-800/50">
             {words.map((item) => {
               const isPlaying = playingId === item.id;
               const example = examplesMap[item.id]?.[0];
 
               return (
-                <tr
+                <Table.Row
                   key={item.id}
+                  id={item.id}
                   onClick={() => onSelectWord?.(item)}
                   className="group hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors cursor-pointer"
                 >
                   {/* Word & false friend indicator */}
-                  <td className="py-3.5 px-4">
+                  <Table.Cell className="py-3.5 px-4">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-gray-900 dark:text-white text-sm tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                         {item.word}
@@ -82,10 +83,10 @@ export function VocabListView({ words, examplesMap, onSelectWord }: VocabListVie
                         </span>
                       )}
                     </div>
-                  </td>
+                  </Table.Cell>
 
                   {/* IPA Transcription */}
-                  <td className="py-3.5 px-3">
+                  <Table.Cell className="py-3.5 px-3">
                     {item.ipaGeneralAmerican ? (
                       <span
                         className="font-phonetic text-xs text-indigo-600/90 dark:text-indigo-400/90"
@@ -96,10 +97,10 @@ export function VocabListView({ words, examplesMap, onSelectWord }: VocabListVie
                     ) : (
                       <span className="text-gray-300 dark:text-gray-600">—</span>
                     )}
-                  </td>
+                  </Table.Cell>
 
                   {/* CEFR Level */}
-                  <td className="py-3.5 px-3">
+                  <Table.Cell className="py-3.5 px-3">
                     <span
                       className={`inline-block px-2 py-0.5 rounded-full font-mono text-[10px] font-bold border ${getCefrBadgeStyle(
                         item.cefrLevel,
@@ -107,20 +108,20 @@ export function VocabListView({ words, examplesMap, onSelectWord }: VocabListVie
                     >
                       {item.cefrLevel}
                     </span>
-                  </td>
+                  </Table.Cell>
 
                   {/* Part of Speech */}
-                  <td className="py-3.5 px-3 text-gray-500 dark:text-gray-400 font-medium">
+                  <Table.Cell className="py-3.5 px-3 text-gray-500 dark:text-gray-400 font-medium">
                     {PART_OF_SPEECH_LABELS_ES[item.partOfSpeech] ?? item.partOfSpeech}
-                  </td>
+                  </Table.Cell>
 
                   {/* Spanish Translation */}
-                  <td className="py-3.5 px-4 font-semibold text-gray-800 dark:text-gray-200">
+                  <Table.Cell className="py-3.5 px-4 font-semibold text-gray-800 dark:text-gray-200">
                     {item.translationEs}
-                  </td>
+                  </Table.Cell>
 
                   {/* Example snippet */}
-                  <td className="py-3.5 px-4 hidden md:table-cell max-w-xs">
+                  <Table.Cell className="py-3.5 px-4 hidden md:table-cell max-w-xs">
                     {example ? (
                       <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 truncate">
                         <BookOpen className="w-3 h-3 text-gray-400 shrink-0" />
@@ -131,10 +132,10 @@ export function VocabListView({ words, examplesMap, onSelectWord }: VocabListVie
                     ) : (
                       <span className="text-gray-300 dark:text-gray-600 text-[11px]">—</span>
                     )}
-                  </td>
+                  </Table.Cell>
 
                   {/* Audio action */}
-                  <td className="py-3.5 px-3 text-right">
+                  <Table.Cell className="py-3.5 px-3 text-right">
                     <button
                       type="button"
                       onClick={(e) => handleSpeak(e, item)}
@@ -146,13 +147,14 @@ export function VocabListView({ words, examplesMap, onSelectWord }: VocabListVie
                     >
                       <Volume2 className="w-4 h-4" />
                     </button>
-                  </td>
-                </tr>
+                  </Table.Cell>
+                </Table.Row>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+          </Table.Body>
+        </Table.Content>
+      </Table.ScrollContainer>
+    </Table>
+  </div>
+);
 }

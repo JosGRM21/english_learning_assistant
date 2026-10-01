@@ -40,7 +40,7 @@ describe('SrsSessionComplete Component', () => {
       />
     );
 
-    const restartBtn = screen.getByText(/Repasar Mazo de Nuevo/i);
+    const restartBtn = screen.getByText(/Repetir Mazo/i);
     fireEvent.click(restartBtn);
 
     expect(handleRestart).toHaveBeenCalledTimes(1);

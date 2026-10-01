@@ -162,7 +162,7 @@ describe('SrsReviewSession Component Integration', () => {
     // Completion view should appear
     await waitFor(() => {
       expect(screen.getByText('¡Sesión de Repaso Completada!')).toBeDefined();
-      expect(screen.getByText('Repasar Mazo de Nuevo (1)')).toBeDefined();
+      expect(screen.getByText('Repetir Mazo (1)')).toBeDefined();
     });
   });
 

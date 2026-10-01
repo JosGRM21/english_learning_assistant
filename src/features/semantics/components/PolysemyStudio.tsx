@@ -96,7 +96,7 @@ export function PolysemyStudio() {
         </div>
 
         {/* 7 Pairs Selector Bar */}
-        <div className="flex items-center gap-2 overflow-x-auto mt-4 pt-4 border-t border-gray-100 dark:border-gray-800/80">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar mt-4 pt-4 border-t border-gray-100 dark:border-gray-800/80">
           {catalog.map((pair, idx) => {
             const isSelected = selectedPairIndex === idx;
             return (

@@ -189,7 +189,7 @@ export function SrsCardDisplay({
         {/* ============================================================ */}
         {/* BACK FACE (REVERSO - DISEÑO RADICAL MINIMALISTA Y ELEGANTE)   */}
         {/* ============================================================ */}
-        <div className="backface-hidden rotate-y-180 absolute inset-0 w-full min-h-[560px] bg-gradient-to-b from-white to-[#FBFBFA] dark:from-[#11141F] dark:to-[#0D0F17] rounded-3xl p-8 border border-gray-200/80 dark:border-gray-800 shadow-[0_4px_30px_rgba(0,0,0,0.04)] flex flex-col justify-between select-none overflow-y-auto">
+        <div className="backface-hidden rotate-y-180 absolute inset-0 w-full min-h-[560px] bg-gradient-to-b from-white to-[#FBFBFA] dark:from-[#11141F] dark:to-[#0D0F17] rounded-3xl p-8 border border-gray-200/80 dark:border-gray-800 shadow-[0_4px_30px_rgba(0,0,0,0.04)] flex flex-col justify-between select-none overflow-y-auto custom-scrollbar-thin">
           <div className="space-y-5">
             {/* Header: Level & Navigation controls */}
             <div className="flex items-center justify-between">

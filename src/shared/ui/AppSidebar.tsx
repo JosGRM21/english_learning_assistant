@@ -68,7 +68,7 @@ export function AppSidebar({
       </div>
 
       {/* Navigation Groups */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+      <div className="flex-1 overflow-y-auto custom-scrollbar-thin px-3 py-4 space-y-6">
         {NAV_GROUPS.map((group, groupIdx) => (
           <div key={groupIdx} className="space-y-1">
             {!isCollapsed ? (

@@ -284,7 +284,7 @@ export function GradedReaderView({
               Artículos Disponibles ({filteredArticles.length})
             </div>
 
-            <div className="space-y-2 max-h-[580px] overflow-y-auto">
+            <div className="space-y-2 max-h-[580px] overflow-y-auto custom-scrollbar pr-2">
               {filteredArticles.map((art) => (
                 <div
                   key={art.id}
