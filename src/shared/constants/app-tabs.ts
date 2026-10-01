@@ -9,6 +9,7 @@ import {
   BarChart2,
   Cpu,
   Settings,
+  Compass,
   LucideIcon,
 } from 'lucide-react';
 
@@ -24,6 +25,7 @@ export type AppTab =
   | 'dashboard'
   | 'vocab'
   | 'srs'
+  | 'semantics'
   | 'minimal_pairs'
   | 'writing'
   | 'drills'
@@ -57,28 +59,35 @@ export const APP_TABS: TabDefinition[] = [
     label: 'SRS & Fonología',
     icon: Sparkles,
     activeColorClass: 'text-indigo-600 dark:text-indigo-400',
-    description: 'Repaso espaciado inteligente con FSRS v5 y fonética aplicada',
+    description: 'Repaso espaciado inteligente con tarjetas interactivas y fonética aplicada',
   },
   {
     id: 'reader',
-    label: 'Graded Reader (i+1)',
+    label: 'Lectura Graduada',
     icon: BookOpen,
     activeColorClass: 'text-blue-600 dark:text-blue-400',
-    description: 'Lectura comprensiva graduada con anotación de noticing',
+    description: 'Lectura adaptada por nivel con análisis de vocabulario y audio',
+  },
+  {
+    id: 'semantics',
+    label: 'Semántica & Expresión',
+    icon: Compass,
+    activeColorClass: 'text-purple-600 dark:text-purple-400',
+    description: 'Verbos de movimiento en inglés y desambiguación de significados',
   },
   {
     id: 'writing',
-    label: 'Taller Socrático',
+    label: 'Taller de Redacción',
     icon: PenTool,
     activeColorClass: 'text-indigo-600 dark:text-indigo-400',
-    description: 'Estudio de escritura en 3 fases con retroalimentación IA',
+    description: 'Práctica guiada de redacción con retroalimentación reflexiva y socrática',
   },
   {
     id: 'drills',
-    label: 'Speed Drills',
+    label: 'Entrenamiento Rápido',
     icon: Zap,
     activeColorClass: 'text-amber-500',
-    description: 'Automatización y velocidad de respuesta bajo presión',
+    description: 'Automatización y agilidad de respuesta verbal en inglés',
   },
   {
     id: 'minimal_pairs',
@@ -99,7 +108,7 @@ export const APP_TABS: TabDefinition[] = [
     label: 'Modelos de IA',
     icon: Cpu,
     activeColorClass: 'text-indigo-600 dark:text-indigo-400',
-    description: 'Gestión de API Keys (80 reqs/key) y selección de modelo por defecto',
+    description: 'Gestión de API Keys (80 peticiones por clave) y selección de modelo principal',
   },
   {
     id: 'settings',
@@ -116,8 +125,12 @@ export const NAV_GROUPS: NavGroup[] = [
     tabs: ['dashboard', 'vocab', 'srs', 'reader'],
   },
   {
-    name: 'Entrenamiento & Práctica',
-    tabs: ['writing', 'drills', 'minimal_pairs', 'weaknesses'],
+    name: 'Fonología & Semántica',
+    tabs: ['semantics', 'minimal_pairs'],
+  },
+  {
+    name: 'Producción & Práctica',
+    tabs: ['writing', 'drills', 'weaknesses'],
   },
   {
     name: 'Sistema & Configuración',

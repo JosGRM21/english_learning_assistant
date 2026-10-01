@@ -13,17 +13,17 @@ El diagrama de contexto ilustra cómo el usuario interactúa con ELA y los lími
 C4Context
     title Diagrama de Contexto - English Learning Assistant (ELA)
 
-    Person(user, "Estudiante Hispanohablante", "Usuario adulto que busca dominar el vocabulario, habla conectada, prosodia y fluidez escrita en inglés en tiempo récord.")
+    Person(user, "Estudiante Hispanohablante", "Usuario adulto que busca dominar el vocabulario, habla conectada y fluidez escrita en inglés en tiempo récord.")
     
-    System(ela, "English Learning Assistant (ELA)", "Aplicación de escritorio local-first para práctica deliberada, FSRS, análisis fonético-prosódico, mitigación L1, TBLT y tutoría socrática con IA.")
+    System(ela, "English Learning Assistant (ELA)", "Aplicación de escritorio local-first para práctica deliberada, FSRS, análisis fonético, mitigación L1 y tutoría socrática con IA.")
 
-    System_Ext(gemini, "Google Gemini API", "Servicio de IA Generativa en la nube (familia Gemini 3.x Flash) para evaluación cualitativa TBLT de 4 competencias, andamiaje socrático y simplificación CEFR.")
-    System_Ext(audio_subsys, "Motor TTS & Captura de Micrófono", "Sintetizador Web Speech / Neural Voices para reproducción y Web Audio API para análisis de tono fundamental F0.")
+    System_Ext(gemini, "Google Gemini API", "Servicio de IA Generativa en la nube (familia Gemini 3.x Flash) para andamiaje socrático, simplificación CEFR y enriquecimiento léxico.")
+    System_Ext(audio_subsys, "Motor TTS & Audio", "Sintetizador Web Speech / Neural Voices para reproducción de modelos nativos y pares mínimos.")
     SystemDb_Ext(os_storage, "Almacenamiento Local del SO", "Sistema de archivos local y base de datos SQLite (WAL mode) para persistencia 100% privada y cifrado de claves.")
 
-    Rel(user, ela, "Practica repetición activa, shadowing prosódico, drills de velocidad, misiones TBLT y lecturas i+1")
+    Rel(user, ela, "Practica repetición activa, drills de velocidad, gimnasio fonético y lecturas i+1")
     Rel(ela, gemini, "Envía borradores de redacción, oraciones y textos con schemas JSON tipados", "HTTPS / REST")
-    Rel(ela, audio_subsys, "Solicita síntesis de voz multi-hablante (1.0x / 0.75x) y captura señal de micrófono", "Web Audio API / MediaStreams")
+    Rel(ela, audio_subsys, "Solicita síntesis de voz multi-hablante (1.0x / 0.75x)", "Web Audio API / SpeechSynthesis")
     Rel(ela, os_storage, "Lee y escribe estado de usuario, tarjetas FSRS, métricas de proceduralización y fallas", "SQLite3 / File I/O")
 ```
 
@@ -37,22 +37,22 @@ El sistema se compone de contenedores de ejecución ligera que garantizan una ex
 C4Container
     title Diagrama de Contenedores - ELA
 
-    Person(user, "Estudiante", "Interactúa mediante teclado, ratón y micrófono")
+    Person(user, "Estudiante", "Interactúa mediante teclado y ratón")
 
-    Container(frontend, "Capa de Presentación (UI/UX)", "React / Next.js, Tailwind CSS, Lucide Icons, Canvas FFT Visualizer", "Interfaz gráfica 'Warm Minimalist': Dashboard SRL, Reproductor FSRS, Gimnasio HVPT, Prosody Studio, TBLT Studio y Smart Reader.")
+    Container(frontend, "Capa de Presentación (UI/UX)", "React / Next.js, Tailwind CSS, Lucide Icons", "Interfaz gráfica 'Warm Minimalist': Dashboard SRL, Reproductor FSRS, Gimnasio HVPT, Socratic Writing Studio y Smart Reader.")
     
-    Container(backend, "Capa de Lógica de Negocio (Core Application Engine)", "TypeScript / Tauri Rust Core", "Orquesta los algoritmos FSRS 4.5, proceduralización RT, análisis fonético/prosódico, detección L1 y gateway de IA.")
+    Container(backend, "Capa de Lógica de Negocio (Core Application Engine)", "TypeScript / Tauri Rust Core", "Orquesta los algoritmos FSRS 4.5, proceduralización RT, análisis fonético, detección L1 y gateway de IA.")
 
-    ContainerDb(database, "Base de Datos Local", "SQLite3 con WAL mode y claves foráneas", "Almacena catálogo léxico, reglas fonéticas/prosódicas, tarjetas FSRS, misiones TBLT, métricas de error y cuotas 2D.")
+    ContainerDb(database, "Base de Datos Local", "SQLite3 con WAL mode y claves foráneas", "Almacena catálogo léxico, reglas fonéticas, tarjetas FSRS, métricas de error y cuotas 2D.")
 
-    Container(audio_engine, "Subsistema de Audio y Prosodia", "Web Audio API / AnalyserNode (FFT) / Native Speech", "Procesa reproducción de estímulos auditivos, cálculo de F0 para entonación y caché de fonemas.")
+    Container(audio_engine, "Subsistema de Audio", "Web Audio API / Native Speech", "Procesa reproducción de estímulos auditivos y caché de fonemas.")
 
-    Container_Ext(gemini_api, "Google Gemini API Gateway", "Familia gemini-3.x-flash (3.5, 3.6, 3.7, 3.8)", "Inferencia con respuesta JSON estructurada para feedback socrático en 4 niveles y evaluación TBLT.")
+    Container_Ext(gemini_api, "Google Gemini API Gateway", "Familia gemini-3.x-flash (3.5, 3.6, 3.7, 3.8)", "Inferencia con respuesta JSON estructurada para feedback socrático en 4 niveles, simplificación y léxico.")
 
-    Rel(user, frontend, "Usa la aplicación con atajos de teclado y voz", "GUI / Mic")
+    Rel(user, frontend, "Usa la aplicación con atajos de teclado y ratón", "GUI")
     Rel(frontend, backend, "Invoca comandos de dominio, eventos y consultas", "IPC / Typed Channels")
     Rel(backend, database, "Persistencia transaccional de datos", "SQL / Better-SQLite3 / SQL.js")
-    Rel(frontend, audio_engine, "Captura audio y grafica ondas acústicas", "Web Audio API")
+    Rel(frontend, audio_engine, "Reproduce audio y pares auditivos", "Web Audio API")
     Rel(backend, gemini_api, "Solicitudes HTTPS tipadas con fallback 2D", "HTTPS / JSON Payload")
 ```
 
@@ -73,11 +73,9 @@ graph TB
             SpeedDrillArena["SpeedDrillArenaService<br/>(Temporizador 3-5s & Bucle N+3/N+7)"]
         end
 
-        subgraph ModPhoPro["2. Dominio Fonética, Habla Conectada & Prosodia"]
+        subgraph ModPhoPro["2. Dominio Fonética & Habla Conectada"]
             PhoneticParser["PhoneticParser<br/>(Tokenizador léxico e IPA)"]
             ConnectedSpeechMatcher["ConnectedSpeechMatcher<br/>(Elisión, Asimilación, Enlace, Schwa)"]
-            ProsodyEngine["ProsodyEngine<br/>(Acento Nuclear, Thought Groups, Curvas F0)"]
-            PitchTracker["PitchTrackerService<br/>(Autocorrelación FFT & Shadowing)"]
             HvptUnit["HvptAudioBankService<br/>(4-6 voces nativas & Forced Choice)"]
         end
 
@@ -89,9 +87,7 @@ graph TB
             PolysemyDisambiguator["PolysemyDisambiguator<br/>(Make/Do, Say/Tell, Hear/Listen)"]
         end
 
-        subgraph ModTbltWrt["4. Dominio TBLT & Tutoría Socrática IA"]
-            TbltOrchestrator["TbltMissionEngine<br/>(Ciclo Pre/During/Post-Task)"]
-            CompetenceScorer["CommunicativeCompetenceScorer<br/>(Rúbricas 4 Competencias Canale-Swain)"]
+        subgraph ModSocWrt["4. Dominio Escritura & Tutoría Socrática IA"]
             SocraticOrchestrator["SocraticFeedbackOrchestrator<br/>(Andamiaje 4 Niveles ZPD)"]
             MicroWritingStudio["MicroWritingService<br/>(Consignas ultracortas 15-35 palabras)"]
             GeminiGateway["GeminiAiGateway<br/>(Pool Multi-Key & Cascada 2D)"]
@@ -130,8 +126,6 @@ graph TB
     SpeedDrillArena --> ErrorRecorder
     
     PhoneticParser --> ConnectedSpeechMatcher
-    ConnectedSpeechMatcher --> ProsodyEngine
-    ProsodyEngine --> PitchTracker
     HvptUnit --> ErrorRecorder
 
     L1Engine --> ThirdPersonExtinguisher
@@ -139,8 +133,6 @@ graph TB
     ConceptualFraming --> PrepositionTopo
     ConceptualFraming --> PolysemyDisambiguator
 
-    TbltOrchestrator --> GeminiGateway
-    TbltOrchestrator --> CompetenceScorer
     SocraticOrchestrator --> GeminiGateway
     MicroWritingStudio --> GeminiGateway
     GeminiGateway --> ApiKeyPoolManager
@@ -155,7 +147,6 @@ graph TB
     HeatmapEngine --> WorkoutFactory
 
     CardManager --> SrlOrchestrator
-    TbltOrchestrator --> SrlOrchestrator
     SpeedDrillArena --> SrlOrchestrator
     SrlOrchestrator --> StreakManager
     CardManager --> BacklogThrottler
@@ -166,15 +157,16 @@ graph TB
 ## 4. Nivel 4: Patrones de Diseño y Principios Arquitectónicos
 
 1. **Repository Pattern (Patrón Repositorio):**
-   - Aísla la persistencia de datos tras interfaces agnósticas (`ICardRepository`, `IVocabRepository`, `IErrorRepository`, `ITbltRepository`, `IProsodyRepository`).
+   - Aísla la persistencia de datos tras interfaces agnósticas (`ICardRepository`, `IVocabRepository`, `IErrorRepository`).
 2. **Strategy Pattern (Patrón Estrategia) para Evaluación y Scaffolding:**
-   - La interfaz `IEvaluationStrategy` desacopla los distintos tipos de inferencia pedagógica (`TbltEvaluationStrategy`, `SocraticScaffoldingStrategy`, `TextSimplificationStrategy`, `VocabularyEnrichmentStrategy`).
+   - La interfaz `IEvaluationStrategy` desacopla los distintos tipos de inferencia pedagógica (`SocraticScaffoldingStrategy`, `TextSimplificationStrategy`, `VocabularyEnrichmentStrategy`).
 3. **State Machine Pattern (Máquina de Estados Finita) Determinista:**
    - Vida de tarjetas FSRS: `NEW` $\rightarrow$ `LEARNING` $\rightarrow$ `REVIEW` $\rightarrow$ `RELEARNING`.
    - Proceduralización: `DECLARATIVE` $\rightarrow$ `COMPILING` $\rightarrow$ `PROCEDURALIZED` (certificación a $RT < 1.5$ s en 3 sesiones).
    - Racha diaria: `PENDING` $\rightarrow$ `COMPLETED` $\rightarrow$ `FROZEN` $\rightarrow$ `GRACE_PERIOD` $\rightarrow$ `RESET`.
    - Decodificación auditiva: `STEP1_BLIND` $\rightarrow$ `STEP2_TONIC` $\rightarrow$ `STEP3_FULL_CONNECTED`.
 4. **Observer Pattern / Event Bus Desacoplado:**
-   - Eventos de dominio centrales (`CardReviewedEvent`, `ErrorCommittedEvent`, `DrillCompletedEvent`, `TbltSubmittedEvent`) notifican a los suscriptores (`WeaknessHeatmapEngine`, `DailyQuestEvaluator`, `StreakStateManager`) de forma asíncrona sin acoplamiento temporal ni espacial.
+   - Eventos de dominio centrales (`CardReviewedEvent`, `ErrorCommittedEvent`, `DrillCompletedEvent`) notifican a los suscriptores (`WeaknessHeatmapEngine`, `DailyQuestEvaluator`, `StreakStateManager`) de forma asíncrona sin acoplamiento temporal ni espacial.
 5. **Circuit Breaker & Fallback 2D para IA:**
    - Protección contra HTTP 429 (`RESOURCE_EXHAUSTED`): conmutación horizontal de clave y degradación vertical de modelo (3.8 $\rightarrow$ 3.7 $\rightarrow$ 3.6 $\rightarrow$ 3.5 Flash).
+

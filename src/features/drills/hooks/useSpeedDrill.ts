@@ -34,6 +34,15 @@ export function useSpeedDrill(onDrillCompleted?: (result: DrillSessionResult) =>
   // Summary state
   const [sessionSummary, setSessionSummary] = useState<DrillSessionResult | null>(null);
 
+  // Active feedback state for flash
+  const [feedback, setFeedback] = useState<{
+    isCorrect: boolean;
+    correctOptionIndex: number;
+    selectedOptionIndex: number;
+    proceduralPass: boolean;
+    responseTimeMs: number;
+  } | null>(null);
+
   // End session
   const finishSession = useCallback(
     (finalResults: DrillAnswerResult[], finalMaxCombo: number) => {
@@ -43,6 +52,7 @@ export function useSpeedDrill(onDrillCompleted?: (result: DrillSessionResult) =>
       }
 
       setIsPlaying(false);
+      setFeedback(null);
       const summary = trainer.calculateSummary(drillType, finalResults, finalMaxCombo);
       setSessionSummary(summary);
 
@@ -70,12 +80,23 @@ export function useSpeedDrill(onDrillCompleted?: (result: DrillSessionResult) =>
 
       audioService.playFeedback(evaluation.isCorrect);
 
+      // Set flash feedback state
+      setFeedback({
+        isCorrect: evaluation.isCorrect,
+        correctOptionIndex: p.correctOptionIndex,
+        selectedOptionIndex,
+        proceduralPass: evaluation.proceduralPass,
+        responseTimeMs: evaluation.responseTimeMs,
+      });
+
       const nextResults = [...results, evaluation];
       setResults(nextResults);
       setTotalScore((prev) => prev + evaluation.pointsEarned);
 
       let nextCombo = 0;
       let nextMaxCombo = maxCombo;
+      let updatedPrompts = prompts;
+
       if (evaluation.isCorrect) {
         nextCombo = currentCombo + 1;
         nextMaxCombo = Math.max(maxCombo, nextCombo);
@@ -83,14 +104,21 @@ export function useSpeedDrill(onDrillCompleted?: (result: DrillSessionResult) =>
         setMaxCombo(nextMaxCombo);
       } else {
         setCurrentCombo(0);
+        // Error Recovery Loop: re-inject at N+3 and N+7
+        updatedPrompts = trainer.planErrorRecovery(prompts, p, currentIndex);
+        setPrompts(updatedPrompts);
       }
+
+      // Flash delay: 1000ms for error/noticing flash, 400ms for fast correct
+      const delayMs = evaluation.isCorrect ? 400 : 1000;
 
       // Next prompt or finish
       setTimeout(() => {
+        setFeedback(null);
         const nextIdx = currentIndex + 1;
-        if (nextIdx < prompts.length) {
+        if (nextIdx < updatedPrompts.length) {
           setCurrentIndex(nextIdx);
-          const nextP = prompts[nextIdx];
+          const nextP = updatedPrompts[nextIdx];
           setTimeLeftMs(nextP.timeLimitMs);
 
           const startTime = performance.now();
@@ -109,7 +137,7 @@ export function useSpeedDrill(onDrillCompleted?: (result: DrillSessionResult) =>
         } else {
           finishSession(nextResults, nextMaxCombo);
         }
-      }, 500);
+      }, delayMs);
     },
     [prompts, currentIndex, trainer, currentCombo, audioService, results, maxCombo, finishSession],
   );
@@ -166,6 +194,7 @@ export function useSpeedDrill(onDrillCompleted?: (result: DrillSessionResult) =>
     totalScore,
     timeLeftMs,
     sessionSummary,
+    feedback,
     setDrillType,
     handleStart,
     handleAnswer,

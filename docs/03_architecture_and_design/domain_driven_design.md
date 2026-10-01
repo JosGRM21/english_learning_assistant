@@ -11,8 +11,8 @@ Este documento modela la arquitectura lógica de ELA bajo los principios de **Do
 graph TD
     subgraph CoreDomain["Dominio Central (Core Pedagogical Engines)"]
         BC_PROC["BC 1: Repetición Espaciada (FSRS) & Proceduralización"]
-        BC_PHO["BC 2: Fonética Acústica, Habla Conectada & Prosodia"]
-        BC_TBLT["BC 3: Taller Basado en Tareas (TBLT) & Tutoría Socrática"]
+        BC_PHO["BC 2: Fonética Acústica & Habla Conectada"]
+        BC_SOC["BC 3: Taller de Escritura & Tutoría Socrática"]
         BC_INP["BC 4: Input Comprensible & Escucha Bottom-Up"]
     end
 
@@ -30,17 +30,17 @@ graph TD
 
     BC_LEX -->|Suministra entradas léxicas| BC_PROC
     BC_LEX -->|Suministra fonemas y reglas| BC_PHO
-    BC_SEM -->|Suministra colocaciones y esquemas| BC_TBLT
+    BC_SEM -->|Suministra colocaciones y esquemas| BC_SOC
     BC_TRN -->|Suministra reglas contrastivas| BC_DIA
     BC_TRN -->|Suministra drills de 3ra persona y pro-drop| BC_PROC
     BC_INP -->|Captura términos en 1 clic| BC_LEX
     BC_PROC -->|Provee términos activos para Noticing| BC_INP
-    BC_TBLT -->|Envía textos para evaluación| BC_AIC
-    BC_TBLT -->|Emite errores morfosintácticos| BC_DIA
+    BC_SOC -->|Envía textos para evaluación| BC_AIC
+    BC_SOC -->|Emite errores morfosintácticos| BC_DIA
     BC_PROC -->|Emite fallas de evocación y latencia| BC_DIA
     BC_PHO -->|Emite fallas de discriminación acústica| BC_DIA
     BC_PROC -->|Notifica repasos y drills| BC_SRL
-    BC_TBLT -->|Notifica tareas completadas| BC_SRL
+    BC_SOC -->|Notifica escritos completados| BC_SRL
     BC_INP -->|Notifica lectura completada| BC_SRL
     BC_DIA -->|Genera Micro-Workouts| BC_SRL
 ```
@@ -68,39 +68,31 @@ graph TD
 
 ---
 
-### 2.2. Contexto Delimitado: Fonética Acústica, Habla Conectada & Prosodia (`PhonologyProsodyContext`)
-- **Propósito:** Segmentar oraciones, identificar fenómenos de habla rápida, entrenar pares mínimos multi-hablante y evaluar contornos melódicos suprasegmentales.
+### 2.2. Contexto Delimitado: Fonética Acústica & Habla Conectada (`PhonologyContext`)
+- **Propósito:** Segmentar oraciones, identificar fenómenos de habla rápida y entrenar pares mínimos multi-hablante.
 - **Raíz del Agregado:** `ConnectedSentence`
   - *Atributos:* `sentenceId`, `orthographicText`, `ipaCitation`, `ipaConnected`, `boundaryEvents` (colección de enlaces, elisiones, asimilaciones y formas débiles).
-  - *Entidad Interna:* `ProsodyProfile`: contiene el acento nuclear (`nuclearStressWordIndex`), grupos de pensamiento (`thoughtGroupDelimiters //`) y contorno tonal (`pitchContourType`: Falling, Rising, FallRise, RiseFall).
 - **Entidades de Dominio:**
   - `HvptMinimalPairTrial`: reto a ciegas con estímulo acústico de voz nativa ($V_1$ a $V_6$), opciones visuales y temporizador de 2.0 s.
-  - `ProsodicShadowingSession`: grabación de audio del usuario con cálculo de vector de frecuencia fundamental ($F_0$) y comparación de error cuadrático medio frente a la curva nativa.
 - **Value Objects:**
   - `IpaPhoneme` (Glifos IPA normalizados, diacríticos y acentos).
-  - `PitchCurveF0` (Serie temporal de frecuencias en Hertz de 50 a 400 Hz).
-  - `AcousticVowelCoordinates` (Formante $F_1$ en Hz, Formante $F_2$ en Hz en el cuadrilátero).
 - **Eventos de Dominio:**
   - `HvptTrialCompletedDomainEvent` (Emite: contrastPair, voiceId, reactionTimeMs, isCorrect).
-  - `ProsodicShadowingScoredDomainEvent` (Emite: sentenceId, prosodyMatchPercentage).
 
 ---
 
-### 2.3. Contexto Delimitado: Taller Basado en Tareas (TBLT) & Tutoría Socrática (`TbltWritingContext`)
-- **Propósito:** Orquestar misiones comunicativas en 3 fases y evaluar las 4 competencias comunicativas mediante andamiaje socrático en la ZPD con Gemini.
-- **Raíz del Agregado:** `TbltMissionSubmission`
-  - *Atributos:* `submissionId`, `taskId`, `userId`, `currentPhase` (PRE_TASK, DURING_TASK, POST_TASK_FONF), `originalText`, `status`.
+### 2.3. Contexto Delimitado: Taller de Escritura & Tutoría Socrática (`SocraticWritingContext`)
+- **Propósito:** Orquestar actividades de escritura reflexiva y andamiaje socrático en la ZPD con Gemini.
+- **Raíz del Agregado:** `WritingSubmission`
+  - *Atributos:* `submissionId`, `promptId`, `userId`, `originalText`, `status`.
   - *Colección:* `DraftRevisions` (Borrador 1 $\rightarrow$ Pistas Nivel 1/2 $\rightarrow$ Borrador 2 $\rightarrow$ Resolución).
-  - *Entidad Interna:* `CommunicativeCompetenceEvaluation`: scores analíticos en Lingüística, Sociolingüística (Hedging/Registro), Discursiva (Conectores) y Estratégica (Paráfrasis).
 - **Value Objects:**
-  - `LexicalPrimingChunk` (Unidad fraseológica sugerida en Pre-Task para cebar la memoria de trabajo).
   - `SocraticScaffoldLevel` (Level1_Elicitation, Level2_Metalinguistic, Level3_Cloze, Level4_ExplicitModel).
   - `NoticingGapDiff` (Segmento erróneo del interlenguaje vs. reformulación nativa).
 - **Eventos de Dominio:**
-  - `TbltPreTaskActivatedDomainEvent`.
-  - `TbltDraftSubmittedDomainEvent`.
+  - `WritingDraftSubmittedDomainEvent`.
   - `SocraticScaffoldRequestedDomainEvent`.
-  - `TbltMissionEvaluatedDomainEvent` (Emite: scores de las 4 competencias y lista de errores de interlenguaje).
+  - `WritingSubmissionEvaluatedDomainEvent` (Emite: feedback socrático y lista de errores de interlenguaje).
 
 ---
 

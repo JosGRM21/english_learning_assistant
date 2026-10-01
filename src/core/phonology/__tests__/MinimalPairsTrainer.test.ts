@@ -54,4 +54,39 @@ describe('MinimalPairsTrainer', () => {
 
     expect(result.isCorrect).toBe(false);
   });
+
+  describe('HVPT Multi-Speaker & Formant acoustic features', () => {
+    it('provides multi-speaker acoustic profiles (GA/RP, Male/Female)', () => {
+      const speakers = trainer.getSpeakers();
+      expect(speakers.length).toBeGreaterThanOrEqual(4);
+
+      const accents = speakers.map((s) => s.accent);
+      const genders = speakers.map((s) => s.gender);
+
+      expect(accents).toContain('GA');
+      expect(accents).toContain('RP');
+      expect(genders).toContain('MALE');
+      expect(genders).toContain('FEMALE');
+    });
+
+    it('assigns an HVPT speaker profile to each generated challenge and preserves it in results', () => {
+      const challenge = trainer.createChallenge({ speakerId: 'spk_ga_fem' });
+      expect(challenge.speaker).toBeDefined();
+      expect(challenge.speaker.id).toBe('spk_ga_fem');
+      expect(challenge.speaker.gender).toBe('FEMALE');
+
+      const result = trainer.evaluate(challenge, challenge.targetOption, 900);
+      expect(result.speaker).toEqual(challenge.speaker);
+    });
+
+    it('contains formant acoustic data on critical vowel contrast items', () => {
+      const catalog = trainer.getCatalog();
+      const sheepShip = catalog.find((p) => p.id === 'mp_v_01');
+
+      expect(sheepShip).toBeDefined();
+      expect(sheepShip?.formantDataA?.f1).toBe(280);
+      expect(sheepShip?.formantDataB?.f1).toBe(400);
+      expect(sheepShip?.formantDataA?.spanishAttractor).toBeDefined();
+    });
+  });
 });

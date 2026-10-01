@@ -1,4 +1,8 @@
 export type SpeedDrillType =
+  | 'CLAUSE_SHIFT'
+  | 'THIRD_PERSON_AUTOMATION'
+  | 'PREPOSITION_REFLEX'
+  | 'AUDITORY_SNAP_HVPT'
   | 'COLLOCATION_BLITZ'
   | 'PREPOSITION_RAPID_FIRE'
   | 'CONNECTED_SPEECH_EAR';
@@ -10,8 +14,11 @@ export interface DrillPrompt {
   sentenceContext: string;
   options: string[];
   correctOptionIndex: number;
-  timeLimitMs: number; // 3000 to 5000 ms
+  timeLimitMs: number; // 2000 to 5000 ms
   explanationEs: string;
+  audioUrl?: string;
+  operatorChange?: string; // e.g. '[NEGATIVE]', '[SHE]', '[HE]'
+  cardId?: string; // associated srs_card id if applicable
 }
 
 export interface DrillAnswerResult {
@@ -21,6 +28,8 @@ export interface DrillAnswerResult {
   responseTimeMs: number;
   pointsEarned: number;
   comboMultiplier: number;
+  proceduralPass: boolean;
+  reInjectedAtTurn?: number;
 }
 
 export interface DrillSessionResult {
@@ -28,6 +37,7 @@ export interface DrillSessionResult {
   drillType: SpeedDrillType;
   totalPrompts: number;
   correctCount: number;
+  proceduralPassCount: number;
   avgResponseTimeMs: number;
   finalScore: number;
   maxCombo: number;

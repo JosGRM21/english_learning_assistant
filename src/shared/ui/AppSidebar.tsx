@@ -4,7 +4,6 @@ import {
   Sun,
   Moon,
   Flame,
-  CheckCircle2,
 } from 'lucide-react';
 import { APP_TABS, AppTab, NAV_GROUPS } from '@/shared/constants/app-tabs';
 import { useHabitsStore } from '@/features/habits/store/habitsStore';
@@ -145,14 +144,7 @@ export function AppSidebar({
         )}
 
         {/* Action controls row */}
-        <div className={`flex items-center gap-2 ${isCollapsed ? 'flex-col' : 'justify-between'}`}>
-          {!isCollapsed && (
-            <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">Listo & Local</span>
-            </div>
-          )}
-
+        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-end'}`}>
           <button
             onClick={onToggleDarkMode}
             className="p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"

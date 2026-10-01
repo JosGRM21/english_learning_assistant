@@ -75,8 +75,23 @@ describe('QuotaMatrixOrchestrator', () => {
     expect(route.modelId).toBe('gemini-3.8-flash');
   });
 
+  it('handles HTTP 503 model overloaded by applying 30s cooldown and failing over', () => {
+    const now = new Date('2026-09-29T12:00:00Z');
+    orchestrator.recordHttp429('key_1', 'gemini-3.8-flash', '503 Service Unavailable: The model is overloaded', now);
+
+    const quota1 = orchestrator.getQuotaState('key_1', 'gemini-3.8-flash');
+    expect(quota1?.rpmCooldownUntil).not.toBeNull();
+    // Daily quota should NOT be exhausted by 503
+    expect(quota1?.rpdStatus).toBe('AVAILABLE');
+    expect(quota1?.requestsToday).toBe(0);
+
+    // Resolves to next key or model
+    const route = orchestrator.resolveRoute('gemini-3.8-flash', new Date('2026-09-29T12:00:05Z'));
+    expect(route.apiKeyId).toBe('key_2');
+  });
+
   it('throws QuotaExhaustedError when all keys and models reach their 20 RPD limits', () => {
-    const models = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash'] as const;
+    const models = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'] as const;
     for (const key of mockKeys) {
       for (const model of models) {
         for (let i = 0; i < 20; i++) {

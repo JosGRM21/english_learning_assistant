@@ -20,17 +20,15 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
 1. [Módulo 1: Gestión Léxica y Enfoque por Chunks (RF-VOC)](#1-módulo-de-gestión-léxica-y-enfoque-por-chunks-rf-voc)
 2. [Módulo 2: Semántica Cognitiva y "Thinking for Speaking" (RF-SEM)](#2-módulo-de-semántica-cognitiva-y-thinking-for-speaking-rf-sem)
 3. [Módulo 3: Fonética Acústica, Articulatoria y Habla Conectada (RF-PHO)](#3-módulo-de-fonética-acústica-articulatoria-y-habla-conectada-rf-pho)
-4. [Módulo 4: Fonología Suprasegmental, Prosodia y Entonación (RF-PRO)](#4-módulo-de-fonología-suprasegmental-prosodia-y-entonación-rf-pro)
-5. [Módulo 5: Percepción Auditiva de Alta Variabilidad (HVPT) (RF-HVPT)](#5-módulo-de-percepción-auditiva-de-alta-variabilidad-hvpt-rf-hvpt)
-6. [Módulo 6: Matriz de Neutralización de Interferencia L1 Español (RF-TRN)](#6-módulo-de-matriz-de-neutralización-de-interferencia-l1-español-rf-trn)
-7. [Módulo 7: Repetición Espaciada Inteligente FSRS (RF-SRS)](#7-módulo-de-repetición-espaciada-inteligente-fsrs-rf-srs)
-8. [Módulo 8: Motor de Proceduralización y Drills de Velocidad (RF-PROC)](#8-módulo-de-motor-de-proceduralización-y-drills-de-velocidad-rf-proc)
-9. [Módulo 9: Taller de Tareas Comunicativas Genuinas (TBLT) (RF-TBLT)](#9-módulo-de-taller-de-tareas-comunicativas-genuinas-tblt-rf-tblt)
-10. [Módulo 10: Tutoría Socrática y Micro-Writing con Google Gemini (RF-SOC)](#10-módulo-de-tutoría-socrática-y-micro-writing-con-google-gemini-rf-soc)
-11. [Módulo 11: Input Comprensible y Decodificación Auditiva Bottom-Up (RF-INP)](#11-módulo-de-input-comprensible-y-decodificación-auditiva-bottom-up-rf-inp)
-12. [Módulo 12: Motor de Diagnóstico Inteligente y Micro-Workouts (RF-DIA)](#12-módulo-de-motor-de-diagnóstico-inteligente-y-micro-workouts-rf-dia)
-13. [Módulo 13: Autorregulación (SRL), Hábitos Antifrágiles y Filtro Afectivo (RF-SRL)](#13-módulo-de-autorregulación-srl-hábitos-antifrágiles-y-filtro-afectivo-rf-srl)
-14. [Módulo 14: Gestión de IA, Pool Multi-API Key y Resiliencia 2D (RF-AIC)](#14-módulo-de-gestión-de-ia-pool-multi-api-key-y-resiliencia-2d-rf-aic)
+4. [Módulo 4: Percepción Auditiva de Alta Variabilidad (HVPT) (RF-HVPT)](#4-módulo-de-percepción-auditiva-de-alta-variabilidad-hvpt-rf-hvpt)
+5. [Módulo 5: Matriz de Neutralización de Interferencia L1 Español (RF-TRN)](#5-módulo-de-matriz-de-neutralización-de-interferencia-l1-español-rf-trn)
+6. [Módulo 6: Repetición Espaciada Inteligente FSRS (RF-SRS)](#6-módulo-de-repetición-espaciada-inteligente-fsrs-rf-srs)
+7. [Módulo 7: Motor de Proceduralización y Drills de Velocidad (RF-PROC)](#7-módulo-de-motor-de-proceduralización-y-drills-de-velocidad-rf-proc)
+8. [Módulo 8: Tutoría Socrática de Redacción con Google Gemini (RF-SOC)](#8-módulo-de-tutoría-socrática-de-redacción-con-google-gemini-rf-soc)
+9. [Módulo 9: Input Comprensible y Decodificación Auditiva Bottom-Up (RF-INP)](#9-módulo-de-input-comprensible-y-decodificación-auditiva-bottom-up-rf-inp)
+10. [Módulo 10: Motor de Diagnóstico Inteligente y Micro-Workouts (RF-DIA)](#10-módulo-de-motor-de-diagnóstico-inteligente-y-micro-workouts-rf-dia)
+11. [Módulo 11: Autorregulación (SRL), Hábitos Antifrágiles y Filtro Afectivo (RF-SRL)](#11-módulo-de-autorregulación-srl-hábitos-antifrágiles-y-filtro-afectivo-rf-srl)
+12. [Módulo 12: Gestión de IA, Pool Multi-API Key y Resiliencia 2D (RF-AIC)](#12-módulo-de-gestión-de-ia-pool-multi-api-key-y-resiliencia-2d-rf-aic)
 
 ---
 
@@ -108,26 +106,14 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
   - Velocidad normal (1.0x).
   - Velocidad lenta pedagógica (0.75x) con preservación exacta del tono acústico (*pitch-preserving algorithm*).
 
-### RF-PHO-03: Laboratorio Articulatorio Visual y Cuadrilátero Vocálico Dual-Coding
-- **Descripción:** El sistema debe presentar el mapa del cuadrilátero vocálico acústico interactivo graficado según $F_1$ (altura lingual / apertura mandibular) y $F_2$ (posición lingual anteroposterior), contrastando el sistema de 5 vocales del español contra las 12 vocales del inglés.
-- **Pares Críticos Tensos vs. Laxos:**
-  - `/iː/` (tensa, sonrisa) vs. `/ɪ/` (laxa, mandíbula caída, lengua centralizada).
-  - `/uː/` (tensa, abocinada) vs. `/ʊ/` (laxa, redondeo suave).
-  - Tríada anterior abierta `/e/` vs. `/æ/` vs. `/ʌ/`.
-
-### RF-PHO-04: Detector y Entrenador de Voice Onset Time (VOT)
-- **Descripción:** El sistema debe explicar y entrenar el Voice Onset Time (VOT):
-  - Las oclusivas sordas iniciales del inglés (/p, t, k/) exigen un VOT positivo largo (+40 a +100 ms) con explosión de aire audible (aspiración `[pʰ, tʰ, kʰ]`).
-  - El sistema entrena al hispanohablante a aspirar para que palabras como *pin* no sean percibidas por el oído nativo como *bin* (las cuales en inglés tienen un VOT corto cercano a cero).
-
-### RF-PHO-05: Motor de Reglas de Habla Conectada (Connected Speech)
+### RF-PHO-03: Motor de Reglas de Habla Conectada (Connected Speech)
 - **Descripción:** El motor `PhoneticEngine` debe analizar oraciones completas y descomponer los 4 fenómenos de habla rápida:
   1. *Elisión:* Desaparición de /t, d/ entre consonantes (*last night* $\rightarrow$ `[lɑːs naɪt]`), síncopa de vocales átonas (*camera* $\rightarrow$ `[ˈkæmrə]`), y caída de /h/ en auxiliares (*tell him* $\rightarrow$ `[tel ɪm]`).
   2. *Asimilación:* Regresiva de punto de articulación (*ten boys* $\rightarrow$ `[tem bɔɪz]`, *white coffee* $\rightarrow$ `[waɪk ˈkɒfi]`), coalescente (*t+j $\rightarrow$ tʃ* en *don't you*, *d+j $\rightarrow$ dʒ* en *did you*, *s+j $\rightarrow$ ʃ*, *z+j $\rightarrow$ ʒ*) y de sonoridad (*have to* $\rightarrow$ `[ˈhæftuː]`).
   3. *Enlace (Linking):* Catenación consonante-vocal (*hold on* $\rightarrow$ `[həʊl-dɒn]`), flap alveolar `[ɾ]` en inglés americano (*check it out* $\rightarrow$ `[tʃe-kɪ-ɾaʊt]`), glides intrusivos palatales `/j/` (*I agree* $\rightarrow$ `[aɪ-j-əˈɡriː]`) y labiovelares `/w/` (*go out* $\rightarrow$ `[ɡəʊ-w-aʊt]`), linking 'r' e intrusive 'r', y geminación (*black cat* $\rightarrow$ `[blækːæt]`).
   4. *Formas Débiles y Schwa (/ə/):* Reducción fonológica en más de 40 palabras funcionales átonas (*to, of, for, and, can, was, at, from, some, them*).
 
-### RF-PHO-06: Visualizador Gráfico con Código de Color Semántico
+### RF-PHO-04: Visualizador Gráfico con Código de Color Semántico
 - **Descripción:** En la vista de estudio fonético, la oración se muestra con código de color estandarizado:
   - 🔵 **Azul (`#2563EB`):** Enlace consonante-vocal y glides intrusivos.
   - 🔴 **Rojo tachado (`#DC2626`):** Elisiones y sonidos suprimidos.
@@ -136,29 +122,7 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
 
 ---
 
-## 4. Módulo de Fonología Suprasegmental, Prosodia y Entonación (RF-PRO)
-
-### RF-PRO-01: Entrenador de Acento Nuclear Contrastivo (Tonic / Nuclear Pitch Accent)
-- **Descripción:** El sistema debe incluir un módulo específico para entrenar el acento oracional primario (*Nuclear Stress*). Demuestra cómo el foco tonal altera radicalmente el significado pragmático (p. ej. las 7 intenciones contrastivas de *"I didn't say she stole my money"*).
-- **Comportamiento:** El usuario escucha la oración pronunciada con acentos nucleares variables y debe seleccionar qué implicatura o información nueva se está transmitiendo.
-
-### RF-PRO-02: Segmentador de Grupos de Pensamiento (Thought Groups)
-- **Descripción:** En los ejercicios de lectura fluida y habla, el sistema inserta marcadores visuales de respiración semántica (`//`) que delimitan los *Thought Groups*, evitando que el hispanohablante hable en ráfagas desarticuladas o pause en lugares sintácticamente aberrantes.
-
-### RF-PRO-03: Reconocedor de Contornos Melódicos de Entonación
-- **Descripción:** El sistema debe desglosar y entrenar los cuatro contornos tonales de la frecuencia fundamental ($F_0$):
-  1. *Entonación Descendente ($\searrow$):* Finalidad, certeza, aseveraciones y preguntas con *Wh-*.
-  2. *Entonación Ascendente ($\nearrow$):* Preguntas polares (Sí/No), peticiones de aclaración, listas abiertas.
-  3. *Entonación Descendente-Ascendente ($\searrow\nearrow$ - Fall-Rise):* Reserva mental, desacuerdo diplomático, *hedging* y cortesía corporativa.
-  4. *Entonación Ascendente-Descendente ($\nearrow\searrow$ - Rise-Fall):* Sorpresa intensa, ironía o entusiasmo marcado.
-  5. *Entonación en Question Tags:* Distinción entre tono descendente (búsqueda de consenso) y tono ascendente (pregunta genuina).
-
-### RF-PRO-04: Estudio de Prosodic Shadowing con Rastreador de Tono ($F_0$ Pitch Tracker)
-- **Descripción:** El usuario escucha una frase nativa y graba su propia voz por micrófono. El sistema calcula en milisegundos la curva de tono fundamental ($F_0$) del usuario mediante transformada de Fourier / autocorrelación y la superpone visualmente sobre la curva melódica del hablante nativo, indicando el grado de coincidencia prosódica en porcentaje.
-
----
-
-## 5. Módulo de Percepción Auditiva de Alta Variabilidad (HVPT) (RF-HVPT)
+## 4. Módulo de Percepción Auditiva de Alta Variabilidad (HVPT) (RF-HVPT)
 
 ### RF-HVPT-01: Protocolo HVPT Multi-Hablante
 - **Descripción:** Para recalibrar el mapa perceptual auditivo del hispanohablante y superar el imán de la L1 (Patricia Kuhl), el Gimnasio de Pares Mínimos debe contar con un banco acústico de **al menos 4 a 6 voces nativas distintas** por cada contraste fonológico (voces masculinas graves, femeninas agudas, acentos General American y Received Pronunciation).
@@ -175,7 +139,7 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
 
 ---
 
-## 6. Módulo de Matriz de Neutralización de Interferencia L1 Español (RF-TRN)
+## 5. Módulo de Matriz de Neutralización de Interferencia L1 Español (RF-TRN)
 
 ### RF-TRN-01: Entrenador de Parámetro de Sujeto Nulo y Pronombres Ficticios (Dummy It / There)
 - **Descripción:** Módulo de práctica intensiva para erradicar la omisión de sujetos preverbales por transferencia del español (lengua *pro-drop*).
@@ -243,7 +207,7 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
 
 ---
 
-## 7. Módulo de Repetición Espaciada Inteligente FSRS (RF-SRS)
+## 6. Módulo de Repetición Espaciada Inteligente FSRS (RF-SRS)
 
 ### RF-SRS-01: Implementación del Algoritmo FSRS 4.5 bajo el Modelo DSR
 - **Descripción:** El planificador de repasos debe implementar el modelo DSR (Dificultad $D \in [1, 10]$, Estabilidad $S$ en días, Retención $R(t) \in [0, 1]$):
@@ -265,7 +229,7 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
 
 ---
 
-## 8. Módulo de Motor de Proceduralización y Drills de Velocidad (RF-PROC)
+## 7. Módulo de Motor de Proceduralización y Drills de Velocidad (RF-PROC)
 
 ### RF-PROC-01: Métrica Formal de Proceduralización en Ganglios Basales
 - **Descripción:** El sistema no considera un ítem como "Dominado" únicamente por su intervalo FSRS. Un ítem alcanza el estado formal **`PROCEDURALIZED`** exclusivamente cuando el estudiante responde con éxito en **3 sesiones distintas consecutivas con un Tiempo de Reacción ($RT$) inferior a 1.500 ms ($RT < 1.5$ s)**.
@@ -287,31 +251,7 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
 
 ---
 
-## 9. Módulo de Taller de Tareas Comunicativas Genuinas (TBLT) (RF-TBLT)
-
-### RF-TBLT-01: Motor de Tareas Genuinas vs. Ejercicios Artificiales
-- **Descripción:** El módulo de redacción y producción debe operar bajo el marco de **Task-Based Language Teaching (TBLT)**, garantizando los 4 criterios de Rod Ellis:
-  1. *Primacía del Significado:* El objetivo primario es resolver una situación real, no rellenar huecos gramaticales.
-  2. *Existencia de Brecha (Gap):* Brecha de información, opinión o razonamiento.
-  3. *Autonomía Lingüística:* El usuario debe recurrir a sus propios recursos sin opciones prediseñadas.
-  4. *Resultado No Lingüístico:* Conclusión con un entregable tangible (un correo de negociación, una propuesta de solución, un reclamo).
-
-### RF-TBLT-02: Ciclo Instruccional de Tres Fases (Ellis & Skehan)
-- **Descripción:** Cada reto de redacción e interacción se organiza en 3 fases:
-  1. *Fase 1: Pre-Task:* Activación de esquemas situacionales, clarificación del objetivo pragmático y presentación de 3 o 4 chunks de andamiaje (*lexical priming*) opcionales.
-  2. *Fase 2: During-Task:* Redacción autónoma bajo presión comunicativa real simulada (tiempo sugerido para replicar el ritmo profesional).
-  3. *Fase 3: Post-Task:* Enfoque en la Forma (*Focus on Form - FonF*), análisis socrático con Gemini, extracción de nuevos giros a FSRS y repetición opcional de la tarea con mayor velocidad.
-
-### RF-TBLT-03: Evaluación Multidimensional de las 4 Competencias Comunicativas
-- **Descripción:** La evaluación asistida por IA califica el desempeño en las cuatro dimensiones de Canale, Swain y Bachman (escala 0.0 - 10.0):
-  1. *Competencia Lingüística/Gramatical:* Precisión sintáctica, variedad léxica y ortografía.
-  2. *Competencia Sociolingüística y Pragmática:* Adecuación al registro formal/informal, distancia social, y uso de *hedging* o fórmulas indirectas de cortesía (*"Could you possibly look into this?"* en vez de órdenes tajantes).
-  3. *Competencia Discursiva:* Cohesión textual, uso de conectores lógicos y mantenimiento anafórico mediante pronombres.
-  4. *Competencia Estratégica:* Habilidad para recurrir a paráfrasis, circunlocuciones y autorreparaciones cuando falta un término específico.
-
----
-
-## 10. Módulo de Tutoría Socrática y Micro-Writing con Google Gemini (RF-SOC)
+## 8. Módulo de Tutoría Socrática de Redacción con Google Gemini (RF-SOC)
 
 ### RF-SOC-01: Protocolo Socrático de Andamiaje en 4 Niveles (ZPD de Vygotsky)
 - **Descripción:** En el taller de redacción, la IA no debe entregar una versión corregida pasiva de inmediato. Opera modulando la ayuda de menor a mayor intervención (Lyster & Ranta, 1997):
@@ -321,13 +261,10 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
   - *Nivel 4: Modelado Explícito y Reformulación Nativa:* Si el usuario no logra resolver la brecha en los niveles previos, provee la versión pulida nativa y guarda la regla en FSRS.
 - **Fundamento Científico:** Zona de Desarrollo Próximo (Vygotsky). Las pistas elicitadoras activan la reestructuración del interlenguaje; la corrección pasiva crea una simple ilusión de comprensión.
 
-### RF-SOC-02: Modalidad Micro-Writing de Alta Frecuencia (15 a 35 palabras)
-- **Descripción:** Consignas de escritura ultracorta enfocadas en producir una o dos oraciones auténticas utilizando un chunk o regla fonética estudiada en el día (evaluable en < 1 segundo por Gemini 3.5 Flash). Permite mantener el hábito de producción activa sin fatiga en días de alta demanda laboral.
-
-### RF-SOC-03: Resaltado Visual de Brechas (Schmidt's Noticing the Gap)
+### RF-SOC-02: Resaltado Visual de Brechas (Schmidt's Noticing the Gap)
 - **Descripción:** La interfaz de corrección visualiza en dos columnas comparativas el texto original y la versión nativa pulida, aplicando un diff semántico con código de color: amarillo para ajustes léxicos/estilísticos y rojo para errores morfosintácticos.
 
-### RF-SOC-04: Protección del Filtro Afectivo (Krashen & Horwitz)
+### RF-SOC-03: Protección del Filtro Afectivo (Krashen & Horwitz)
 - **Descripción:**
   - Tono constructivo y empático en los prompts del sistema (cero términos punitivos o descalificadores).
   - Validación pragmática previa: felicitación si el mensaje comunicativo fue comprendido antes de proceder al pulido formal.
@@ -335,7 +272,7 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
 
 ---
 
-## 11. Módulo de Input Comprensible y Decodificación Auditiva Bottom-Up (RF-INP)
+## 9. Módulo de Input Comprensible y Decodificación Auditiva Bottom-Up (RF-INP)
 
 ### RF-INP-01: Perfilador Léxico Algorítmico y Umbrales 95/98% (Nation & Laufer)
 - **Descripción:** Al cargar cualquier texto externo o historia de la biblioteca, el motor `ReaderEngine` analiza cada token contra el corpus NGSL/AWL y el vocabulario dominado en el perfil del usuario, clasificando el texto en tiempo real:
@@ -360,12 +297,12 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
 
 ---
 
-## 12. Módulo de Diagnóstico Inteligente y Micro-Workouts (RF-DIA)
+## 10. Módulo de Diagnóstico Inteligente y Micro-Workouts (RF-DIA)
 
 ### RF-DIA-01: Taxonomía Unificada de Errores con Códigos L1
 - **Descripción:** Todo error cometido por el usuario en sesiones SRS, drills de velocidad, gimnasio fonético o taller de redacción se cataloga en `user_errors` con taxonomía formal:
   - Dominio: `GRAMMAR`, `LEXICON`, `PHONETICS`, `PRAGMATICS`.
-  - Subetiqueta canónica (p. ej. `L1_PRO_DROP`, `L1_TAM_PRES_PERF`, `L1_PREP_DEPEND_ON`, `PHO_VOWEL_COLLAPSE_I_I_COLON`, `PHO_PROTHESIS_SC`, `LEX_FALSE_FRIEND_ACTUALLY`).
+  - Subetiqueta canónica (p. ej. `L1_PRO_DROP`, `L1_TAM_PRES_PERF`, `L1_PREP_DEPEND_ON`, `PHO_PROTHESIS_SC`, `LEX_FALSE_FRIEND_ACTUALLY`).
   - Severidad: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
 
 ### RF-DIA-02: Heatmap de Debilidades con Ponderación de Decaimiento Temporal
@@ -377,7 +314,7 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
 
 ---
 
-## 13. Módulo de Autorregulación (SRL), Hábitos Antifrágiles y Filtro Afectivo (RF-SRL)
+## 11. Módulo de Autorregulación (SRL), Hábitos Antifrágiles y Filtro Afectivo (RF-SRL)
 
 ### RF-SRL-01: Ciclo de Aprendizaje Autorregulado en Tres Fases (Barry Zimmerman)
 - **Descripción:**
@@ -399,14 +336,14 @@ Cada requisito cuenta con identificador canónico, justificación científica, e
 
 ---
 
-## 14. Módulo de Gestión de IA, Pool Multi-API Key y Resiliencia 2D (RF-AIC)
+## 12. Módulo de Gestión de IA, Pool Multi-API Key y Resiliencia 2D (RF-AIC)
 
 ### RF-AIC-01: Panel de Configuración de IA y Modelos Familia Gemini 3.x Flash
 - **Descripción:** El usuario puede seleccionar el modelo activo entre la familia 3.x Flash:
-  - `gemini-3.5-flash`: Latencia ultrabaja, óptimo para micro-writing y análisis rápidos.
+  - `gemini-3.5-flash`: Latencia ultrabaja, óptimo para respuestas rápidas y drills.
   - `gemini-3.6-flash`: Balance intermedio de velocidad y cobertura semántica.
   - `gemini-3.7-flash`: Profundidad analítica y precisión fonética.
-  - `gemini-3.8-flash`: Razonamiento socrático avanzado y evaluación TBLT de 4 competencias.
+  - `gemini-3.8-flash`: Razonamiento socrático avanzado y evaluación multi-borrador.
 
 ### RF-AIC-02: Gestión de Pool de Múltiples Claves de API (Multi-Key Pool)
 - **Descripción:** El sistema admite el registro ilimitado de claves de API (`GEMINI_API_KEY`) almacenadas de forma cifrada en la base de datos local y visualizadas con enmascaramiento seguro (`AIzaSy...4xK9`).

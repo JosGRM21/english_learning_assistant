@@ -1,11 +1,16 @@
+import { useState } from 'react';
 import {
   AlertTriangle,
   Volume2,
   Volume1,
   RotateCw,
-  ArrowRight,
+  Repeat,
+  Lightbulb,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import { VocabItem, VocabContextExample } from '@/core/types/vocab';
+import { VocabItem, VocabContextExample, PART_OF_SPEECH_LABELS_ES } from '@/core/types/vocab';
 import { SrsCard, FsrsGrade } from '@/core/types/srs';
 import { ConnectedSpeechPill } from '@/features/phonology/components/ConnectedSpeechPill';
 import { useAudio } from '@/shared/hooks/useAudio';
@@ -20,9 +25,17 @@ export interface SrsCardDisplayProps {
   previewIntervals: Record<number, number>;
   onRotateContext: () => void;
   onShowAnswer: () => void;
+  onFlipBack?: () => void;
   onRate: (grade: FsrsGrade) => void;
   audioService?: AudioService;
 }
+
+const SRS_STATE_LABELS: Record<string, string> = {
+  NEW: 'Nueva',
+  LEARNING: 'Aprendiendo',
+  REVIEW: 'En Repaso',
+  RELEARNING: 'Reaprendiendo',
+};
 
 export function SrsCardDisplay({
   selectedVocab,
@@ -33,197 +46,377 @@ export function SrsCardDisplay({
   previewIntervals,
   onRotateContext,
   onShowAnswer,
+  onFlipBack,
   onRate,
   audioService: audioProp,
 }: SrsCardDisplayProps) {
   const { audioService: defaultAudio } = useAudio();
   const audioService = audioProp ?? defaultAudio;
+  const [showHint, setShowHint] = useState(false);
+  const [showPhoneticsDrawer, setShowPhoneticsDrawer] = useState(false);
+
+  const partOfSpeechEs =
+    PART_OF_SPEECH_LABELS_ES[selectedVocab.partOfSpeech] ?? selectedVocab.partOfSpeech;
+
+  const formatInterval = (days: number | undefined) => {
+    if (days === undefined || days <= 0) return '<10m';
+    if (days === 1) return '1 día';
+    return `${days} días`;
+  };
 
   return (
-    <div className="bg-white dark:bg-[#131722] rounded-3xl p-8 border border-gray-200 dark:border-gray-800/80 shadow-md relative overflow-hidden">
-      {/* Header Info */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-2">
-          <span className="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
-            Nivel {selectedVocab.cefrLevel}
-          </span>
-          <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-            {selectedVocab.partOfSpeech}
-          </span>
-        </div>
+    <div className="perspective-1000 w-full min-h-[560px]">
+      <div
+        className={`relative w-full min-h-[560px] transition-transform duration-500 transform-style-3d ${
+          showAnswer ? 'rotate-y-180' : ''
+        }`}
+      >
+        {/* ============================================================ */}
+        {/* FRONT FACE (ANVERSO - ESTÍMULO DE ACTIVE RECALL)             */}
+        {/* ============================================================ */}
+        <div className="backface-hidden w-full min-h-[560px] bg-white dark:bg-[#11141F] rounded-3xl p-8 border border-gray-200/80 dark:border-gray-800 shadow-[0_4px_30px_rgba(0,0,0,0.03)] flex flex-col justify-between select-none">
+          <div className="space-y-6">
+            {/* Top metadata strip */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
+                  Nivel {selectedVocab.cefrLevel}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+                  {partOfSpeechEs}
+                </span>
+              </div>
 
-        {selectedVocab.isFalseFriend && (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60">
-            <AlertTriangle className="w-3.5 h-3.5 mr-1" />
-            Falso Amigo
-          </span>
-        )}
-      </div>
+              {selectedVocab.isFalseFriend && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/40">
+                  <AlertTriangle className="w-3.5 h-3.5 mr-1 text-amber-500" />
+                  Falso Amigo
+                </span>
+              )}
+            </div>
 
-      {/* Main Word & Pronunciation */}
-      <div className="text-center py-6 border-b border-gray-100 dark:border-gray-800/60">
-        <h2 className="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-2">
-          {selectedVocab.word}
-        </h2>
+            {/* Stimulus Presentation */}
+            <div className="text-center py-10 border-b border-gray-100 dark:border-gray-800/60 space-y-3">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400 block">
+                Palabra Objetivo
+              </span>
 
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <p
-            className="text-lg text-indigo-600 dark:text-indigo-400 font-medium"
-            style={{ fontFamily: 'var(--font-phonetic)' }}
-          >
-            /{selectedVocab.ipaGeneralAmerican}/
-          </p>
-        </div>
+              <h2 className="text-5xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+                {selectedVocab.word}
+              </h2>
 
-        <div className="flex items-center justify-center gap-2">
-          <button
-            onClick={() => audioService.speak(selectedVocab.word, 1.0)}
-            className="px-3 py-1.5 rounded-xl text-xs font-medium bg-gray-100 hover:bg-indigo-50 dark:bg-gray-800 dark:hover:bg-indigo-950/60 text-gray-700 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-400 transition-colors flex items-center gap-1.5 cursor-pointer"
-            title="Pronunciación estándar (1.0x)"
-          >
-            <Volume2 className="w-4 h-4 text-indigo-500" />
-            <span>1.0x Nativo</span>
-          </button>
+              {selectedVocab.ipaGeneralAmerican && (
+                <p
+                  className="text-lg text-indigo-600 dark:text-indigo-400 font-phonetic font-medium pt-1"
+                  style={{ fontFamily: 'var(--font-phonetic)' }}
+                >
+                  /{selectedVocab.ipaGeneralAmerican}/
+                </p>
+              )}
 
-          <button
-            onClick={() => audioService.speak(selectedVocab.word, 0.75)}
-            className="px-3 py-1.5 rounded-xl text-xs font-medium bg-gray-100 hover:bg-amber-50 dark:bg-gray-800 dark:hover:bg-amber-950/60 text-gray-700 hover:text-amber-600 dark:text-gray-300 dark:hover:text-amber-400 transition-colors flex items-center gap-1.5 cursor-pointer"
-            title="Pronunciación ralentizada para articulación (0.75x)"
-          >
-            <Volume1 className="w-4 h-4 text-amber-500" />
-            <span>0.75x Lento</span>
-          </button>
-        </div>
-      </div>
+              {/* Audio Controls */}
+              <div className="flex items-center justify-center gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => audioService.speak(selectedVocab.word, 1.0)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-gray-100/80 hover:bg-indigo-50 dark:bg-gray-800 dark:hover:bg-indigo-950/60 text-gray-700 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-400 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="Pronunciación nativa (1.0x)"
+                >
+                  <Volume2 className="w-4 h-4 text-indigo-500" />
+                  <span>1.0x Nativo</span>
+                </button>
 
-      {/* Dynamic Context Example */}
-      <div className="py-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-            Contexto Dinámico Rotativo ({availableContexts.length} disponibles)
-          </span>
-          {availableContexts.length > 1 && (
-            <button
-              onClick={onRotateContext}
-              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-              title="Rotar a otro ejemplo contextual para evitar anclaje estático"
-            >
-              <RotateCw className="w-3 h-3" />
-              Rotar Contexto
-            </button>
-          )}
-        </div>
+                <button
+                  type="button"
+                  onClick={() => audioService.speak(selectedVocab.word, 0.75)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-gray-100/80 hover:bg-amber-50 dark:bg-gray-800 dark:hover:bg-amber-950/60 text-gray-700 hover:text-amber-600 dark:text-gray-300 dark:hover:text-amber-400 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="Pronunciación lenta (0.75x)"
+                >
+                  <Volume1 className="w-4 h-4 text-amber-500" />
+                  <span>0.75x Lento</span>
+                </button>
+              </div>
+            </div>
 
-        {currentContext ? (
-          <div className="p-4 rounded-xl bg-gray-50 dark:bg-[#1B2030]/60 border border-gray-200/80 dark:border-gray-800 text-sm">
-            <p className="font-editorial text-base text-gray-800 dark:text-gray-200 italic mb-2">
-              "{currentContext.sentenceEn}"
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {currentContext.sentenceEs}
-            </p>
+            {/* Context Cloze Hint */}
+            <div className="py-1">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowHint(!showHint)}
+                  className="text-xs font-semibold text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{showHint ? 'Ocultar pista' : '¿Pista? Ver contexto cloze'}</span>
+                </button>
 
-            <ConnectedSpeechPill
-              sentence={currentContext.sentenceEn}
-              audioService={audioService}
-            />
+                {availableContexts.length > 1 && showHint && (
+                  <button
+                    type="button"
+                    onClick={onRotateContext}
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    title="Rotar a otro ejemplo contextual"
+                  >
+                    <RotateCw className="w-3 h-3" />
+                    <span>Rotar</span>
+                  </button>
+                )}
+              </div>
+
+              {showHint && currentContext && (
+                <div className="mt-3 p-4 rounded-2xl bg-gray-50 dark:bg-[#161B28] border border-gray-200/60 dark:border-gray-800 text-xs animate-in fade-in duration-200">
+                  <p className="font-editorial text-sm text-gray-800 dark:text-gray-200 italic">
+                    &ldquo;{currentContext.sentenceEn}&rdquo;
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        ) : (
-          <p className="text-xs text-gray-400 italic">No hay contexto cloze asignado.</p>
-        )}
-      </div>
 
-      {/* Answer & Rating buttons */}
-      {!showAnswer ? (
-        <button
-          onClick={onShowAnswer}
-          className="w-full py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center space-x-2 cursor-pointer"
-        >
-          <span>Mostrar Respuesta & Calificar</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
-      ) : (
-        <div className="space-y-6 pt-2">
-          <div className="p-4 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40">
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              {selectedVocab.translationEs}
-            </p>
-            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-              {selectedVocab.definitionEn}
-            </p>
+          {/* Action: Reveal Answer */}
+          <div className="pt-4">
+            <button
+              type="button"
+              onClick={onShowAnswer}
+              className="w-full py-4 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center space-x-2 cursor-pointer group"
+            >
+              <Repeat className="w-4 h-4 transition-transform group-hover:rotate-180 duration-300" />
+              <span>Mostrar Respuesta</span>
+            </button>
+          </div>
+        </div>
 
-            {selectedVocab.falseFriendNote && (
-              <div className="mt-3 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-lg border border-amber-200 dark:border-amber-900/60">
-                <strong>⚠️ Nota Pedagógica:</strong> {selectedVocab.falseFriendNote}
+        {/* ============================================================ */}
+        {/* BACK FACE (REVERSO - DISEÑO RADICAL MINIMALISTA Y ELEGANTE)   */}
+        {/* ============================================================ */}
+        <div className="backface-hidden rotate-y-180 absolute inset-0 w-full min-h-[560px] bg-gradient-to-b from-white to-[#FBFBFA] dark:from-[#11141F] dark:to-[#0D0F17] rounded-3xl p-8 border border-gray-200/80 dark:border-gray-800 shadow-[0_4px_30px_rgba(0,0,0,0.04)] flex flex-col justify-between select-none overflow-y-auto">
+          <div className="space-y-5">
+            {/* Header: Level & Navigation controls */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
+                  {selectedVocab.cefrLevel}
+                </span>
+                <span className="text-xs font-semibold text-gray-400">
+                  {partOfSpeechEs}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Audio quick replay */}
+                <button
+                  type="button"
+                  onClick={() => audioService.speak(selectedVocab.word, 1.0)}
+                  className="p-1.5 rounded-xl text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                  title="Escuchar de nuevo"
+                >
+                  <Volume2 className="w-4 h-4" />
+                </button>
+
+                {onFlipBack && (
+                  <button
+                    type="button"
+                    onClick={onFlipBack}
+                    className="text-xs text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1 cursor-pointer px-2 py-1 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    title="Volver al anverso"
+                  >
+                    <Repeat className="w-3.5 h-3.5" />
+                    <span>Volver</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Hero Answer Card (Spacious, Elegant, No Box-in-Box) */}
+            <div className="space-y-2 py-2">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+                  {selectedVocab.translationEs}
+                </h2>
+                <div className="flex items-center gap-1.5 text-gray-400 text-sm">
+                  <span>/</span>
+                  <span className="font-semibold text-gray-700 dark:text-gray-300">{selectedVocab.word}</span>
+                  {selectedVocab.ipaGeneralAmerican && (
+                    <span
+                      className="font-phonetic text-xs text-indigo-600 dark:text-indigo-400"
+                      style={{ fontFamily: 'var(--font-phonetic)' }}
+                    >
+                      /{selectedVocab.ipaGeneralAmerican}/
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {selectedVocab.definitionEn && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-sans max-w-xl">
+                  {selectedVocab.definitionEn}
+                </p>
+              )}
+
+              {/* False friend subtle callout */}
+              {selectedVocab.isFalseFriend && selectedVocab.falseFriendNote && (
+                <div className="pt-1">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-medium bg-amber-50/90 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200/80 dark:border-amber-900/60">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span><strong>Falso Amigo:</strong> {selectedVocab.falseFriendNote}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Contextual Narrative Section (Clean & Typographic) */}
+            {currentContext && (
+              <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#161B28]/60 border border-gray-100 dark:border-gray-800/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                    Uso Auténtico en Contexto
+                  </span>
+                  {availableContexts.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={onRotateContext}
+                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                    >
+                      <RotateCw className="w-3 h-3" />
+                      <span>Rotar ejemplo ({availableContexts.length})</span>
+                    </button>
+                  )}
+                </div>
+
+                <p className="font-editorial text-base text-gray-900 dark:text-gray-100 italic leading-snug">
+                  &ldquo;{currentContext.sentenceEn}&rdquo;
+                </p>
+
+                {currentContext.sentenceEs && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {currentContext.sentenceEs}
+                  </p>
+                )}
+
+                {/* Collapsible Phonetics & Connected Speech Drawer */}
+                <div className="pt-2 border-t border-gray-200/50 dark:border-gray-800/60">
+                  <button
+                    type="button"
+                    onClick={() => setShowPhoneticsDrawer(!showPhoneticsDrawer)}
+                    className="w-full flex items-center justify-between text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold cursor-pointer py-0.5"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Análisis Fonológico & Discurso Conectado</span>
+                    </span>
+                    {showPhoneticsDrawer ? (
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+
+                  {showPhoneticsDrawer && (
+                    <div className="pt-2 animate-in fade-in duration-200">
+                      <ConnectedSpeechPill
+                        sentence={currentContext.sentenceEn}
+                        audioService={audioService}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
 
-          <div>
-            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
-              Calificación FSRS (Calcula Próximo Intervalo para Retención 90%):
+          {/* ============================================================ */}
+          {/* FSRS RATING DOCK (HERO INTERACTION)                         */}
+          {/* ============================================================ */}
+          <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-800/80">
+            <div className="flex items-center justify-between text-xs text-gray-400">
+              <span className="font-semibold text-gray-700 dark:text-gray-300">
+                Califica tu retención (FSRS v5):
+              </span>
             </div>
-            <div className="grid grid-cols-4 gap-3">
+
+            {/* 4 Ergonomic Precision Buttons */}
+            <div className="grid grid-cols-4 gap-2.5">
+              {/* Grade 1: Repetir */}
               <button
+                type="button"
                 onClick={() => onRate(1)}
-                className="py-3 px-2 rounded-xl bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-900 transition-colors text-center cursor-pointer"
+                className="group py-3 px-2 rounded-2xl bg-gray-50/90 dark:bg-[#161B28] hover:bg-white dark:hover:bg-[#1D2335] border border-gray-200/70 dark:border-gray-800 hover:border-rose-300 dark:hover:border-rose-900/60 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95"
               >
-                <div className="font-bold text-sm">Again (1)</div>
-                <div className="text-[11px] font-mono mt-0.5 opacity-80">
-                  {previewIntervals[1]}d
+                <div className="flex items-center gap-1.5 font-semibold text-xs text-gray-800 dark:text-gray-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500/80" />
+                  <span>Repetir</span>
+                </div>
+                <div className="text-[11px] font-mono text-gray-400 group-hover:text-rose-600 dark:group-hover:text-rose-400 font-medium transition-colors">
+                  {formatInterval(previewIntervals[1])}
                 </div>
               </button>
 
+              {/* Grade 2: Difícil */}
               <button
+                type="button"
                 onClick={() => onRate(2)}
-                className="py-3 px-2 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-900 transition-colors text-center cursor-pointer"
+                className="group py-3 px-2 rounded-2xl bg-gray-50/90 dark:bg-[#161B28] hover:bg-white dark:hover:bg-[#1D2335] border border-gray-200/70 dark:border-gray-800 hover:border-amber-300 dark:hover:border-amber-900/60 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95"
               >
-                <div className="font-bold text-sm">Hard (2)</div>
-                <div className="text-[11px] font-mono mt-0.5 opacity-80">
-                  {previewIntervals[2]}d
+                <div className="flex items-center gap-1.5 font-semibold text-xs text-gray-800 dark:text-gray-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80" />
+                  <span>Difícil</span>
+                </div>
+                <div className="text-[11px] font-mono text-gray-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 font-medium transition-colors">
+                  {formatInterval(previewIntervals[2])}
                 </div>
               </button>
 
+              {/* Grade 3: Bueno (Sugerido / Hero Option) */}
               <button
+                type="button"
                 onClick={() => onRate(3)}
-                className="py-3 px-2 rounded-xl bg-blue-100 hover:bg-blue-200 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-900 transition-colors text-center cursor-pointer"
+                className="group py-3 px-2 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/80 hover:border-indigo-400 dark:hover:border-indigo-600 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95"
               >
-                <div className="font-bold text-sm">Good (3)</div>
-                <div className="text-[11px] font-mono mt-0.5 opacity-80">
-                  {previewIntervals[3]}d
+                <div className="flex items-center gap-1.5 font-bold text-xs text-indigo-900 dark:text-indigo-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
+                  <span>Bueno</span>
+                </div>
+                <div className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
+                  {formatInterval(previewIntervals[3])}
                 </div>
               </button>
 
+              {/* Grade 4: Fácil */}
               <button
+                type="button"
                 onClick={() => onRate(4)}
-                className="py-3 px-2 rounded-xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-900 transition-colors text-center cursor-pointer"
+                className="group py-3 px-2 rounded-2xl bg-gray-50/90 dark:bg-[#161B28] hover:bg-white dark:hover:bg-[#1D2335] border border-gray-200/70 dark:border-gray-800 hover:border-emerald-300 dark:hover:border-emerald-900/60 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95"
               >
-                <div className="font-bold text-sm">Easy (4)</div>
-                <div className="text-[11px] font-mono mt-0.5 opacity-80">
-                  {previewIntervals[4]}d
+                <div className="flex items-center gap-1.5 font-semibold text-xs text-gray-800 dark:text-gray-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80" />
+                  <span>Fácil</span>
+                </div>
+                <div className="text-[11px] font-mono text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 font-medium transition-colors">
+                  {formatInterval(previewIntervals[4])}
                 </div>
               </button>
             </div>
-          </div>
 
-          {srsCard && (
-            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-800">
-              <span>
-                Estado: <strong className="text-gray-800 dark:text-gray-200">{srsCard.state}</strong>
-              </span>
-              <span>
-                Estabilidad: <strong className="font-mono text-indigo-600 dark:text-indigo-400">{srsCard.stability.toFixed(2)}d</strong>
-              </span>
-              <span>
-                Dificultad: <strong className="font-mono">{srsCard.difficulty.toFixed(1)}/10</strong>
-              </span>
-              <span>
-                Repeticiones: <strong className="font-mono">{srsCard.reps}</strong>
-              </span>
-            </div>
-          )}
+            {/* Memory Telemetry Footer */}
+            {srsCard && (
+              <div className="flex items-center justify-between text-[11px] text-gray-400 pt-2 border-t border-gray-100 dark:border-gray-800/80 font-mono">
+                <span>
+                  Estado: <strong className="text-gray-700 dark:text-gray-300 font-sans">{SRS_STATE_LABELS[srsCard.state] ?? srsCard.state}</strong>
+                </span>
+                <span>
+                  Estabilidad: <strong className="text-indigo-600 dark:text-indigo-400">{srsCard.stability.toFixed(2)}d</strong>
+                </span>
+                <span>
+                  Dificultad: <strong>{srsCard.difficulty.toFixed(1)}/10</strong>
+                </span>
+                <span>
+                  Repasos: <strong>{srsCard.reps}</strong>
+                </span>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

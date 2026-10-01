@@ -14,7 +14,7 @@ Este documento define los perfiles de usuario arquetípicos (*User Personas*) y 
   - Tiende a traducir mentalmente del español al inglés (*"I depend of..."*, *"I have 28 years"*, *"Is raining"*).
   - No comprende el habla natural de los nativos porque nunca le enseñaron *Connected Speech*; busca escuchar palabra por palabra aislada y se pierde en las elisiones y enlaces.
   - Sabe la regla gramatical de la 3ra persona singular *-s*, pero cuando habla la olvida sistemáticamente por fosilización de la memoria declarativa.
-- **Objetivo con ELA:** Formar un hábito de 15 minutos diarios, eliminar sus vicios gramaticales crónicos y entender por fin por qué los nativos unen las palabras y cómo modular la entonación.
+- **Objetivo con ELA:** Formar un hábito de 15 minutos diarios, eliminar sus vicios gramaticales crónicos y entender por fin por qué los nativos unen las palabras.
 
 ### Persona 2: Elena (La Estudiante Intermedia en Busca de Fluidez Fraseológica)
 - **Perfil:** Estudiante universitaria y profesional junior de 22 años.
@@ -201,44 +201,7 @@ Scenario: Decodificación auditiva ascendente en tres pasos
 
 ---
 
-### US-10: Fonología Suprasegmental, Acento Nuclear y Prosodic Shadowing (RF-PRO-01 a 04)
-- **Como** Carlos (cuyo inglés suena plano, monótono y con acento robótico),
-- **Quiero** ver las curvas de entonación melódica y grabar mi voz para comparar mi tono fundamental con el nativo,
-- **Para** aprender a transmitir emociones, cortesía y énfasis con naturalidad.
-
-```gherkin
-Scenario: Práctica de Prosodic Shadowing con rastreador F0
-  Given la oración "Actually, it starts at six" con curva Fall-Rise (\/~)
-  When el usuario escucha el modelo nativo y graba su voz repitiendo la frase
-  Then el sistema calcula la curva de tono F0 del usuario mediante FFT
-  And superpone visualmente la curva del usuario sobre la curva del hablante nativo
-  And otorga un puntaje de coincidencia prosódica del 88%
-```
-
----
-
-### US-11: Taller Basado en Tareas Comunicativas Genuinas (TBLT) (RF-TBLT-01 a 04)
-- **Como** Elena (quien necesita comunicarse en un entorno profesional en inglés),
-- **Quiero** resolver misiones de la vida real con una fase de preparación léxica y evaluación de mis 4 competencias comunicativas,
-- **Para** aprender a negociar, disculparme diplomáticamente y argumentar con precisión.
-
-```gherkin
-Scenario: Ejecución de una tarea TBLT Nivel B2 (Negociación Comercial)
-  Given la misión "Responder a un reclamo de entrega demorada ofreciendo una compensación diplomática"
-  When el usuario inicia la Fase Pre-Task
-  Then el sistema provee 3 chunks de andamiaje: "take into account", "look into the matter", "I would appreciate it"
-  When el usuario redacta y envía su propuesta en la Fase During-Task
-  Then en la Fase Post-Task Gemini evalúa:
-    | Competencia | Score | Feedback |
-    | Lingüística | 8.5 | Buen uso de tiempos pasados y colocaciones |
-    | Sociolingüística (Hedging) | 9.0 | Excelente uso de 'Could you possibly' |
-    | Discursiva | 8.0 | Buena transición con 'Furthermore' |
-    | Estratégica | 8.5 | Paráfrasis fluida para explicar el fallo logístico |
-```
-
----
-
-### US-12: Semántica Cognitiva y Laboratorio Topológico de Preposiciones (RF-SEM-01 a 03)
+### US-10: Semántica Cognitiva y Laboratorio Topológico de Preposiciones (RF-SEM-01 a 03)
 - **Como** Elena (quien siempre duda si decir *in*, *on* o *at*),
 - **Quiero** aprender preposiciones utilizando diagramas espaciales de contenedor, superficie y punto,
 - **Para** visualizar los conceptos en mi mente en lugar de memorizar tablas de traducción engañosas.
@@ -254,7 +217,7 @@ Scenario: Ejercicio topológico en el Topo-Lab de Preposiciones
 
 ---
 
-### US-13: Extintor Rápido de la Fosilización de 3ra Persona Singular (RF-TRN-05)
+### US-11: Extintor Rápido de la Fosilización de 3ra Persona Singular (RF-TRN-05)
 - **Como** Carlos (quien sabe la regla de agregar 's' pero en la práctica siempre se le olvida),
 - **Quiero** ráfagas de 2 segundos donde deba cambiar rápidamente el sujeto de oraciones en tiempo real,
 - **Para** forzar a mi cerebro a disparar la desinencia *-s* de forma automática e inconsciente.
@@ -267,3 +230,4 @@ Scenario: Drill de erradicación de 3ra persona en 2 segundos
   Then el sistema registra acierto y computa que la desinencia -s fue disparada en ventana procedural
   And incrementa la estabilidad de la regla en el motor de diagnóstico
 ```
+

@@ -1,7 +1,11 @@
 import { useState } from 'react';
-import { Volume2, AlertCircle, Sparkles, BookOpen } from 'lucide-react';
-import { Card, Chip, Button } from '@heroui/react';
-import { VocabItem, VocabContextExample } from '@/core/types/vocab';
+import { Volume2, AlertCircle, Sparkles, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  VocabItem,
+  VocabContextExample,
+  PART_OF_SPEECH_LABELS_ES,
+  GRAMMATICAL_DIMENSION_LABELS_ES,
+} from '@/core/types/vocab';
 import { useAudio } from '@/shared/hooks/useAudio';
 
 export interface VocabCardProps {
@@ -12,60 +16,65 @@ export interface VocabCardProps {
 export function VocabCard({ vocab, examples }: VocabCardProps) {
   const { audioService } = useAudio();
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  const handleSpeak = async () => {
+  const handleSpeak = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (isPlaying) return;
     try {
       setIsPlaying(true);
-      await audioService.speak(vocab.word);
+      await audioService.speak(vocab.word, 1.0);
     } finally {
       setIsPlaying(false);
     }
   };
 
-  const getCefrBadgeClass = (level: string) => {
+  const getCefrBadgeStyle = (level: string) => {
     switch (level) {
       case 'A1':
-        return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
       case 'A2':
-        return 'bg-teal-100 text-teal-800 dark:bg-teal-950/70 dark:text-teal-300 border-teal-200 dark:border-teal-800';
+        return 'bg-emerald-50/80 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200/60 dark:border-emerald-900/40';
       case 'B1':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 border-blue-200 dark:border-blue-800';
       case 'B2':
-        return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800';
+        return 'bg-indigo-50/80 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-200/60 dark:border-indigo-900/40';
       case 'C1':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300 border-purple-200 dark:border-purple-800';
       case 'C2':
-        return 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border-rose-200 dark:border-rose-800';
+        return 'bg-purple-50/80 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200/60 dark:border-purple-900/40';
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+        return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700';
     }
   };
 
   const firstExample = examples && examples.length > 0 ? examples[0] : null;
 
   return (
-    <Card className="rounded-3xl border border-gray-200/80 dark:border-gray-800/80 bg-white dark:bg-[#131722] hover:shadow-lg transition-all duration-300 flex flex-col justify-between overflow-hidden group">
-      <Card.Header className="p-5 pb-3">
-        <div className="flex items-start justify-between gap-3 w-full">
-          <div>
+    <div className="group rounded-2xl border border-gray-200/70 dark:border-gray-800/80 bg-white dark:bg-[#121622] hover:border-indigo-200 dark:hover:border-indigo-900/60 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] transition-all duration-300 flex flex-col justify-between overflow-hidden">
+      {/* Card Header */}
+      <div className="p-5 pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                 {vocab.word}
               </h3>
-              <Button
-                isIconOnly
-                size="sm"
+              <button
+                type="button"
                 onClick={handleSpeak}
-                className="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors cursor-pointer"
-                aria-label="Escuchar pronunciación"
+                disabled={isPlaying}
+                className={`p-1.5 rounded-full border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-all cursor-pointer ${
+                  isPlaying ? 'text-indigo-600 dark:text-indigo-400 ring-2 ring-indigo-500/20 animate-pulse' : ''
+                }`}
+                title="Escuchar pronunciación nativa"
               >
-                <Volume2 className={`w-4 h-4 ${isPlaying ? 'animate-pulse text-indigo-700 dark:text-indigo-300' : ''}`} />
-              </Button>
+                <Volume2 className="w-3.5 h-3.5" />
+              </button>
             </div>
 
             {vocab.ipaGeneralAmerican && (
-              <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+              <span
+                className="inline-block font-phonetic text-xs text-indigo-600 dark:text-indigo-400/90 font-medium"
+                style={{ fontFamily: 'var(--font-phonetic)' }}
+              >
                 /{vocab.ipaGeneralAmerican}/
               </span>
             )}
@@ -73,59 +82,59 @@ export function VocabCard({ vocab, examples }: VocabCardProps) {
 
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             <span
-              className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${getCefrBadgeClass(
+              className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border ${getCefrBadgeStyle(
                 vocab.cefrLevel,
               )}`}
             >
               {vocab.cefrLevel}
             </span>
-            <Chip size="sm" className="bg-gray-100 dark:bg-gray-800 text-[10px] text-gray-600 dark:text-gray-300 font-medium">
-              <Chip.Label>{vocab.partOfSpeech.toLowerCase()}</Chip.Label>
-            </Chip>
+            <span className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-[10px] text-gray-600 dark:text-gray-400 font-medium">
+              {PART_OF_SPEECH_LABELS_ES[vocab.partOfSpeech] ?? vocab.partOfSpeech}
+            </span>
           </div>
         </div>
-      </Card.Header>
+      </div>
 
-      <Card.Content className="px-5 py-2 space-y-3 flex-1">
+      {/* Card Body */}
+      <div className="px-5 py-2 space-y-3 flex-1">
         {/* Spanish Translation */}
         <div>
           <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400 block mb-0.5">
             Traducción
           </span>
-          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+          <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
             {vocab.translationEs}
           </p>
         </div>
 
         {/* English Definition */}
-        <div>
-          <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400 block mb-0.5">
-            Definición en Inglés
-          </span>
-          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed font-sans line-clamp-3">
-            {vocab.definitionEn}
-          </p>
-        </div>
+        {vocab.definitionEn && (
+          <div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-sans line-clamp-2">
+              {vocab.definitionEn}
+            </p>
+          </div>
+        )}
 
-        {/* False Friend Alert */}
+        {/* False Friend Alert Banner */}
         {vocab.isFalseFriend && (
-          <div className="p-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div className="text-[11px] text-amber-900 dark:text-amber-200 leading-tight">
-              <strong className="font-semibold block mb-0.5">Falso Amigo (False Friend):</strong>
-              {vocab.falseFriendNote || 'Cuidado con la traducción literal al español.'}
+          <div className="p-2.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="text-[11px] text-amber-900 dark:text-amber-200 leading-snug">
+              <span className="font-semibold mr-1">Falso Amigo:</span>
+              <span>{vocab.falseFriendNote || 'Cuidado con la traducción literal al español.'}</span>
             </div>
           </div>
         )}
 
-        {/* Example sentence */}
+        {/* Context Example */}
         {firstExample && (
-          <div className="p-3 rounded-2xl bg-gray-50 dark:bg-[#181D2A] border border-gray-100 dark:border-gray-800/80 text-xs space-y-1">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+          <div className="p-3 rounded-xl bg-gray-50/80 dark:bg-[#161B28]/60 border border-gray-100 dark:border-gray-800/80 text-xs space-y-1">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-indigo-600/90 dark:text-indigo-400/90">
               <BookOpen className="w-3 h-3" />
-              <span>Ejemplo en Contexto:</span>
+              <span>Ejemplo en Contexto</span>
             </div>
-            <p className="text-gray-800 dark:text-gray-200 italic font-serif leading-snug">
+            <p className="font-editorial text-xs text-gray-800 dark:text-gray-200 italic leading-relaxed">
               &ldquo;{firstExample.sentenceEn}&rdquo;
             </p>
             {firstExample.sentenceEs && (
@@ -138,29 +147,44 @@ export function VocabCard({ vocab, examples }: VocabCardProps) {
 
         {/* Morphological Family */}
         {vocab.morphologicalFamilyJson && vocab.morphologicalFamilyJson.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap pt-1">
-            <Sparkles className="w-3 h-3 text-purple-500 shrink-0" />
-            <span className="text-[10px] text-gray-400">Familia:</span>
-            {vocab.morphologicalFamilyJson.map((item, idx) => (
-              <span
-                key={idx}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 font-mono"
-              >
-                {item}
-              </span>
-            ))}
+          <div>
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-[11px] text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <Sparkles className="w-3 h-3 text-purple-500 shrink-0" />
+              <span>Familia léxica ({vocab.morphologicalFamilyJson.length})</span>
+              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+
+            {isExpanded && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-2 animate-in fade-in duration-200">
+                {vocab.morphologicalFamilyJson.map((item, idx) => (
+                  <span
+                    key={idx}
+                    className="text-[10px] px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-mono border border-purple-200/50 dark:border-purple-900/40"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
-      </Card.Content>
+      </div>
 
-      <Card.Footer className="px-5 py-3 border-t border-gray-100 dark:border-gray-800/80 flex items-center justify-between text-[11px] text-gray-400 bg-gray-50/50 dark:bg-[#11141C]/50">
-        <span className="capitalize">{vocab.grammaticalDimension.toLowerCase()} Dimension</span>
+      {/* Card Footer */}
+      <div className="px-5 py-2.5 border-t border-gray-100 dark:border-gray-800/80 flex items-center justify-between text-[11px] text-gray-400 bg-gray-50/40 dark:bg-[#10131B]/40">
+        <span className="font-medium text-gray-500 dark:text-gray-400">
+          {GRAMMATICAL_DIMENSION_LABELS_ES[vocab.grammaticalDimension] ?? vocab.grammaticalDimension}
+        </span>
         {vocab.subcategory && (
-          <span className="text-gray-500 dark:text-gray-400 truncate max-w-[130px]">
+          <span className="text-gray-400 dark:text-gray-500 text-[10px] truncate max-w-[130px]">
             {vocab.subcategory}
           </span>
         )}
-      </Card.Footer>
-    </Card>
+      </div>
+    </div>
   );
 }

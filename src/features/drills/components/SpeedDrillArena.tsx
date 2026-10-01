@@ -9,7 +9,6 @@ import { DrillSessionResult } from '@/core/types/drills';
 import { AudioService } from '@/infrastructure/audio/AudioService';
 import { useSpeedDrill } from '../hooks/useSpeedDrill';
 import { MathText } from '@/shared/ui/MathText';
-
 export interface SpeedDrillArenaProps {
   audioService?: AudioService;
   onDrillCompleted?: (result: DrillSessionResult) => void;
@@ -25,12 +24,23 @@ export function SpeedDrillArena({ onDrillCompleted }: SpeedDrillArenaProps) {
     totalScore,
     timeLeftMs,
     sessionSummary,
+    feedback,
     setDrillType,
     handleStart,
     handleAnswer,
   } = useSpeedDrill(onDrillCompleted);
 
   const currentPrompt = prompts[currentIndex];
+
+  const DRILL_MODALITIES: { type: typeof drillType; label: string; badge?: string }[] = [
+    { type: 'CLAUSE_SHIFT', label: '1. Clause Shift', badge: '3.5s' },
+    { type: 'THIRD_PERSON_AUTOMATION', label: '2. 3rd Person -s', badge: '2.5s' },
+    { type: 'PREPOSITION_REFLEX', label: '3. Prep Reflex', badge: '2.0s' },
+    { type: 'AUDITORY_SNAP_HVPT', label: '4. Auditory Snap', badge: '2.0s' },
+    { type: 'COLLOCATION_BLITZ', label: 'Collocation Blitz' },
+    { type: 'PREPOSITION_RAPID_FIRE', label: 'Preposition Fire' },
+    { type: 'CONNECTED_SPEECH_EAR', label: 'Connected Speech' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -43,11 +53,10 @@ export function SpeedDrillArena({ onDrillCompleted }: SpeedDrillArenaProps) {
             </span>
             <div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                Speed-Run Proceduralization Gym (Ráfagas Cronometradas)
+                Entrenamiento Rápido (Ráfagas Cronometradas)
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Entrenamiento ultrarrápido (3-5s por prompt) para transferir colocaciones y preposiciones
-                desde la corteza declarativa a los ganglios basales (Modelo DP de Michael Ullman).
+                Entrenamiento de respuesta rápida para automatizar estructuras gramaticales, colocaciones y fluidez verbal en inglés.
               </p>
             </div>
           </div>
@@ -56,23 +65,24 @@ export function SpeedDrillArena({ onDrillCompleted }: SpeedDrillArenaProps) {
         {/* Drill mode tabs */}
         {!isPlaying && (
           <div className="flex items-center gap-1.5 flex-wrap">
-            {(
-              [
-                { type: 'COLLOCATION_BLITZ', label: 'Collocation Blitz' },
-                { type: 'PREPOSITION_RAPID_FIRE', label: 'Preposition Rapid-Fire' },
-                { type: 'CONNECTED_SPEECH_EAR', label: 'Connected Speech' },
-              ] as const
-            ).map((d) => (
+            {DRILL_MODALITIES.map((d) => (
               <button
                 key={d.type}
                 onClick={() => setDrillType(d.type)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
                   drillType === d.type
                     ? 'bg-amber-500 text-white shadow-xs'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
-                {d.label}
+                <span>{d.label}</span>
+                {d.badge && (
+                  <span className={`text-[10px] px-1 py-0.2 rounded ${
+                    drillType === d.type ? 'bg-amber-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                  }`}>
+                    {d.badge}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -151,27 +161,78 @@ export function SpeedDrillArena({ onDrillCompleted }: SpeedDrillArenaProps) {
               </div>
             </div>
 
-            {/* Prompt sentence with blank */}
-            <div className="py-4 text-center space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-500">
-                {currentPrompt.promptText}
-              </span>
+            {/* Prompt sentence with blank and operator badge */}
+            <div className="py-4 text-center space-y-3">
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-500">
+                  {currentPrompt.promptText}
+                </span>
+                {currentPrompt.operatorChange && (
+                  <span className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                    {currentPrompt.operatorChange}
+                  </span>
+                )}
+                {currentPrompt.id.includes('_recovery_n3') && (
+                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300">
+                    Recuperación N+3 (Mismo Ítem)
+                  </span>
+                )}
+                {currentPrompt.id.includes('_recovery_n7') && (
+                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-300">
+                    Recuperación N+7 (Variante)
+                  </span>
+                )}
+              </div>
+
               <div className="p-6 rounded-2xl bg-gray-50 dark:bg-[#181D2A] border border-gray-200 dark:border-gray-800 text-xl font-bold text-gray-900 dark:text-white">
                 "{currentPrompt.sentenceContext}"
               </div>
+
+              {/* Instant feedback notification */}
+              {feedback && (
+                <div className="animate-in fade-in zoom-in-95 duration-150">
+                  {feedback.proceduralPass ? (
+                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-center gap-1.5">
+                      <Zap className="w-4 h-4 text-emerald-500 fill-current" />
+                      <span>¡Automaticidad Procedural! {feedback.responseTimeMs}ms (&lt; 1500ms) → Ganglios Basales</span>
+                    </div>
+                  ) : feedback.isCorrect ? (
+                    <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs font-bold text-center">
+                      Acierto Declarativo: {feedback.responseTimeMs}ms (Umbral motor: &lt; 1500ms)
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs font-bold text-center">
+                      Solución Nativa: "{currentPrompt.options[currentPrompt.correctOptionIndex]}" · Reinyectando en N+3 y N+7
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 4 Rapid Options */}
             <div className="grid grid-cols-2 gap-3">
-              {currentPrompt.options.map((opt, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleAnswer(idx)}
-                  className="p-4 rounded-2xl bg-gray-50 dark:bg-[#181D2A] hover:bg-amber-50 dark:hover:bg-amber-950/40 border border-gray-200 dark:border-gray-700 hover:border-amber-400 text-gray-900 dark:text-white font-mono text-base font-bold transition-all hover:scale-[1.02] cursor-pointer"
-                >
-                  {opt}
-                </button>
-              ))}
+              {currentPrompt.options.map((opt, idx) => {
+                let btnStyle = 'bg-gray-50 dark:bg-[#181D2A] border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:border-amber-400';
+                if (feedback) {
+                  if (idx === feedback.correctOptionIndex) {
+                    btnStyle = 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-900 dark:text-emerald-100 ring-2 ring-emerald-500/20';
+                  } else if (idx === feedback.selectedOptionIndex && !feedback.isCorrect) {
+                    btnStyle = 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-900 dark:text-rose-100';
+                  } else {
+                    btnStyle = 'bg-gray-50 dark:bg-[#181D2A] border-gray-200 dark:border-gray-800 opacity-40';
+                  }
+                }
+                return (
+                  <button
+                    key={idx}
+                    disabled={feedback !== null}
+                    onClick={() => handleAnswer(idx)}
+                    className={`p-4 rounded-2xl border font-mono text-base font-bold transition-all cursor-pointer flex items-center justify-between ${btnStyle}`}
+                  >
+                    <span>{opt}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : sessionSummary ? (
@@ -185,13 +246,13 @@ export function SpeedDrillArena({ onDrillCompleted }: SpeedDrillArenaProps) {
               <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">
                 ¡Ráfaga Completada con Éxito!
               </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Tus respuestas automáticas han sido consolidadas en el registro de fluidez procedural.
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-md mx-auto">
+                Tus respuestas automáticas han sido consolidadas. Se requieren 3 sesiones independientes con RT &lt; 1.5s para certificar un ítem como proceduralizado.
               </p>
             </div>
 
             {/* Summary Metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-lg mx-auto">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-w-2xl mx-auto">
               <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-[#181D2A]">
                 <span className="text-[10px] text-gray-400 uppercase font-bold block">Puntaje Final</span>
                 <span className="text-xl font-extrabold text-amber-500 font-mono">
@@ -203,6 +264,15 @@ export function SpeedDrillArena({ onDrillCompleted }: SpeedDrillArenaProps) {
                 <span className="text-[10px] text-gray-400 uppercase font-bold block">Aciertos</span>
                 <span className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
                   {sessionSummary.correctCount} / {sessionSummary.totalPrompts}
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-[#181D2A]">
+                <span className="text-[10px] text-gray-400 uppercase font-bold block flex items-center justify-center gap-1">
+                  <Zap className="w-3 h-3 text-amber-500" /> RT &lt; 1.5s
+                </span>
+                <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400 font-mono">
+                  {sessionSummary.proceduralPassCount} / {sessionSummary.totalPrompts}
                 </span>
               </div>
 

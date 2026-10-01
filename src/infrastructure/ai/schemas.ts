@@ -1,10 +1,55 @@
 import { z } from 'zod';
 
+export const SocraticClueTypeEnum = z.enum([
+  'PREPOSITION',
+  'TENSE_ASPECT',
+  'FALSE_FRIEND',
+  'AGREEMENT',
+  'WORD_CHOICE',
+  'WORD_ORDER',
+  'COLLOCATION',
+  'GRAMMAR',
+  'PUNCTUATION',
+  'SPELLING',
+]);
+
+export type SocraticClueType = z.infer<typeof SocraticClueTypeEnum>;
+
 export const SocraticClueSchema = z.object({
   paragraph_index: z.number().int().default(1),
-  clue_type: z.enum(['PREPOSITION', 'TENSE_ASPECT', 'FALSE_FRIEND', 'AGREEMENT', 'WORD_CHOICE']),
+  clue_type: z.preprocess((val) => {
+    if (typeof val !== 'string') return 'WORD_CHOICE';
+    const upper = val.trim().toUpperCase().replace(/[\s-]+/g, '_');
+    const valid: string[] = [
+      'PREPOSITION',
+      'TENSE_ASPECT',
+      'FALSE_FRIEND',
+      'AGREEMENT',
+      'WORD_CHOICE',
+      'WORD_ORDER',
+      'COLLOCATION',
+      'GRAMMAR',
+      'PUNCTUATION',
+      'SPELLING',
+    ];
+    if (valid.includes(upper)) return upper;
+    if (upper.includes('PREP')) return 'PREPOSITION';
+    if (upper.includes('TENSE') || upper.includes('ASPECT') || upper.includes('VERB')) return 'TENSE_ASPECT';
+    if (upper.includes('AGREE')) return 'AGREEMENT';
+    if (upper.includes('FALSE') || upper.includes('FRIEND')) return 'FALSE_FRIEND';
+    if (upper.includes('ORDER') || upper.includes('SYNTAX')) return 'WORD_ORDER';
+    if (upper.includes('COLLOC')) return 'COLLOCATION';
+    if (upper.includes('PUNCT')) return 'PUNCTUATION';
+    if (upper.includes('SPELL')) return 'SPELLING';
+    if (upper.includes('GRAM')) return 'GRAMMAR';
+    return 'WORD_CHOICE';
+  }, SocraticClueTypeEnum.catch('WORD_CHOICE')),
   hint_question_es: z.string(),
   highlighted_area: z.string(),
+  zpd_contrastive_es: z.string().optional(),
+  zpd_cloze_sentence: z.string().optional(),
+  zpd_expected_token: z.string().optional(),
+  zpd_native_model: z.string().optional(),
 });
 
 export const SocraticFeedbackResponseSchema = z.object({
@@ -17,19 +62,56 @@ export const SocraticFeedbackResponseSchema = z.object({
 export type SocraticFeedbackResponse = z.infer<typeof SocraticFeedbackResponseSchema>;
 export type SocraticClue = z.infer<typeof SocraticClueSchema>;
 
+export const CorrectionErrorTypeEnum = z.enum([
+  'GRAMMAR',
+  'LEXICON',
+  'PREPOSITION',
+  'WORD_ORDER',
+  'FALSE_FRIEND',
+  'PUNCTUATION',
+  'REGISTER',
+  'TENSE_ASPECT',
+  'AGREEMENT',
+  'WORD_CHOICE',
+  'COLLOCATION',
+  'SPELLING',
+]);
+
+export type CorrectionErrorType = z.infer<typeof CorrectionErrorTypeEnum>;
+
 export const CorrectionItemSchema = z.object({
   error_span: z.string(),
-  error_type: z.enum([
-    'GRAMMAR',
-    'LEXICON',
-    'PREPOSITION',
-    'WORD_ORDER',
-    'FALSE_FRIEND',
-    'PUNCTUATION',
-    'REGISTER',
-  ]),
-  taxonomy_code: z.string(),
-  is_l1_spanish_transfer: z.boolean(),
+  error_type: z.preprocess((val) => {
+    if (typeof val !== 'string') return 'GRAMMAR';
+    const upper = val.trim().toUpperCase().replace(/[\s-]+/g, '_');
+    const valid: string[] = [
+      'GRAMMAR',
+      'LEXICON',
+      'PREPOSITION',
+      'WORD_ORDER',
+      'FALSE_FRIEND',
+      'PUNCTUATION',
+      'REGISTER',
+      'TENSE_ASPECT',
+      'AGREEMENT',
+      'WORD_CHOICE',
+      'COLLOCATION',
+      'SPELLING',
+    ];
+    if (valid.includes(upper)) return upper;
+    if (upper.includes('PREP')) return 'PREPOSITION';
+    if (upper.includes('TENSE') || upper.includes('ASPECT') || upper.includes('VERB')) return 'TENSE_ASPECT';
+    if (upper.includes('AGREE')) return 'AGREEMENT';
+    if (upper.includes('FALSE') || upper.includes('FRIEND')) return 'FALSE_FRIEND';
+    if (upper.includes('ORDER') || upper.includes('SYNTAX')) return 'WORD_ORDER';
+    if (upper.includes('PUNCT')) return 'PUNCTUATION';
+    if (upper.includes('SPELL')) return 'SPELLING';
+    if (upper.includes('COLLOC')) return 'COLLOCATION';
+    if (upper.includes('WORD') || upper.includes('VOCAB') || upper.includes('LEXIC')) return 'LEXICON';
+    return 'GRAMMAR';
+  }, CorrectionErrorTypeEnum.catch('GRAMMAR')),
+  taxonomy_code: z.string().default('L1_TRANSFER_GENERIC'),
+  is_l1_spanish_transfer: z.boolean().default(true),
   explanation_es: z.string(),
   native_reformulation: z.string(),
 });
@@ -44,7 +126,13 @@ export const MicroChallengeSchema = z.object({
 
 export const WritingEvaluationResponseSchema = z.object({
   overall_feedback_es: z.string(),
-  estimated_cefr: z.enum(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']),
+  estimated_cefr: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      const upper = val.trim().toUpperCase();
+      if (['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].includes(upper)) return upper;
+    }
+    return 'B1';
+  }, z.enum(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']).catch('B1')),
   scores: z.object({
     grammar: z.number().min(0).max(10),
     vocabulary: z.number().min(0).max(10),

@@ -7,6 +7,9 @@ export function useMinimalPairs() {
   const { audioService } = useAudio();
   const trainer = useMemo(() => new MinimalPairsTrainer(MINIMAL_PAIRS_CATALOG), []);
   const [filterType, setFilterType] = useState<PhonemicContrastType | 'ALL'>('ALL');
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState<string>('ALL');
+
+  const speakers = useMemo(() => trainer.getSpeakers(), [trainer]);
 
   const [currentChallenge, setCurrentChallenge] = useState<MinimalPairChallenge | null>(null);
   const [lastResult, setLastResult] = useState<MinimalPairResult | null>(null);
@@ -27,6 +30,18 @@ export function useMinimalPairs() {
     latencies: [] as number[],
   });
 
+  const playComparativeSequence = useCallback(async () => {
+    if (!currentChallenge) return;
+    setIsPlayingAudio(true);
+    try {
+      await audioService.speak(currentChallenge.pair.wordA);
+      await new Promise((r) => setTimeout(r, 600));
+      await audioService.speak(currentChallenge.pair.wordB);
+    } finally {
+      setIsPlayingAudio(false);
+    }
+  }, [currentChallenge, audioService]);
+
   const handleTimeout = useCallback((challenge: MinimalPairChallenge) => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -43,6 +58,7 @@ export function useMinimalPairs() {
       selectedWord: 'TIEMPO AGOTADO',
       isCorrect: false,
       responseTimeMs: 2000,
+      speaker: challenge.speaker,
     };
 
     setLastResult(result);
@@ -51,7 +67,12 @@ export function useMinimalPairs() {
       total: prev.total + 1,
       streak: 0,
     }));
-  }, [audioService]);
+
+    // Auto replay sequence on error
+    setTimeout(() => {
+      playComparativeSequence();
+    }, 350);
+  }, [audioService, playComparativeSequence]);
 
   const nextChallenge = useCallback(() => {
     if (timerRef.current) {
@@ -61,6 +82,7 @@ export function useMinimalPairs() {
 
     const challenge = trainer.createChallenge({
       contrastType: filterType === 'ALL' ? undefined : filterType,
+      speakerId: selectedSpeakerId === 'ALL' ? undefined : selectedSpeakerId,
     });
 
     setCurrentChallenge(challenge);
@@ -104,6 +126,12 @@ export function useMinimalPairs() {
 
       audioService.playFeedback(result.isCorrect);
 
+      if (!result.isCorrect) {
+        setTimeout(() => {
+          playComparativeSequence();
+        }, 350);
+      }
+
       setStats((prev) => {
         const newStreak = result.isCorrect ? prev.streak + 1 : 0;
         return {
@@ -115,7 +143,7 @@ export function useMinimalPairs() {
         };
       });
     },
-    [isAnswering, currentChallenge, startTime, trainer, audioService],
+    [isAnswering, currentChallenge, startTime, trainer, audioService, playComparativeSequence],
   );
 
   const resetStats = useCallback(() => {
@@ -135,6 +163,13 @@ export function useMinimalPairs() {
       audioService.speak(currentChallenge.targetWord);
     }
   }, [currentChallenge, audioService]);
+
+  const playWord = useCallback(
+    (word: string) => {
+      audioService.speak(word);
+    },
+    [audioService],
+  );
 
   useEffect(() => {
     return () => {
@@ -157,6 +192,8 @@ export function useMinimalPairs() {
 
   return {
     filterType,
+    selectedSpeakerId,
+    speakers,
     currentChallenge,
     lastResult,
     isPlayingAudio,
@@ -166,9 +203,12 @@ export function useMinimalPairs() {
     avgLatency,
     accuracy,
     setFilterType,
+    setSelectedSpeakerId,
     nextChallenge,
     handleSelect,
     repeatAudio,
+    playWord,
+    playComparativeSequence,
     resetStats,
   };
 }

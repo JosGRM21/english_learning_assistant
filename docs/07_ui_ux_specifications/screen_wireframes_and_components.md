@@ -491,50 +491,7 @@ Este documento detalla los **Wireframes Esquemáticos** y la especificación té
 
 ---
 
-## 11. Pantalla 11: Prosody Studio (F0 Pitch Contour & Stress-Timing)
-
-```
-+-----------------------------------------------------------------------------+
-| ELA Assistant > Prosody Studio                    [ Contorno: Wh- Fall ▼ ]  |
-+-----------------------------------------------------------------------------+
-| Frase Modelo: "Where did you put the keys yesterday?"                       |
-| Acento Rítmico (Stress-Timed):  [WHERE] .. [PUT] .. [KEYS] .. [YES-terday]  |
-|                                                                             |
-| +-------------------------------------------------------------------------+ |
-| | CANVA VISUAL DE PITCH CONTOUR (F0):                                     | |
-| | Hz                                                                      | |
-| | 250|   Modelo Nativo (Línea Azul Continua)                              | |
-| | 200|       \                                                            | |
-| | 150|        \____/---\___                                               | |
-| | 100|                     \_______                                       | |
-| |    +------------------------------------------------------------------  | |
-| |    |   Tu Grabación (Línea Ámbar Discontinua):                          | |
-| |    |       -----\                                                       | |
-| |    |             \______/---\                                           | |
-| +-------------------------------------------------------------------------+ |
-|                                                                             |
-| [ ▶️ Escuchar Nativo ]  [ ⏺️ Grabar Voz (R) ]  [ 🎛️ Metrónomo Stress: 110 BPM ]|
-|                                                                             |
-| +-------------------------------------------------------------------------+ |
-| | 📊 DIAGNÓSTICO PROSÓDICO (FFT Web Audio API):                           | |
-| | • Alineación Entonativa: 84% de coincidencia de contorno (Wh- Drop OK)   | |
-| | • Isocronía Rítmica: Intervalos entre acentos estables (420ms ± 30ms)   | |
-| | • Detección L1: Tendencia silábica (Syllable-timed) corregida con éxito | |
-| +-------------------------------------------------------------------------+ |
-+-----------------------------------------------------------------------------+
-```
-
-### Especificación de Tokens y Clases Tailwind:
-- **Contenedor Canvas F0:** `w-full h-64 bg-slate-950 rounded-2xl p-4 border border-slate-800 relative overflow-hidden`
-- **Trazos Canvas:** Curva nativa en `#38BDF8` (Sky 400, grosor 3px), Curva usuario en `#F59E0B` (Amber 500, trazo discontinuo 2px con suavizado spline).
-- **Indicadores Rítmicos de Pulsos:** `flex justify-between items-center px-6 py-2 bg-indigo-50/60 dark:bg-indigo-950/40 rounded-xl my-3 border border-indigo-200 dark:border-indigo-800`
-  - **Píldora de Sílaba Tónica:** `px-3 py-1 rounded-lg bg-indigo-600 text-white font-bold text-xs tracking-wider uppercase animate-pulse`
-  - **Píldora de Sílaba Átona:** `px-2 py-0.5 rounded text-gray-500 dark:text-gray-400 text-xs lowercase`
-- **Botón de Grabación:** `px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs flex items-center gap-2 transition-all active:scale-95`
-
----
-
-## 12. Pantalla 12: Laboratorio Cognitivo y Topológico (Topo-Lab)
+## 11. Pantalla 11: Laboratorio Cognitivo y Topológico (Topo-Lab)
 
 ```
 +-----------------------------------------------------------------------------+
@@ -574,50 +531,7 @@ Este documento detalla los **Wireframes Esquemáticos** y la especificación té
 
 ---
 
-## 13. Pantalla 13: Estudio de Misiones TBLT (Task-Based Language Teaching)
-
-```
-+-----------------------------------------------------------------------------+
-| ELA Assistant > TBLT Mission Studio                 Fase 2: Ejecución (Task)|
-+-----------------------------------------------------------------------------+
-| Misión: Negociar extensión de entrega con cliente disgustado | Nivel: B2    |
-| Cronómetro de Presión Real: [ 04:18 ⏳ ]              Palabras: 86 / Mín: 75 |
-|                                                                             |
-| +-------------------------------------------------------------------------+ |
-| | CONTEXTO DE LA MISIÓN:                                                  | |
-| | El servidor de producción sufrió una caída. El cliente 'Apex Corp' exige| |
-| | explicaciones y el despliegue inmediato. Redacta una respuesta formal   | |
-| | aplicando hedging diplomático y proponiendo un nuevo cronograma.         | |
-| +-------------------------------------------------------------------------+ |
-|                                                                             |
-| Tu Borrador de Misión:                                                      |
-| +-------------------------------------------------------------------------+ |
-| | Dear Mr. Henderson,                                                     | |
-| | I would like to apologize for the delay. We encountered an unexpected   | |
-| | issue with the server. Could we perhaps reschedule the deployment for   | |
-| | tomorrow morning? We will ensure that everything is thoroughly tested.  | |
-| +-------------------------------------------------------------------------+ |
-|                                                                             |
-| [ ✨ FINALIZAR Y ENVIAR A REVISIÓN DE 4-COMPETENCIAS (Ctrl+Enter) ]         |
-|                                                                             |
-| =========================================================================== |
-| 📊 EVALUACIÓN COMUNICATIVA CANALE & SWAIN (GEMINI 3.X FLASH):               |
-| • Lingüística: 8.5/10 | Sociolingüística (Hedging): 9.0/10                  |
-| • Discursiva: 8.0/10  | Estratégica (Resolución): 8.5/10                   |
-| 🎯 Nivel CEFR Demostrado: B2 Sólido | Misión Cumplida: ✅ SÍ                |
-| Pistas de Hedging: Detectado "Could we perhaps" (Excelente diplomacia).    |
-+-----------------------------------------------------------------------------+
-```
-
-### Especificación de Tokens y Clases Tailwind:
-- **Card de Contexto de Misión:** `bg-amber-50/70 dark:bg-amber-950/30 border-l-4 border-l-amber-500 border border-amber-200 dark:border-amber-800/40 rounded-xl p-4 text-xs text-amber-900 dark:text-amber-200 leading-relaxed mb-4`
-- **Editor de Misión con Cronómetro:** `relative w-full`
-- **Cronómetro Flotante:** `font-mono text-xs px-3 py-1 rounded-full bg-slate-900 text-amber-400 font-bold tracking-wider inline-flex items-center gap-1.5`
-- **Panel de Evaluación de 4 Competencias:** `grid grid-cols-2 md:grid-cols-4 gap-3 bg-white dark:bg-[#131722] border border-gray-200 dark:border-[#1F2637] rounded-xl p-4 my-4 text-center`
-
----
-
-## 14. Pantalla 14: Escucha Ascendente & Lexical Profiler (Bottom-Up Listening)
+## 12. Pantalla 12: Escucha Ascendente & Lexical Profiler (Bottom-Up Listening)
 
 ```
 +-----------------------------------------------------------------------------+

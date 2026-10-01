@@ -75,6 +75,61 @@ describe('MockAiGateway', () => {
       expect(prepError?.is_l1_spanish_transfer).toBe(true);
       expect(prepError?.native_reformulation).toContain('depend on');
     });
+
+    it('gracefully normalizes and parses corrections with diverse or non-standard error_types', () => {
+      const rawPayload = {
+        overall_feedback_es: 'Buen intento.',
+        estimated_cefr: 'B1',
+        scores: { grammar: 7.0, vocabulary: 7.5, coherence: 8.0 },
+        corrections: [
+          {
+            error_span: 'I am living here since 2 years',
+            error_type: 'TENSE_ASPECT',
+            taxonomy_code: 'L1_TENSE_SINCE_FOR',
+            is_l1_spanish_transfer: true,
+            explanation_es: 'Usa present perfect con for.',
+            native_reformulation: 'I have lived here for 2 years',
+          },
+          {
+            error_span: 'people is happy',
+            error_type: 'agreement', // lowercase
+            taxonomy_code: 'L1_AGREEMENT_PEOPLE',
+            is_l1_spanish_transfer: true,
+            explanation_es: 'People es plural.',
+            native_reformulation: 'people are happy',
+          },
+          {
+            error_span: 'make a decision',
+            error_type: 'verb-tense', // hyphenated synonym
+            taxonomy_code: 'L1_VERB',
+            is_l1_spanish_transfer: false,
+            explanation_es: 'Explicación',
+            native_reformulation: 'make a decision',
+          },
+          {
+            error_span: 'some weird error',
+            error_type: 'UNKNOWN_CUSTOM_CATEGORY', // completely unknown category
+            taxonomy_code: 'CUSTOM_CODE',
+            is_l1_spanish_transfer: false,
+            explanation_es: 'Explicación',
+            native_reformulation: 'fixed',
+          },
+        ],
+        micro_challenge: {
+          question_es: '¿Forma correcta?',
+          sentence_with_blank: 'People ___ happy.',
+          options: ['is', 'are', 'was', 'be'],
+          correct_option_index: 1,
+          explanation_es: 'Are es plural.',
+        },
+      };
+
+      const parsed = WritingEvaluationResponseSchema.parse(rawPayload);
+      expect(parsed.corrections[0].error_type).toBe('TENSE_ASPECT');
+      expect(parsed.corrections[1].error_type).toBe('AGREEMENT');
+      expect(parsed.corrections[2].error_type).toBe('TENSE_ASPECT');
+      expect(parsed.corrections[3].error_type).toBe('GRAMMAR'); // fallback
+    });
   });
 
   describe('lookupVocabWord', () => {

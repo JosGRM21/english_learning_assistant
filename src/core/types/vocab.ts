@@ -13,6 +13,24 @@ export type PartOfSpeech =
   | 'PRONOUN'
   | 'INTERJECTION';
 
+export const PART_OF_SPEECH_LABELS_ES: Record<PartOfSpeech, string> = {
+  NOUN: 'Sustantivo',
+  VERB: 'Verbo',
+  ADJECTIVE: 'Adjetivo',
+  ADVERB: 'Adverbio',
+  PREPOSITION: 'Preposición',
+  CONJUNCTION: 'Conjunción',
+  ARTICLE_DETERMINER: 'Artículo / Det.',
+  PRONOUN: 'Pronombre',
+  INTERJECTION: 'Interjección',
+};
+
+export const GRAMMATICAL_DIMENSION_LABELS_ES: Record<GrammaticalDimension, string> = {
+  CONTENT: 'Contenido Léxico',
+  FUNCTION: 'Palabra Funcional',
+  CHUNK: 'Expresión / Frase',
+};
+
 export type ChunkType =
   | 'COLLOCATION'
   | 'PHRASAL_VERB'

@@ -7,17 +7,18 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT NOT NULL UNIQUE,
     target_accent TEXT NOT NULL DEFAULT 'GENERAL_AMERICAN' CHECK(target_accent IN ('GENERAL_AMERICAN', 'RECEIVED_PRONUNCIATION')),
     current_cefr_target TEXT NOT NULL DEFAULT 'B1' CHECK(current_cefr_target IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
-    default_ai_model TEXT NOT NULL DEFAULT 'gemini-3.8-flash' CHECK(default_ai_model IN ('gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash')),
+    default_ai_model TEXT NOT NULL DEFAULT 'gemini-3.8-flash' CHECK(default_ai_model IN ('gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash')),
     api_key_rotation_mode TEXT NOT NULL DEFAULT 'FAILOVER_ON_QUOTA' CHECK(api_key_rotation_mode IN ('FAILOVER_ON_QUOTA', 'MANUAL_PRIMARY', 'ROUND_ROBIN')),
+    backlog_throttling_enabled INTEGER NOT NULL DEFAULT 1 CHECK(backlog_throttling_enabled IN (0, 1)),
+    max_daily_review_limit INTEGER NOT NULL DEFAULT 30,
     created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
 );
 
-INSERT OR IGNORE INTO users (id, username, target_accent, current_cefr_target, default_ai_model, api_key_rotation_mode)
-VALUES ('user_local', 'local_student', 'GENERAL_AMERICAN', 'B1', 'gemini-3.8-flash', 'FAILOVER_ON_QUOTA');
+INSERT OR IGNORE INTO users (id, username, target_accent, current_cefr_target, default_ai_model, api_key_rotation_mode, backlog_throttling_enabled, max_daily_review_limit)
+VALUES ('user_local', 'local_student', 'GENERAL_AMERICAN', 'B1', 'gemini-3.8-flash', 'FAILOVER_ON_QUOTA', 1, 30);
 
-INSERT OR IGNORE INTO users (id, username, target_accent, current_cefr_target, default_ai_model, api_key_rotation_mode)
-VALUES ('default_user', 'default_student', 'GENERAL_AMERICAN', 'B1', 'gemini-3.8-flash', 'FAILOVER_ON_QUOTA');
-
+INSERT OR IGNORE INTO users (id, username, target_accent, current_cefr_target, default_ai_model, api_key_rotation_mode, backlog_throttling_enabled, max_daily_review_limit)
+VALUES ('default_user', 'default_student', 'GENERAL_AMERICAN', 'B1', 'gemini-3.8-flash', 'FAILOVER_ON_QUOTA', 1, 30);
 
 CREATE TABLE IF NOT EXISTS ai_api_keys (
     id TEXT PRIMARY KEY,
@@ -38,7 +39,7 @@ CREATE INDEX IF NOT EXISTS idx_api_keys_user ON ai_api_keys(user_id, is_active, 
 CREATE TABLE IF NOT EXISTS api_key_model_quotas (
     id TEXT PRIMARY KEY,
     api_key_id TEXT NOT NULL,
-    model_id TEXT NOT NULL CHECK(model_id IN ('gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash')),
+    model_id TEXT NOT NULL CHECK(model_id IN ('gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash')),
     requests_today INTEGER NOT NULL DEFAULT 0,
     daily_limit INTEGER NOT NULL DEFAULT 20,
     rpm_limit INTEGER NOT NULL DEFAULT 5,
@@ -84,6 +85,7 @@ CREATE TABLE IF NOT EXISTS phraseological_units (
     text TEXT NOT NULL,
     meaning_es TEXT NOT NULL,
     phrasal_verb_type TEXT CHECK(phrasal_verb_type IN ('TYPE_1_INTRANSITIVE', 'TYPE_2_SEPARABLE', 'TYPE_3_INSEPARABLE', 'TYPE_4_THREE_PART')),
+    pronoun_must_split INTEGER NOT NULL DEFAULT 0 CHECK(pronoun_must_split IN (0, 1)),
     example_1 TEXT NOT NULL,
     example_2 TEXT,
     cefr_level TEXT NOT NULL CHECK(cefr_level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
@@ -94,12 +96,33 @@ CREATE TABLE IF NOT EXISTS phraseological_units (
 CREATE INDEX IF NOT EXISTS idx_phrase_type ON phraseological_units(chunk_type);
 CREATE INDEX IF NOT EXISTS idx_phrase_primary_vocab ON phraseological_units(primary_vocab_id);
 
--- 4. Reglas Gramaticales
+-- 4. Semántica Cognitiva & Thinking for Speaking
+CREATE TABLE IF NOT EXISTS conceptual_motion_verbs (
+    id TEXT PRIMARY KEY,
+    verb_base TEXT NOT NULL,
+    manner_description_es TEXT NOT NULL,
+    satellite_particles_json TEXT NOT NULL,
+    spanish_static_equivalent TEXT NOT NULL,
+    cefr_level TEXT NOT NULL DEFAULT 'B1' CHECK(cefr_level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
+    example_sentence TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
+);
+
+CREATE TABLE IF NOT EXISTS polysemic_pairs (
+    id TEXT PRIMARY KEY,
+    pair_code TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    explanation_es TEXT NOT NULL,
+    contrast_matrix_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
+);
+
+-- 5. Reglas Gramaticales & Transferencia L1
 CREATE TABLE IF NOT EXISTS grammar_rules (
     id TEXT PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
     title TEXT NOT NULL,
-    category TEXT NOT NULL CHECK(category IN ('VERB_TENSES', 'MODALS', 'PREPOSITIONS', 'CLAUSES', 'ADJECTIVES_ADVERBS', 'SENTENCE_STRUCTURE')),
+    category TEXT NOT NULL CHECK(category IN ('VERB_TENSES', 'MODALS', 'PREPOSITIONS', 'CLAUSES', 'ADJECTIVES_ADVERBS', 'SENTENCE_STRUCTURE', 'L1_INTERFERENCE')),
     explanation_es TEXT NOT NULL,
     formula_syntax TEXT,
     contrastive_l1_note TEXT,
@@ -109,10 +132,21 @@ CREATE TABLE IF NOT EXISTS grammar_rules (
 
 CREATE INDEX IF NOT EXISTS idx_grammar_code ON grammar_rules(code);
 
--- 5. Catálogo de Fonética y Habla Conectada
+CREATE TABLE IF NOT EXISTS l1_transfer_rules (
+    id TEXT PRIMARY KEY,
+    rule_code TEXT NOT NULL UNIQUE,
+    domain TEXT NOT NULL CHECK(domain IN ('MORPHOSYNTACTIC', 'PHONOLOGICAL', 'LEXICAL', 'PRAGMATIC')),
+    spanish_misconception TEXT NOT NULL,
+    target_english_rule TEXT NOT NULL,
+    exercise_template_json TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'HIGH' CHECK(severity IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
+);
+
+-- 6. Catálogo de Fonética y Habla Conectada
 CREATE TABLE IF NOT EXISTS phonetic_rules (
     id TEXT PRIMARY KEY,
-    rule_type TEXT NOT NULL CHECK(rule_type IN ('ELISION', 'ASSIMILATION_REGRESSIVE', 'ASSIMILATION_COALESCENT', 'LINKING_CV', 'LINKING_VV_J', 'LINKING_VV_W', 'LINKING_R', 'GEMINATION', 'WEAK_FORM')),
+    rule_type TEXT NOT NULL CHECK(rule_type IN ('ELISION', 'ASSIMILATION_REGRESSIVE', 'ASSIMILATION_COALESCENT', 'LINKING_CV', 'LINKING_VV_J', 'LINKING_VV_W', 'LINKING_R', 'GEMINATION', 'WEAK_FORM', 'VOT_ASPIRATION')),
     rule_name TEXT NOT NULL,
     pattern_regex TEXT,
     description_es TEXT NOT NULL,
@@ -124,17 +158,20 @@ CREATE TABLE IF NOT EXISTS phonetic_rules (
 
 CREATE INDEX IF NOT EXISTS idx_phonetic_rule_type ON phonetic_rules(rule_type);
 
--- 6. Repetición Espaciada FSRS: Tarjetas de Repaso
+-- 7. Repetición Espaciada FSRS 4.5
 CREATE TABLE IF NOT EXISTS srs_cards (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
-    target_type TEXT NOT NULL CHECK(target_type IN ('VOCAB', 'PHRASE', 'GRAMMAR', 'PHONETICS')),
+    target_type TEXT NOT NULL CHECK(target_type IN ('VOCAB', 'PHRASE', 'GRAMMAR', 'PHONETICS', 'L1_TRANSFER')),
     target_id TEXT NOT NULL,
     state TEXT NOT NULL DEFAULT 'NEW' CHECK(state IN ('NEW', 'LEARNING', 'REVIEW', 'RELEARNING')),
     stability REAL NOT NULL DEFAULT 0.0,
     difficulty REAL NOT NULL DEFAULT 5.0,
     reps INTEGER NOT NULL DEFAULT 0,
     lapses INTEGER NOT NULL DEFAULT 0,
+    is_proceduralized INTEGER NOT NULL DEFAULT 0 CHECK(is_proceduralized IN (0, 1)),
+    consecutive_fast_retrievals INTEGER NOT NULL DEFAULT 0,
+    last_reaction_time_ms INTEGER,
     last_reviewed_at TEXT,
     scheduled_for TEXT NOT NULL DEFAULT (DATETIME('now')),
     created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
@@ -143,8 +180,8 @@ CREATE TABLE IF NOT EXISTS srs_cards (
 
 CREATE INDEX IF NOT EXISTS idx_srs_due ON srs_cards(user_id, scheduled_for, state);
 CREATE INDEX IF NOT EXISTS idx_srs_target ON srs_cards(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_srs_procedural ON srs_cards(is_proceduralized);
 
--- 7. Historial Detallado de Repasos FSRS
 CREATE TABLE IF NOT EXISTS review_logs (
     id TEXT PRIMARY KEY,
     card_id TEXT NOT NULL,
@@ -162,7 +199,22 @@ CREATE TABLE IF NOT EXISTS review_logs (
 CREATE INDEX IF NOT EXISTS idx_review_card ON review_logs(card_id);
 CREATE INDEX IF NOT EXISTS idx_review_time ON review_logs(reviewed_at);
 
--- 8. Taller de Redacción y Prompts Guiados
+-- 8. Proceduralización & Speed Drills
+CREATE TABLE IF NOT EXISTS speed_drill_sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    drill_type TEXT NOT NULL CHECK(drill_type IN ('CLAUSE_SHIFT', 'THIRD_PERSON_AUTOMATION', 'PREPOSITION_REFLEX', 'AUDITORY_SNAP_HVPT', 'COLLOCATION_BLITZ', 'PREPOSITION_RAPID_FIRE', 'CONNECTED_SPEECH_EAR')),
+    total_prompts INTEGER NOT NULL,
+    correct_count INTEGER NOT NULL,
+    procedural_pass_count INTEGER NOT NULL DEFAULT 0,
+    avg_response_time_ms REAL NOT NULL,
+    completed_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_drills_user_type ON speed_drill_sessions(user_id, drill_type);
+
+-- 9. Taller de Redacción Socrática
 CREATE TABLE IF NOT EXISTS writing_prompts (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -177,9 +229,10 @@ CREATE TABLE IF NOT EXISTS writing_submissions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     prompt_id TEXT,
+    submission_mode TEXT NOT NULL DEFAULT 'GUIDED' CHECK(submission_mode IN ('FREE', 'GUIDED', 'MICRO_WRITING')),
     user_text TEXT NOT NULL,
     word_count INTEGER NOT NULL,
-    status TEXT NOT NULL DEFAULT 'DRAFT' CHECK(status IN ('DRAFT', 'EVALUATING', 'EVALUATED', 'ERROR')),
+    status TEXT NOT NULL DEFAULT 'DRAFT' CHECK(status IN ('DRAFT', 'SOCRATIC_PHASE_1', 'SOCRATIC_PHASE_2', 'EVALUATED', 'ERROR')),
     submitted_at TEXT NOT NULL DEFAULT (DATETIME('now')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (prompt_id) REFERENCES writing_prompts(id) ON DELETE SET NULL
@@ -187,11 +240,24 @@ CREATE TABLE IF NOT EXISTS writing_submissions (
 
 CREATE INDEX IF NOT EXISTS idx_sub_user ON writing_submissions(user_id, submitted_at);
 
--- 9. Evaluaciones con IA (Google Gemini)
+CREATE TABLE IF NOT EXISTS writing_draft_revisions (
+    id TEXT PRIMARY KEY,
+    submission_id TEXT NOT NULL,
+    revision_number INTEGER NOT NULL DEFAULT 1,
+    draft_text TEXT NOT NULL,
+    ai_scaffold_level TEXT NOT NULL DEFAULT 'LEVEL_1_ELICITATION' CHECK(ai_scaffold_level IN ('LEVEL_1_ELICITATION', 'LEVEL_2_METALINGUISTIC', 'LEVEL_3_CLOZE', 'LEVEL_4_EXPLICIT_MODEL')),
+    ai_hints_json TEXT,
+    resolved_errors_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+    FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_draft_submission ON writing_draft_revisions(submission_id, revision_number);
+
 CREATE TABLE IF NOT EXISTS writing_evaluations (
     id TEXT PRIMARY KEY,
     submission_id TEXT NOT NULL UNIQUE,
-    model_used TEXT NOT NULL DEFAULT 'gemini-3.8-flash' CHECK(model_used IN ('gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash')),
+    model_used TEXT NOT NULL DEFAULT 'gemini-3.8-flash' CHECK(model_used IN ('gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash')),
     estimated_cefr TEXT NOT NULL CHECK(estimated_cefr IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
     grammar_score REAL NOT NULL,
     vocabulary_score REAL NOT NULL,
@@ -203,7 +269,7 @@ CREATE TABLE IF NOT EXISTS writing_evaluations (
     FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE
 );
 
--- 10. Taxonomía de Errores y Diagnóstico de Fallas Crónicas
+-- 11. Diagnóstico de Interlenguaje y Debilidades
 CREATE TABLE IF NOT EXISTS error_taxonomy (
     id TEXT PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
@@ -217,7 +283,7 @@ CREATE TABLE IF NOT EXISTS user_errors (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     error_taxonomy_id TEXT NOT NULL,
-    source TEXT NOT NULL CHECK(source IN ('SRS', 'WRITING_EVALUATION', 'PHONETICS_DRILL')),
+    source TEXT NOT NULL CHECK(source IN ('SRS', 'WRITING_EVALUATION', 'PHONETICS_DRILL', 'SPEED_DRILL')),
     source_reference_id TEXT,
     context_snippet TEXT,
     incorrect_token TEXT,
@@ -255,7 +321,7 @@ CREATE TABLE IF NOT EXISTS micro_workouts (
     FOREIGN KEY (weakness_metric_id) REFERENCES weakness_metrics(id) ON DELETE CASCADE
 );
 
--- 11. Hábitos, Tareas Diarias (Daily Quests) y Rachas
+-- 12. Hábitos, Rachas y Daily Quests
 CREATE TABLE IF NOT EXISTS user_streaks (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL UNIQUE,
@@ -263,6 +329,7 @@ CREATE TABLE IF NOT EXISTS user_streaks (
     longest_streak INTEGER NOT NULL DEFAULT 0,
     last_activity_date TEXT,
     available_freezes INTEGER NOT NULL DEFAULT 1,
+    is_in_grace_period INTEGER NOT NULL DEFAULT 0 CHECK(is_in_grace_period IN (0, 1)),
     updated_at TEXT NOT NULL DEFAULT (DATETIME('now')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -281,7 +348,7 @@ CREATE TABLE IF NOT EXISTS daily_quests (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     quest_date TEXT NOT NULL,
-    quest_type TEXT NOT NULL CHECK(quest_type IN ('VOCAB_SRS', 'PHONETICS_LISTEN', 'WRITING_SUBMISSION', 'MICRO_WORKOUT', 'SPEED_DRILL', 'GRADED_READER')),
+    quest_type TEXT NOT NULL CHECK(quest_type IN ('VOCAB_SRS', 'PHONETICS_LISTEN', 'MICRO_WORKOUT', 'SPEED_DRILL', 'GRADED_READER', 'WRITING_SUBMISSION')),
     description TEXT NOT NULL,
     target_count INTEGER NOT NULL DEFAULT 1,
     current_count INTEGER NOT NULL DEFAULT 0,
@@ -293,7 +360,7 @@ CREATE TABLE IF NOT EXISTS daily_quests (
 
 CREATE INDEX IF NOT EXISTS idx_quests_user_date ON daily_quests(user_id, quest_date);
 
--- 12. Banco de Contextos Dinámicos y Rotación de Ejemplos para FSRS
+-- 13. Banco de Contextos Dinámicos
 CREATE TABLE IF NOT EXISTS vocab_context_examples (
     id TEXT PRIMARY KEY,
     vocab_id TEXT,
@@ -311,7 +378,7 @@ CREATE TABLE IF NOT EXISTS vocab_context_examples (
 CREATE INDEX IF NOT EXISTS idx_context_vocab ON vocab_context_examples(vocab_id);
 CREATE INDEX IF NOT EXISTS idx_context_phrase ON vocab_context_examples(phrase_id);
 
--- 13. Lector Inteligente de Input Comprensible (i+1 Graded Reader)
+-- 14. Lector Inteligente de Input Comprensible
 CREATE TABLE IF NOT EXISTS reader_articles (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -320,38 +387,14 @@ CREATE TABLE IF NOT EXISTS reader_articles (
     source_url TEXT,
     cefr_level TEXT CHECK(cefr_level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
     total_words INTEGER NOT NULL,
+    lexical_coverage_ratio REAL NOT NULL DEFAULT 1.0,
+    reading_mode TEXT NOT NULL DEFAULT 'EXTENSIVE' CHECK(reading_mode IN ('EXTENSIVE', 'INTENSIVE', 'OVERLOAD')),
+    is_simplified INTEGER NOT NULL DEFAULT 0 CHECK(is_simplified IN (0, 1)),
+    bottom_up_stage TEXT NOT NULL DEFAULT 'STEP_3_FULL' CHECK(bottom_up_stage IN ('STEP_1_BLIND', 'STEP_2_TONIC', 'STEP_3_FULL')),
     read_percentage REAL NOT NULL DEFAULT 0.0,
     created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_articles_user_cefr ON reader_articles(user_id, cefr_level);
-
--- 14. Revisiones de Borradores y Taller Socrático de Redacción
-CREATE TABLE IF NOT EXISTS writing_draft_revisions (
-    id TEXT PRIMARY KEY,
-    submission_id TEXT NOT NULL,
-    revision_number INTEGER NOT NULL DEFAULT 1,
-    draft_text TEXT NOT NULL,
-    ai_hints_json TEXT,
-    resolved_errors_count INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
-    FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_draft_submission ON writing_draft_revisions(submission_id, revision_number);
-
--- 15. Sesiones de Proceduralización y Drills de Velocidad
-CREATE TABLE IF NOT EXISTS speed_drill_sessions (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    drill_type TEXT NOT NULL CHECK(drill_type IN ('COLLOCATION_BLITZ', 'PREPOSITION_RAPID_FIRE', 'CONNECTED_SPEECH_EAR')),
-    total_prompts INTEGER NOT NULL,
-    correct_count INTEGER NOT NULL,
-    avg_response_time_ms REAL NOT NULL,
-    completed_at TEXT NOT NULL DEFAULT (DATETIME('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_drills_user_type ON speed_drill_sessions(user_id, drill_type);
 `;

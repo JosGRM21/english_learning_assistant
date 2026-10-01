@@ -268,14 +268,14 @@ Para la familia **Gemini 3.x Flash** (`gemini-3.5-flash`, `gemini-3.6-flash`, `g
 
 ---
 
-## 9. Fonética, Prosodia y Audio Acústico (Connected Speech, F0 Shadowing & Pares Mínimos)
+## 9. Fonética, Habla Conectada y Audio Acústico (Connected Speech & Pares Mínimos)
 
 | Dependencia | Versión Verificada | Justificación Técnica |
 | :--- | :--- | :--- |
 | **`howler`** / `@types/howler` | `2.2.4` / `2.2.13` | Biblioteca de efectos de audio de ultra-baja latencia (< 5 ms) para feedback auditivo inmediato y contrastes fonológicos. *(Se mantiene 2.2.4 por ser la versión definitiva y estable con 100% de soporte multiplataforma).* |
-| **`Web Audio API` (AnalyserNode + AudioWorklet)** | Estándar W3C | Extracción de frecuencia fundamental (F0 en Hz) en tiempo real mediante algoritmos de autocorrelación / YIN con latencia < 150 ms para el visualizador del **Prosody Studio**. |
+| **`Web Audio API`** | Estándar W3C | Enrutamiento de audio de baja latencia y reproducción precisa para pares mínimos y segmentación auditiva. |
 | **`Web Speech API`** | Estándar W3C | API nativa en WebView2 para síntesis TTS offline a velocidad normal (1.0x) y reducida (0.75x) sin alteración de pitch (*pitch-preserving*). |
-| **Canvas 2D / SVG Vectorial Nativo** | Estándar W3C | Motor gráfico de alto rendimiento para renderizado de curvas entonativas superpuestas (nativo vs usuario) y simulación espacial de contenedores topológicos en **Topo-Lab**. |
+| **Canvas 2D / SVG Vectorial Nativo** | Estándar W3C | Motor gráfico de alto rendimiento para simulación espacial de contenedores topológicos en **Topo-Lab**. |
 
 ---
 

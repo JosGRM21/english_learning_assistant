@@ -121,7 +121,7 @@ graph TD
 
 ## 3. Integración en el Pipeline de Evaluación de ELA
 
-Cuando el usuario redacta en el Taller de Escritura o en una Misión TBLT:
+Cuando el usuario redacta en el Taller de Escritura:
 1. **Paso 1 (Escaneo Local Instantáneo < 5 ms):** El motor `L1TransferEngine` escanea el texto con este catálogo determinista.
 2. **Paso 2 (Inyección Contextual en Gemini):** Si se detectan desvíos deterministas, se inyectan en el prompt a la IA como pistas previas:  
    `"Detected preliminary L1 interference flags: [L1_PREP_DEPEND_OF, L1_PRO_DROP_DUMMY_IT]. Verify and structure pedagogical explanation accordingly."`

@@ -323,28 +323,7 @@ Guiar al estudiante mediante preguntas mayéuticas para que descubra y corrija s
 
 ---
 
-### Vista 11: Prosody Studio (F0 Pitch Contour & Stress-Timing Metronome)
-
-#### Propósito Cognitivo:
-Permitir al aprendiz visualizar la curva de frecuencia fundamental (F0 en Hz) y la isocronía rítmica (*stress-timed rhythm*) del inglés frente a la naturaleza silábica (*syllable-timed*) del español, eliminando la sordera prosódica mediante retroalimentación visual en tiempo real.
-
-#### Composición de Layout:
-- **Contenedor:** `max-w-4xl mx-auto my-10 px-6 space-y-6`.
-- **Selector de Frase y Patrón Entonativo:** Dropdown estilizado con patrones canónicos (*Wh- Falling, Yes/No Rising, Tag Questions, Contrastive Stress*).
-- **Lienzo Visualizador de Curva F0 (The Pitch Canvas):**
-  - Contenedor Canvas: `w-full h-64 bg-slate-950 rounded-2xl p-4 border border-slate-800 relative overflow-hidden shadow-inner`.
-  - Capa Nativa (Sky 400 `#38BDF8`): Curva Bezier suavizada continua que representa la melodía de referencia.
-  - Capa de Grabación del Aprendiz (Amber 500 `#F59E0B`): Trazado superpuesto generado por Web Audio API FFT en tiempo real con latencia <150 ms.
-- **Metrónomo Isocrónico Stress-Timed:**
-  - Píldoras rítmicas pulsantes marcando las sílabas acentuadas a intervalos temporales iguales, contrastadas con las sílabas átonas reducidas a Schwa.
-- **Controles de Shadowing:**
-  - Botón circular de reproducción nativa, botón de grabación de voz con atajo `<kbd>R</kbd>` y dial de tempo ajustable de 80 a 140 BPM.
-- **Consola de Diagnóstico Prosódico:**
-  - Tarjeta de análisis automático con porcentaje de alineación tonal, duración de pausas y detección de transferencia silábica L1.
-
----
-
-### Vista 12: Laboratorio Cognitivo y Topológico (Topo-Lab)
+### Vista 11: Laboratorio Cognitivo y Topológico (Topo-Lab)
 
 #### Propósito Cognitivo:
 Proporcionar anclaje visual y espacial para internalizar las preposiciones espaciales y los verbos de movimiento satelitales del inglés mediante esquemas de imagen corporizados (*image schemas* de Lakoff & Johnson), superando la ambigüedad de la traducción directa al español "en".
@@ -363,31 +342,7 @@ Proporcionar anclaje visual y espacial para internalizar las preposiciones espac
 
 ---
 
-### Vista 13: Misiones TBLT (Task-Based Language Teaching Studio)
-
-#### Propósito Cognitivo:
-Sumergir al estudiante en escenarios comunicativos de alta fidelidad pragmática con presión temporal moderada, donde el foco esté en resolver una meta auténtica (negociación, soporte a clientes, aclaración de disputas) más que en recitar reglas gramaticales abstractas.
-
-#### Composición de Layout:
-- **Contenedor:** `max-w-4xl mx-auto my-10 px-6 space-y-6`.
-- **Módulo de Fases TBLT:**
-  - Indicador de 3 fases estilo stepper: *1. Pre-Task Briefing* $\rightarrow$ *2. Task Execution* $\rightarrow$ *3. Post-Task AI Review*.
-- **Fase 1: Pre-Task Briefing:**
-  - Tarjeta de contexto con expediente del cliente/caso, objetivos comunicativos mandatorios y banco de colocaciones y marcadores de *hedging* recomendados.
-- **Fase 2: Task Execution Editor:**
-  - Cabecera con cronómetro de presión real de 5 a 10 minutos con visualización ámbar.
-  - Editor de texto libre con contador de palabras y envío con atajo `Ctrl+Enter`.
-- **Fase 3: Post-Task Communicative Scorecard:**
-  - Rejilla de 4 cuadrantes evaluando las competencias de Canale & Swain:
-    - *Competencia Lingüística* (Precisión morfosintáctica y léxico).
-    - *Competencia Sociolingüística* (Registro, politeness y nivel de hedging diplomático).
-    - *Competencia Discursiva* (Estructura de párrafos y conectores lógicos).
-    - *Competencia Estratégica* (Resolución del problema y alcance pragmático).
-  - Puntuación global CEFR y panel desplegable de reformulaciones nativas.
-
----
-
-### Vista 14: Escucha Ascendente (Bottom-Up Listening) & Lexical Profiler
+### Vista 12: Escucha Ascendente (Bottom-Up Listening) & Lexical Profiler
 
 #### Propósito Cognitivo:
 Entrenar el decodificador acústico fonológico del cerebro mediante el aislamiento progresivo de cadenas de habla continua sin el auxilio prematuro del texto visual, garantizando la comprensión de habla natural rápida.

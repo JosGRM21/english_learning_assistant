@@ -1,7 +1,7 @@
 # Hoja de Ruta de Implementación Técnica (Roadmap)
 ## English Learning Assistant (ELA) — Plataforma Científica Integral de Adquisición de Segundas Lenguas
 
-Este documento estructura el plan de ejecución técnica en **6 fases ordenadas por dependencia arquitectónica**, garantizando la integración progresiva de todos los módulos teóricos y pedagógicos (SLA, FSRS, Fonética Acústica, Gramática Cognitiva, TBLT y Proceduralización Motora).
+Este documento estructura el plan de ejecución técnica en **6 fases ordenadas por dependencia arquitectónica**, garantizando la integración progresiva de todos los módulos teóricos y pedagógicos (SLA, FSRS, Fonética Acústica, Gramática Cognitiva y Proceduralización Motora).
 
 ---
 
@@ -16,11 +16,11 @@ gantt
     section Fase 2
     Motor FSRS, Speed Drills & Laboratorio Fonético HVPT        :p2, after p1, 10d
     section Fase 3
-    Prosody Studio (F0 Web Audio) & Topo-Lab Cognitivo          :p3, after p2, 8d
+    Laboratorio Cognitivo (Topo-Lab)                            :p3, after p2, 8d
     section Fase 4
     IA Gemini 3.x Flash, Detección L1 & Taller Socrático         :p4, after p3, 9d
     section Fase 5
-    Estudio TBLT (4 Competencias) & Escucha Ascendente Bottom-Up :p5, after p4, 8d
+    Lector Inteligente & Escucha Ascendente Bottom-Up           :p5, after p4, 8d
     section Fase 6
     Analítica Heatmap, Empaquetado Desktop Tauri & Pulido Final :p6, after p5, 6d
 ```
@@ -30,15 +30,14 @@ gantt
 ## 2. Detalle de Fases de Desarrollo y Criterios de Aceptación
 
 ### Fase 1: Cimientos de Datos SQLite v2.0 y Algoritmos de Memoria / Proceduralización
-- **Objetivo:** Desplegar el esquema relacional completo (20 tablas con integridad referencial) y validar el motor matemático FSRS junto con la máquina de estados de proceduralización.
+- **Objetivo:** Desplegar el esquema relacional completo y validar el motor matemático FSRS junto con la máquina de estados de proceduralización.
 - **Entregables:**
-  - Script de migración DDL v2.0 (`sqlite_schema.sql`) con 20 tablas maestras e índices optimizados.
+  - Script de migración DDL v2.0 (`sqlite_schema.sql`) con tablas maestras e índices optimizados.
   - Carga de datos semilla (*Seed data*):
     - 500 lemas de vocabulario con múltiples ejemplos cloze de contexto dinámico.
     - 100 colocaciones esenciales y phrasal verbs idiomáticos.
     - 60 pares mínimos contrastivos para discriminación HVPT.
-    - 30 reglas fonéticas de habla conectada y 15 contornos prosódicos.
-    - 20 misiones TBLT calibradas de A2 a C1.
+    - 30 reglas fonéticas de habla conectada.
     - 15 esquemas topológicos y verbos de movimiento satelitales.
   - Implementación del programador `FsrsScheduler` desacoplado con variabilidad contextual y módulo de *Throttling* (límite de 30 tarjetas/día con redistribución a 7 días).
   - Pruebas unitarias de FSRS y cálculo de retención $R = (1 + \text{factor} \cdot \Delta t / S)^{-1}$.
@@ -56,18 +55,14 @@ gantt
 
 ---
 
-### Fase 3: Prosody Studio (Web Audio FFT) y Laboratorio Cognitivo (Topo-Lab)
-- **Objetivo:** Implementar la visualización acústica en tiempo real del contorno entonativo F0 y la simulación interactiva de esquemas topológicos espaciales.
+### Fase 3: Laboratorio Cognitivo y Topológico (Topo-Lab)
+- **Objetivo:** Implementar la simulación interactiva de esquemas topológicos espaciales y contrastes semánticos.
 - **Entregables:**
-  - **Prosody Studio:**
-    - Integración de Web Audio API con algoritmo de autocorrelación / YIN para extracción de F0 en tiempo real con latencia $< 150\text{ ms}$.
-    - Lienzo Canvas que superpone la curva melódica del aprendiz sobre la curva nativa de referencia.
-    - Metrónomo isocrónico de acento rítmico (*stress-timed rhythm*) y ejercicios de *prosodic shadowing*.
   - **Topo-Lab Cognitivo:**
     - Lienzo interactivo SVG de manipulación de contenedores y superficies (in, on, at, into, onto, through).
     - Módulo de contraste de verbos de movimiento satelital (*Manner in Verb + Path in Satellite*).
     - Inspector de constelaciones de polisemia radial (*run, take, get*).
-- **Criterio de Aceptación:** El lienzo F0 dibuja la curva de tono de la voz del usuario durante el shadowing y el Topo-Lab reacciona al arrastre vectorial actualizando los esquemas preposicionales.
+- **Criterio de Aceptación:** El Topo-Lab reacciona al arrastre vectorial actualizando los esquemas preposicionales y visualizando extensiones radiales con fluidez.
 
 ---
 
@@ -82,17 +77,14 @@ gantt
 
 ---
 
-### Fase 5: Estudio TBLT de Misiones y Escucha Ascendente (Bottom-Up)
-- **Objetivo:** Construir el estudio de tareas comunicativas de alta fidelidad y el laboratorio de escucha ascendente basado en cobertura léxica.
+### Fase 5: Lector Inteligente y Escucha Ascendente (Bottom-Up)
+- **Objetivo:** Construir el laboratorio de escucha ascendente y el lector graduado basado en cobertura léxica y simplificación $i+1$.
 - **Entregables:**
-  - **TBLT Mission Studio:**
-    - Flujo de 3 fases: Pre-task (banco de chunks y hedging), Task execution con cronómetro de presión (5-10 min) y Post-task review.
-    - Evaluación automatizada de las 4 competencias comunicativas (Lingüística, Sociolingüística, Discursiva, Estratégica) y calibración CEFR (A2 a C1).
   - **Bottom-Up Listening & Lexical Profiler:**
     - Algoritmo de cobertura léxica de Nation (K1-K2 vs K3+) con verificación de umbrales del 95% y 98%.
     - Reproductor de escucha en 3 pasos: Audio ciego $\rightarrow$ Noticing acústico de micro-segmentos con transcripción $\rightarrow$ Re-escucha con script completo.
     - Botón de simplificación $i+1$ de textos asistido por Gemini Flash.
-- **Criterio de Aceptación:** El estudiante completa una misión de negociación simulada recibiendo un scorecard de 4 competencias y entrena su oído con segmentos fonéticos aislados antes de ver el texto.
+- **Criterio de Aceptación:** El estudiante entrena su oído con segmentos fonéticos aislados antes de ver el texto y simplifica lecturas con sobrecarga léxica mediante Gemini Flash.
 
 ---
 

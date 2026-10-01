@@ -25,6 +25,32 @@ export interface ConnectedSpeechAnalysis {
 
 export type PhonemicContrastType = 'VOWEL' | 'CONSONANT';
 
+export type SpeakerAccent = 'GA' | 'RP';
+export type SpeakerGender = 'MALE' | 'FEMALE';
+
+export interface SpeakerProfile {
+  id: string;
+  name: string;
+  accent: SpeakerAccent;
+  gender: SpeakerGender;
+  label: string;
+  pitch: number;
+  rate: number;
+}
+
+export interface FormantAcousticData {
+  f1: number; // Formant 1 in Hz (mandibular opening / height)
+  f2: number; // Formant 2 in Hz (tongue frontness / backness)
+  durationMs: number;
+  intensityDb?: number;
+  spanishAttractor?: {
+    phoneme: string;
+    f1: number;
+    f2: number;
+    warning: string;
+  };
+}
+
 export interface MinimalPairItem {
   id: string;
   wordA: string;
@@ -35,6 +61,8 @@ export interface MinimalPairItem {
   contrastType: PhonemicContrastType;
   l1PitfallEs: string;
   cefrLevel: 'A1' | 'A2' | 'B1' | 'B2';
+  formantDataA?: FormantAcousticData;
+  formantDataB?: FormantAcousticData;
 }
 
 export interface MinimalPairChallenge {
@@ -44,6 +72,7 @@ export interface MinimalPairChallenge {
   targetWord: string;
   targetIpa: string;
   timeLimitSec: number; // 2.0 s
+  speaker: SpeakerProfile;
 }
 
 export interface MinimalPairResult {
@@ -53,4 +82,5 @@ export interface MinimalPairResult {
   selectedWord: string;
   isCorrect: boolean;
   responseTimeMs: number;
+  speaker: SpeakerProfile;
 }

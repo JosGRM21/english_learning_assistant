@@ -46,10 +46,24 @@ describe('SpeedDrillTrainer', () => {
       expect(result.isCorrect).toBe(false);
       expect(result.pointsEarned).toBe(0);
     });
+
+    it('sets proceduralPass true when RT < 1500ms and false when >= 1500ms', () => {
+      const fastResult = trainer.evaluateAnswer(samplePrompt, 0, 1200, 0);
+      expect(fastResult.isCorrect).toBe(true);
+      expect(fastResult.proceduralPass).toBe(true);
+
+      const slowResult = trainer.evaluateAnswer(samplePrompt, 0, 1800, 0);
+      expect(slowResult.isCorrect).toBe(true);
+      expect(slowResult.proceduralPass).toBe(false);
+
+      const failResult = trainer.evaluateAnswer(samplePrompt, 1, 1000, 0);
+      expect(failResult.isCorrect).toBe(false);
+      expect(failResult.proceduralPass).toBe(false);
+    });
   });
 
   describe('calculateSummary', () => {
-    it('accurately summarizes session metrics', () => {
+    it('accurately summarizes session metrics including proceduralPassCount', () => {
       const results = [
         {
           promptId: 'p1',
@@ -58,6 +72,7 @@ describe('SpeedDrillTrainer', () => {
           responseTimeMs: 800,
           pointsEarned: 240,
           comboMultiplier: 2,
+          proceduralPass: true,
         },
         {
           promptId: 'p2',
@@ -66,6 +81,7 @@ describe('SpeedDrillTrainer', () => {
           responseTimeMs: 1200,
           pointsEarned: 0,
           comboMultiplier: 1,
+          proceduralPass: false,
         },
       ];
 
@@ -73,9 +89,21 @@ describe('SpeedDrillTrainer', () => {
 
       expect(summary.totalPrompts).toBe(2);
       expect(summary.correctCount).toBe(1);
+      expect(summary.proceduralPassCount).toBe(1);
       expect(summary.finalScore).toBe(240);
       expect(summary.avgResponseTimeMs).toBe(1000);
       expect(summary.maxCombo).toBe(4);
+    });
+  });
+
+  describe('planErrorRecovery', () => {
+    it('schedules recovery items using proceduralization hot recovery loop', () => {
+      const queue = trainer.createSession('CLAUSE_SHIFT', 5);
+      const failed = queue[0];
+      const updatedQueue = trainer.planErrorRecovery(queue, failed, 0);
+
+      expect(updatedQueue.length).toBeGreaterThan(queue.length);
+      expect(updatedQueue[3].id).toContain('_recovery_n3');
     });
   });
 });

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDatabase } from '@/shared/hooks/useDatabase';
+import { useSrsStore } from '@/features/srs/store/srsStore';
 import {
   VocabItem,
   VocabContextExample,
@@ -33,10 +34,11 @@ export function useVocabList() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
+  // Filters & Sorting
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCefr, setSelectedCefr] = useState<string>('ALL');
   const [selectedDimension, setSelectedDimension] = useState<string>('ALL');
+  const [sortBy, setSortBy] = useState<'RECENT' | 'ALPHA_ASC' | 'ALPHA_DESC' | 'CEFR_ASC'>('RECENT');
 
   const loadVocabData = useCallback(async () => {
     if (!vocabRepo || !isReady) return;
@@ -87,6 +89,7 @@ export function useVocabList() {
         morphologicalFamilyJson: [],
       });
 
+      let createdExample: VocabContextExample | null = null;
       // Add context example if supplied
       if (payload.exampleSentenceEn && payload.exampleSentenceEn.trim()) {
         const example = await vocabRepo.addContextExample({
@@ -96,6 +99,7 @@ export function useVocabList() {
           clozeTarget: created.word,
           cefrLevel: created.cefrLevel,
         });
+        createdExample = example;
 
         setExamplesMap((prev) => ({
           ...prev,
@@ -103,8 +107,8 @@ export function useVocabList() {
         }));
       }
 
-      // Add SRS flashcard if requested
-      if (payload.createSrsCard && cardRepo) {
+      // Add SRS flashcard by default unless explicitly disabled
+      if (payload.createSrsCard !== false && cardRepo) {
         await cardRepo.createCard({
           id: `card_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
           userId: 'user_local',
@@ -120,6 +124,9 @@ export function useVocabList() {
         });
       }
 
+      // Synchronize in-memory SRS store so that SRS & Fonología reflects the new word immediately without reload
+      useSrsStore.getState().addVocabItem(created, createdExample);
+
       // Update in-memory words list immediately
       setWords((prev) => [created, ...prev]);
       return created;
@@ -127,8 +134,8 @@ export function useVocabList() {
     [vocabRepo, cardRepo],
   );
 
-  const filteredWords = useMemo(() => {
-    return words.filter((w) => {
+  const sortedFilteredWords = useMemo(() => {
+    const list = words.filter((w) => {
       // CEFR Filter
       if (selectedCefr !== 'ALL' && w.cefrLevel !== selectedCefr) {
         return false;
@@ -153,7 +160,23 @@ export function useVocabList() {
 
       return true;
     });
-  }, [words, selectedCefr, selectedDimension, searchQuery]);
+
+    const cefrRank: Record<string, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 };
+
+    return list.sort((a, b) => {
+      switch (sortBy) {
+        case 'ALPHA_ASC':
+          return a.word.localeCompare(b.word);
+        case 'ALPHA_DESC':
+          return b.word.localeCompare(a.word);
+        case 'CEFR_ASC':
+          return (cefrRank[a.cefrLevel] ?? 99) - (cefrRank[b.cefrLevel] ?? 99);
+        case 'RECENT':
+        default:
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
+  }, [words, selectedCefr, selectedDimension, searchQuery, sortBy]);
 
   const cefrCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -174,19 +197,21 @@ export function useVocabList() {
   }, [words]);
 
   return {
-    words: filteredWords,
+    words: sortedFilteredWords,
     totalCount: words.length,
-    filteredCount: filteredWords.length,
+    filteredCount: sortedFilteredWords.length,
     examplesMap,
     isLoading,
     error,
     searchQuery,
     selectedCefr,
     selectedDimension,
+    sortBy,
     cefrCounts,
     setSearchQuery,
     setSelectedCefr,
     setSelectedDimension,
+    setSortBy,
     addWord,
     refresh: loadVocabData,
   };

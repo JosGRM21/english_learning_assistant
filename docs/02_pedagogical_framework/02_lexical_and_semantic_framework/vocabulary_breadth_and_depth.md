@@ -93,7 +93,7 @@ En la mayoría de los estudiantes intermedios, el vocabulario productivo represe
 ### La Estrategia de Conversión Activa en ELA:
 1. **Fase 1 (Recepción Comprensiva):** El ítem se reconoce por primera vez en el *Smart Graded Reader*.
 2. **Fase 2 (Recuperación Guiada):** El ítem se entrena en FSRS mediante *Cloze deletions* con pistas de traducción.
-3. **Fase 3 (Proceduralización Activa):** El ítem se exige obligatoriamente en el módulo de *Micro-Writing* y en los *Speed Drills*, cerrando la brecha entre el saber pasivo y la producción fluida.
+3. **Fase 3 (Proceduralización Activa):** El ítem se ejercita en el *Taller de Redacción* y en los *Speed Drills*, cerrando la brecha entre el saber pasivo y la producción fluida.
 
 ---
 

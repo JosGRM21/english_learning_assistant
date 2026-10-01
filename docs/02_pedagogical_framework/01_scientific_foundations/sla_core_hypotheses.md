@@ -87,7 +87,7 @@ graph LR
 
 ### 4.3. Implementación en ELA
 - Prohibición de ejercicios basados exclusivamente en reconocimiento pasivo (como tarjetas flash de solo presionar un botón).
-- **Módulo de Micro-Writing:** Ejercicios diarios de producción escrita forzada de 1 a 3 oraciones usando estructuras léxicas complejas recién aprendidas.
+- **Taller de Redacción Socrática:** Ejercicios guiados de producción escrita activa usando estructuras léxicas complejas recién aprendidas con auto-corrección reflexiva.
 - **Producción Fonética Activa:** El usuario debe grabar y contrastar su propia onda acústica frente al modelo nativo en el Laboratorio Fonético.
 
 ---
@@ -116,5 +116,5 @@ En una conversación natural o en una tutoría interactiva, esta negociación se
 | :--- | :--- | :--- | :--- |
 | **Comprehensible Input ($i+1$)** | Stephen Krashen | Construcción de representaciones semánticas implícitas. | Graduación algorítmica del *Smart Reader* garantizando $95-98\%$ de vocabulario conocido. |
 | **Noticing Hypothesis** | Richard Schmidt | Transformación de input pasivo en *intake* mediante atención consciente. | Resaltado visual en 2 colores de la brecha morfosintáctica y fonética (*Gap Highlighting*). |
-| **Comprehensible Output** | Merrill Swain | Forzamiento del procesamiento sintáctico y prueba de hipótesis lingüísticas. | Obligatoriedad de generación de oraciones contextualizadas en FSRS y Micro-Writing. |
+| **Comprehensible Output** | Merrill Swain | Forzamiento del procesamiento sintáctico y prueba de hipótesis lingüísticas. | Obligatoriedad de generación de oraciones contextualizadas en FSRS y Taller de Redacción. |
 | **Interaction Hypothesis** | Michael Long | Negociación de significado y reestructuración en tiempo real del interlenguaje. | Flujo interactivo multi-borrador en el Taller Socrático con Google Gemini. |

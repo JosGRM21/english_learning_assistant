@@ -12,6 +12,28 @@ export const MINIMAL_PAIRS_CATALOG: MinimalPairItem[] = [
     contrastType: 'VOWEL',
     l1PitfallEs: 'En español solo existe una "i" tensa. En inglés, /ɪ/ es laxa, breve y con la lengua más relajada.',
     cefrLevel: 'A1',
+    formantDataA: {
+      f1: 280,
+      f2: 2250,
+      durationMs: 240,
+      spanishAttractor: {
+        phoneme: '/i/',
+        f1: 300,
+        f2: 2200,
+        warning: 'El español asimila /ɪ/ a su "i" tensa nativa. Debe relajarse la lengua y descender ligeramente la mandíbula.',
+      },
+    },
+    formantDataB: {
+      f1: 400,
+      f2: 1920,
+      durationMs: 120,
+      spanishAttractor: {
+        phoneme: '/i/',
+        f1: 300,
+        f2: 2200,
+        warning: 'Vocal laxa /ɪ/: F1 más elevado (400 Hz) que la /i/ del español, con la mitad de duración.',
+      },
+    },
   },
   {
     id: 'mp_v_02',
@@ -23,6 +45,8 @@ export const MINIMAL_PAIRS_CATALOG: MinimalPairItem[] = [
     contrastType: 'VOWEL',
     l1PitfallEs: 'Confundir "irse/dejar" (leave /liːv/) con "vivir" (live /lɪv/).',
     cefrLevel: 'A1',
+    formantDataA: { f1: 285, f2: 2240, durationMs: 250 },
+    formantDataB: { f1: 395, f2: 1910, durationMs: 125 },
   },
   {
     id: 'mp_v_03',
@@ -34,6 +58,8 @@ export const MINIMAL_PAIRS_CATALOG: MinimalPairItem[] = [
     contrastType: 'VOWEL',
     l1PitfallEs: 'Diferencia entre el sustantivo "asiento" (/siːt/) y el verbo "sentarse" (/sɪt/).',
     cefrLevel: 'A1',
+    formantDataA: { f1: 280, f2: 2260, durationMs: 235 },
+    formantDataB: { f1: 405, f2: 1930, durationMs: 115 },
   },
   {
     id: 'mp_v_04',
@@ -45,6 +71,8 @@ export const MINIMAL_PAIRS_CATALOG: MinimalPairItem[] = [
     contrastType: 'VOWEL',
     l1PitfallEs: 'Diferencia entre "alcanzar" (/riːtʃ/) y "rico" (/rɪtʃ/).',
     cefrLevel: 'A2',
+    formantDataA: { f1: 290, f2: 2230, durationMs: 240 },
+    formantDataB: { f1: 400, f2: 1900, durationMs: 120 },
   },
   {
     id: 'mp_v_05',
@@ -56,6 +84,28 @@ export const MINIMAL_PAIRS_CATALOG: MinimalPairItem[] = [
     contrastType: 'VOWEL',
     l1PitfallEs: '/æ/ requiere abrir la mandíbula ampliamente ("gato"), mientras que /ʌ/ es neutra y central ("cortar").',
     cefrLevel: 'A2',
+    formantDataA: {
+      f1: 690,
+      f2: 1610,
+      durationMs: 220,
+      spanishAttractor: {
+        phoneme: '/a/',
+        f1: 650,
+        f2: 1400,
+        warning: '/æ/ abre la mandíbula mucho más que la /a/ española y adelanta la lengua.',
+      },
+    },
+    formantDataB: {
+      f1: 600,
+      f2: 1250,
+      durationMs: 130,
+      spanishAttractor: {
+        phoneme: '/a/',
+        f1: 650,
+        f2: 1400,
+        warning: '/ʌ/ es una vocal corta, neutra y relajada en la zona central.',
+      },
+    },
   },
   {
     id: 'mp_v_06',
@@ -157,5 +207,53 @@ export const MINIMAL_PAIRS_CATALOG: MinimalPairItem[] = [
     contrastType: 'CONSONANT',
     l1PitfallEs: '/d/ es oclusiva alveolar ("día"), mientras que /ð/ es fricativa dental sonora ("ellos").',
     cefrLevel: 'A1',
+  },
+
+  // --- RF-TRN-06: PROSTHESIS EXTINGUISHER (#sC CLUSTERS) ---
+  {
+    id: 'mp_trn_06_01',
+    wordA: 'school',
+    wordB: 'eschool',
+    ipaA: 'skuːl',
+    ipaB: 'eˈskuːl',
+    phonemicContrast: '/s/ + C vs /e/ + /s/ + C',
+    contrastType: 'CONSONANT',
+    l1PitfallEs: 'Extintor de prótesis: En español no existen palabras que comiencen por "s" líquida (#sC). Sisea primero: "ssss-school", nunca "eschool".',
+    cefrLevel: 'A1',
+  },
+  {
+    id: 'mp_trn_06_02',
+    wordA: 'student',
+    wordB: 'estudent',
+    ipaA: 'ˈstjuːdnt',
+    ipaB: 'eˈstjuːdnt',
+    phonemicContrast: '/st/ vs /est/',
+    contrastType: 'CONSONANT',
+    l1PitfallEs: 'Prótesis de [e]: Inicia directamente con la fricativa alveolar /s/, sin vocal de apoyo.',
+    cefrLevel: 'A1',
+  },
+
+  // --- RF-TRN-07: FINAL CODA PRESERVER (-ed REGULAR VERBS) ---
+  {
+    id: 'mp_trn_07_01',
+    wordA: 'walked',
+    wordB: 'walk',
+    ipaA: 'wɔːkt',
+    ipaB: 'wɔːk',
+    phonemicContrast: '/kt/ vs /k/',
+    contrastType: 'CONSONANT',
+    l1PitfallEs: 'Preservador de codas: El pasado regular tras consonante sorda /k/ termina en oclusiva /t/ (walked = /wɔːkt/). No omitas la /t/ final.',
+    cefrLevel: 'A2',
+  },
+  {
+    id: 'mp_trn_07_02',
+    wordA: 'passed',
+    wordB: 'pass',
+    ipaA: 'pæst',
+    ipaB: 'pæs',
+    phonemicContrast: '/st/ vs /s/',
+    contrastType: 'CONSONANT',
+    l1PitfallEs: 'Preservador de codas: La terminación -ed tras /s/ produce el cluster /st/. El español tiende a simplificar codas complejas.',
+    cefrLevel: 'A2',
   },
 ];

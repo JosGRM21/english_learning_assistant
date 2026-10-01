@@ -1,6 +1,6 @@
 import { Kysely, Selectable } from 'kysely';
 import { DatabaseSchema, SrsCardsTable } from '../../../core/types/database';
-import { ICardRepository } from '../../../core/repositories/ICardRepository';
+import { ICardRepository, DeckStatistics } from '../../../core/repositories/ICardRepository';
 import { SrsCard, ReviewLog, CardWithTarget, CardState, TargetType } from '../../../core/types/srs';
 import { CefrLevel, GrammaticalDimension, PartOfSpeech } from '../../../core/types/vocab';
 
@@ -43,6 +43,17 @@ export class CardRepository implements ICardRepository {
       .selectFrom('srs_cards')
       .selectAll()
       .where('id', '=', cardId)
+      .executeTakeFirst();
+
+    return row ? this.toDomain(row) : null;
+  }
+
+  async getCardByTargetId(targetId: string, targetType: TargetType = 'VOCAB'): Promise<SrsCard | null> {
+    const row = await this.db
+      .selectFrom('srs_cards')
+      .selectAll()
+      .where('target_id', '=', targetId)
+      .where('target_type', '=', targetType)
       .executeTakeFirst();
 
     return row ? this.toDomain(row) : null;
@@ -123,8 +134,12 @@ export class CardRepository implements ICardRepository {
       .execute();
   }
 
-  async getCardsWithDetails(userId: string, limit = 50): Promise<CardWithTarget[]> {
-    const cards = await this.getDueCards(userId, limit);
+  async recordReview(card: SrsCard, log: ReviewLog): Promise<void> {
+    await this.updateCard(card);
+    await this.recordReviewLog(log);
+  }
+
+  private async populateCardDetails(cards: SrsCard[]): Promise<CardWithTarget[]> {
     const results: CardWithTarget[] = [];
 
     for (const card of cards) {
@@ -182,5 +197,90 @@ export class CardRepository implements ICardRepository {
     }
 
     return results;
+  }
+
+  async getCardsWithDetails(userId: string, limit = 50): Promise<CardWithTarget[]> {
+    const cards = await this.getDueCards(userId, limit);
+    return this.populateCardDetails(cards);
+  }
+
+  async getDueCardsWithDetails(userId: string, limit = 50): Promise<CardWithTarget[]> {
+    const now = new Date().toISOString();
+    const rows = await this.db
+      .selectFrom('srs_cards')
+      .selectAll()
+      .where('user_id', '=', userId)
+      .where('state', '!=', 'NEW')
+      .where('scheduled_for', '<=', now)
+      .orderBy('scheduled_for', 'asc')
+      .limit(limit)
+      .execute();
+
+    const cards = rows.map((r) => this.toDomain(r));
+    return this.populateCardDetails(cards);
+  }
+
+  async getNewCardsWithDetails(userId: string, limit = 50): Promise<CardWithTarget[]> {
+    const rows = await this.db
+      .selectFrom('srs_cards')
+      .selectAll()
+      .where('user_id', '=', userId)
+      .where('state', '=', 'NEW')
+      .orderBy('created_at', 'asc')
+      .limit(limit)
+      .execute();
+
+    const cards = rows.map((r) => this.toDomain(r));
+    return this.populateCardDetails(cards);
+  }
+
+  async getAllCardsWithDetails(userId: string, limit = 200): Promise<CardWithTarget[]> {
+    const rows = await this.db
+      .selectFrom('srs_cards')
+      .selectAll()
+      .where('user_id', '=', userId)
+      .orderBy('scheduled_for', 'asc')
+      .limit(limit)
+      .execute();
+
+    const cards = rows.map((r) => this.toDomain(r));
+    return this.populateCardDetails(cards);
+  }
+
+  async getDeckStatistics(userId: string): Promise<DeckStatistics> {
+    const now = new Date().toISOString();
+    const all = await this.db
+      .selectFrom('srs_cards')
+      .selectAll()
+      .where('user_id', '=', userId)
+      .execute();
+
+    let newCount = 0;
+    let dueCount = 0;
+    let learningCount = 0;
+    let reviewCount = 0;
+
+    for (const row of all) {
+      if (row.state === 'NEW') {
+        newCount++;
+      } else {
+        if (row.scheduled_for <= now) {
+          dueCount++;
+        }
+        if (row.state === 'LEARNING' || row.state === 'RELEARNING') {
+          learningCount++;
+        } else if (row.state === 'REVIEW') {
+          reviewCount++;
+        }
+      }
+    }
+
+    return {
+      dueCount,
+      newCount,
+      learningCount,
+      reviewCount,
+      totalCount: all.length,
+    };
   }
 }

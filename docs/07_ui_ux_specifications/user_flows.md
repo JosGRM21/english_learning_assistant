@@ -173,30 +173,7 @@ flowchart TD
 
 ---
 
-## 7. Flujo de Shadowing Prosódico y Curva F0 (Prosody Shadowing Flow)
-
-```mermaid
-flowchart TD
-    StartProsody([Acceder a Prosody Studio]) --> SelectContour[Seleccionar patrón entonativo y frase modelo]
-    SelectContour --> PlayNativeF0[Escuchar modelo nativo + Renderizar curva F0 de referencia en azul]
-    PlayNativeF0 --> ReadyRecord[Usuario presiona 'R' o 'Grabar Voz']
-    ReadyRecord --> RecordMic[Captura de micrófono con Web Audio API]
-    RecordMic --> ProcessFFT[Algoritmo YIN / Autocorrelación extrae F0 en tiempo real < 150ms]
-    ProcessFFT --> RenderUserF0[Superponer curva del aprendiz en ámbar sobre el canvas]
-    RenderUserF0 --> AlignDTW[Calcular alineación tonal DTW y ritmo isocrónico stress-timed]
-    AlignDTW --> ScoreFeedback{¿Coincidencia >= 80%?}
-    ScoreFeedback -- Sí --> HighScore["¡Excelente entonación nativa!<br/>Acreditación prosódica"]
-    ScoreFeedback -- No --> LowScore["Detección de tendencia silábica L1.<br/>Sugerencia: alargar sílabas tónicas y reducir átonas a Schwa"]
-    HighScore --> SaveProsody[Guardar en prosody_shadowing_records]
-    LowScore --> RetryOption{¿Reintentar?}
-    RetryOption -- Sí --> ReadyRecord
-    RetryOption -- No --> SaveProsody
-    SaveProsody --> EndProsody([Fin de la sesión prosódica])
-```
-
----
-
-## 8. Flujo del Laboratorio Cognitivo y Topológico (Topo-Lab Flow)
+## 7. Flujo del Laboratorio Cognitivo y Topológico (Topo-Lab Flow)
 
 ```mermaid
 flowchart TD
@@ -223,25 +200,7 @@ flowchart TD
 
 ---
 
-## 9. Flujo de Misión Comunicativa TBLT en 3 Fases (TBLT Mission Flow)
-
-```mermaid
-flowchart TD
-    StartTBLT([Iniciar Misión TBLT]) --> PreTask["Fase 1: Pre-Task Briefing<br/>• Leer contexto del escenario real<br/>• Revisar metas obligatorias<br/>• Explorar banco de chunks y hedging recomendados"]
-    PreTask --> StartTimer["Usuario pulsa 'Comenzar Misión'<br/>Activar temporizador de presión real (5-10 min)"]
-    StartTimer --> TaskCycle["Fase 2: Task Execution<br/>• Redactar mensaje, negociación o resolución<br/>• Ajustar tono y registro formal"]
-    TaskCycle --> SubmitTask["Usuario envía misión con Ctrl+Enter"]
-    SubmitTask --> CallGemini["Invocar Gemini 3.x Flash con TBLT Post-Task Prompt"]
-    CallGemini --> EvalScores["Fase 3: Post-Task AI Review<br/>Evaluar 4 Competencias Canale & Swain:<br/>1. Lingüística<br/>2. Sociolingüística & Hedging<br/>3. Discursiva<br/>4. Estratégica"]
-    EvalScores --> DisplayRadar["Renderizar gráfico de 4 competencias y nivel CEFR demostrado"]
-    DisplayRadar --> ReviewCorrections["Revisar sugerencias de reformulación diplomática y chunks alternativos"]
-    ReviewCorrections --> SaveTBLT["Guardar en tblt_task_submissions y actualizar Heatmap"]
-    SaveTBLT --> EndTBLT([Misión finalizada])
-```
-
----
-
-## 10. Flujo de Escucha Ascendente en 3 Pasos (Bottom-Up Listening Flow)
+## 8. Flujo de Escucha Ascendente en 3 Pasos (Bottom-Up Listening Flow)
 
 ```mermaid
 flowchart TD

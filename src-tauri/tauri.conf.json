@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "English Learning Assistant (ELA)",
         "width": 1280,
         "height": 850,

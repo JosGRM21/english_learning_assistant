@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS l1_transfer_rules (
 );
 
 -- ---------------------------------------------------------------------
--- 6. Catálogo de Fonética, Habla Conectada y Prosodia Suprasegmental
+-- 6. Catálogo de Fonética y Habla Conectada
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS phonetic_rules (
     id TEXT PRIMARY KEY,
@@ -181,30 +181,6 @@ CREATE TABLE IF NOT EXISTS phonetic_rules (
 );
 
 CREATE INDEX IF NOT EXISTS idx_phonetic_rule_type ON phonetic_rules(rule_type);
-
-CREATE TABLE IF NOT EXISTS prosody_rules (
-    id TEXT PRIMARY KEY,
-    prosody_type TEXT NOT NULL CHECK(prosody_type IN ('NUCLEAR_STRESS', 'THOUGHT_GROUP', 'PITCH_FALLING', 'PITCH_RISING', 'PITCH_FALL_RISE', 'PITCH_RISE_FALL', 'QUESTION_TAG_INTONATION')),
-    title TEXT NOT NULL,
-    pragmatic_function_es TEXT NOT NULL, -- e.g. "Reserva mental, desacuerdo diplomático o hedging"
-    example_sentence TEXT NOT NULL,
-    tonic_word_index INTEGER,
-    native_f0_curve_json TEXT, -- Serie temporal de frecuencias F0 en Hz
-    created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
-);
-
-CREATE TABLE IF NOT EXISTS prosody_shadowing_records (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    prosody_rule_id TEXT NOT NULL,
-    user_f0_curve_json TEXT NOT NULL,
-    target_f0_curve_json TEXT NOT NULL,
-    prosodic_match_score REAL NOT NULL, -- Porcentaje 0.0 - 100.0%
-    audio_recording_path TEXT,
-    recorded_at TEXT NOT NULL DEFAULT (DATETIME('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (prosody_rule_id) REFERENCES prosody_rules(id) ON DELETE CASCADE
-);
 
 -- ---------------------------------------------------------------------
 -- 7. Repetición Espaciada FSRS 4.5 & Proceduralización
@@ -266,38 +242,6 @@ CREATE TABLE IF NOT EXISTS speed_drill_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_drills_user_type ON speed_drill_sessions(user_id, drill_type);
 
--- ---------------------------------------------------------------------
--- 9. Taller Basado en Tareas (TBLT) y Evaluación de 4 Competencias
--- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS tblt_tasks (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    scenario_description TEXT NOT NULL, -- Contexto pragmático auténtico
-    cefr_level TEXT NOT NULL CHECK(cefr_level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
-    task_type TEXT NOT NULL CHECK(task_type IN ('INFO_EXCHANGE', 'PROBLEM_SOLVING', 'NEGOTIATION', 'PERSUASION_DIPLOMACY')),
-    suggested_priming_chunks_json TEXT NOT NULL, -- Chunks sugeridos en Pre-Task
-    expected_non_linguistic_outcome TEXT NOT NULL,
-    time_limit_minutes INTEGER NOT NULL DEFAULT 15,
-    created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
-);
-
-CREATE TABLE IF NOT EXISTS tblt_task_submissions (
-    id TEXT PRIMARY KEY,
-    task_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    during_task_text TEXT NOT NULL,
-    linguistic_score REAL NOT NULL,      -- 0.0 - 10.0 (Gramática y léxico)
-    sociolinguistic_score REAL NOT NULL, -- 0.0 - 10.0 (Registro, cortesía, hedging)
-    discursive_score REAL NOT NULL,      -- 0.0 - 10.0 (Cohesión, conectores, anáfora)
-    strategic_score REAL NOT NULL,       -- 0.0 - 10.0 (Paráfrasis, autorreparación)
-    overall_score REAL NOT NULL,
-    fonf_feedback_json TEXT NOT NULL,    -- Focus on Form estructurado
-    submitted_at TEXT NOT NULL DEFAULT (DATETIME('now')),
-    FOREIGN KEY (task_id) REFERENCES tblt_tasks(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_tblt_user ON tblt_task_submissions(user_id, task_id);
 
 -- ---------------------------------------------------------------------
 -- 10. Taller de Redacción Socrática con Google Gemini
@@ -368,7 +312,7 @@ CREATE TABLE IF NOT EXISTS user_errors (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     error_taxonomy_id TEXT NOT NULL,
-    source TEXT NOT NULL CHECK(source IN ('SRS', 'WRITING_EVALUATION', 'PHONETICS_DRILL', 'SPEED_DRILL', 'TBLT')),
+    source TEXT NOT NULL CHECK(source IN ('SRS', 'WRITING_EVALUATION', 'PHONETICS_DRILL', 'SPEED_DRILL')),
     source_reference_id TEXT,
     context_snippet TEXT,
     incorrect_token TEXT,
@@ -474,7 +418,7 @@ CREATE TABLE IF NOT EXISTS daily_quests (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     quest_date TEXT NOT NULL,
-    quest_type TEXT NOT NULL CHECK(quest_type IN ('VOCAB_SRS', 'PHONETICS_PROSODY', 'TBLT_MISSION', 'MICRO_WORKOUT', 'SPEED_DRILL', 'GRADED_READER')),
+    quest_type TEXT NOT NULL CHECK(quest_type IN ('VOCAB_SRS', 'MICRO_WORKOUT', 'SPEED_DRILL', 'GRADED_READER')),
     description TEXT NOT NULL,
     estimated_time_minutes INTEGER NOT NULL DEFAULT 5,
     target_count INTEGER NOT NULL DEFAULT 1,

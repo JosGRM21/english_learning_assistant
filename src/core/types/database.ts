@@ -5,8 +5,10 @@ export interface UsersTable {
   username: string;
   target_accent: 'GENERAL_AMERICAN' | 'RECEIVED_PRONUNCIATION';
   current_cefr_target: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
-  default_ai_model: Generated<'gemini-3.5-flash' | 'gemini-3.6-flash' | 'gemini-3.7-flash' | 'gemini-3.8-flash'>;
+  default_ai_model: Generated<'gemini-3.5-flash-lite' | 'gemini-3.6-flash' | 'gemini-3.7-flash' | 'gemini-3.8-flash'>;
   api_key_rotation_mode: Generated<'FAILOVER_ON_QUOTA' | 'MANUAL_PRIMARY' | 'ROUND_ROBIN'>;
+  backlog_throttling_enabled: Generated<number>;
+  max_daily_review_limit: Generated<number>;
   created_at: Generated<string>;
 }
 
@@ -26,7 +28,7 @@ export interface AiApiKeysTable {
 export interface ApiKeyModelQuotasTable {
   id: string;
   api_key_id: string;
-  model_id: 'gemini-3.5-flash' | 'gemini-3.6-flash' | 'gemini-3.7-flash' | 'gemini-3.8-flash';
+  model_id: 'gemini-3.5-flash-lite' | 'gemini-3.6-flash' | 'gemini-3.7-flash' | 'gemini-3.8-flash';
   requests_today: number;
   daily_limit: number;
   rpm_limit: number;
@@ -61,9 +63,30 @@ export interface PhraseologicalUnitsTable {
   text: string;
   meaning_es: string;
   phrasal_verb_type: string | null;
+  pronoun_must_split: Generated<number>;
   example_1: string;
   example_2: string | null;
   cefr_level: string;
+  created_at: Generated<string>;
+}
+
+export interface ConceptualMotionVerbsTable {
+  id: string;
+  verb_base: string;
+  manner_description_es: string;
+  satellite_particles_json: string;
+  spanish_static_equivalent: string;
+  cefr_level: Generated<string>;
+  example_sentence: string;
+  created_at: Generated<string>;
+}
+
+export interface PolysemicPairsTable {
+  id: string;
+  pair_code: string;
+  title: string;
+  explanation_es: string;
+  contrast_matrix_json: string;
   created_at: Generated<string>;
 }
 
@@ -76,6 +99,17 @@ export interface GrammarRulesTable {
   formula_syntax: string | null;
   contrastive_l1_note: string | null;
   cefr_level: string;
+  created_at: Generated<string>;
+}
+
+export interface L1TransferRulesTable {
+  id: string;
+  rule_code: string;
+  domain: 'MORPHOSYNTACTIC' | 'PHONOLOGICAL' | 'LEXICAL' | 'PRAGMATIC';
+  spanish_misconception: string;
+  target_english_rule: string;
+  exercise_template_json: string;
+  severity: Generated<'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'>;
   created_at: Generated<string>;
 }
 
@@ -94,22 +128,25 @@ export interface PhoneticRulesTable {
 export interface SrsCardsTable {
   id: string;
   user_id: string;
-  target_type: 'VOCAB' | 'PHRASE' | 'GRAMMAR' | 'PHONETICS';
+  target_type: 'VOCAB' | 'PHRASE' | 'GRAMMAR' | 'PHONETICS' | 'L1_TRANSFER';
   target_id: string;
   state: 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING';
   stability: number;
   difficulty: number;
   reps: number;
   lapses: number;
+  is_proceduralized: Generated<number>;
+  consecutive_fast_retrievals: Generated<number>;
+  last_reaction_time_ms: number | null;
   last_reviewed_at: string | null;
-  scheduled_for: string;
+  scheduled_for: Generated<string>;
   created_at: Generated<string>;
 }
 
 export interface ReviewLogsTable {
   id: string;
   card_id: string;
-  rating: number;
+  rating: 1 | 2 | 3 | 4;
   state_before: string;
   stability_before: number;
   difficulty_before: number;
@@ -117,6 +154,24 @@ export interface ReviewLogsTable {
   new_difficulty: number;
   elapsed_ms: number;
   reviewed_at: Generated<string>;
+}
+
+export interface SpeedDrillSessionsTable {
+  id: string;
+  user_id: string;
+  drill_type:
+    | 'CLAUSE_SHIFT'
+    | 'THIRD_PERSON_AUTOMATION'
+    | 'PREPOSITION_REFLEX'
+    | 'AUDITORY_SNAP_HVPT'
+    | 'COLLOCATION_BLITZ'
+    | 'PREPOSITION_RAPID_FIRE'
+    | 'CONNECTED_SPEECH_EAR';
+  total_prompts: number;
+  correct_count: number;
+  procedural_pass_count: Generated<number>;
+  avg_response_time_ms: number;
+  completed_at: Generated<string>;
 }
 
 export interface WritingPromptsTable {
@@ -133,16 +188,28 @@ export interface WritingSubmissionsTable {
   id: string;
   user_id: string;
   prompt_id: string | null;
+  submission_mode: Generated<'FREE' | 'GUIDED' | 'MICRO_WRITING'>;
   user_text: string;
   word_count: number;
-  status: 'DRAFT' | 'EVALUATING' | 'EVALUATED' | 'ERROR';
+  status: 'DRAFT' | 'SOCRATIC_PHASE_1' | 'SOCRATIC_PHASE_2' | 'EVALUATED' | 'ERROR';
   submitted_at: Generated<string>;
+}
+
+export interface WritingDraftRevisionsTable {
+  id: string;
+  submission_id: string;
+  revision_number: number;
+  draft_text: string;
+  ai_scaffold_level: Generated<'LEVEL_1_ELICITATION' | 'LEVEL_2_METALINGUISTIC' | 'LEVEL_3_CLOZE' | 'LEVEL_4_EXPLICIT_MODEL'>;
+  ai_hints_json: string | null;
+  resolved_errors_count: number;
+  created_at: Generated<string>;
 }
 
 export interface WritingEvaluationsTable {
   id: string;
   submission_id: string;
-  model_used: string;
+  model_used: 'gemini-3.5-flash-lite' | 'gemini-3.6-flash' | 'gemini-3.7-flash' | 'gemini-3.8-flash';
   estimated_cefr: string;
   grammar_score: number;
   vocabulary_score: number;
@@ -156,8 +223,8 @@ export interface WritingEvaluationsTable {
 export interface ErrorTaxonomyTable {
   id: string;
   code: string;
-  domain: string;
-  severity: string;
+  domain: 'GRAMMAR' | 'LEXICON' | 'PHONETICS' | 'PRAGMATICS';
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   label_es: string;
   detailed_explanation_es: string;
 }
@@ -166,7 +233,7 @@ export interface UserErrorsTable {
   id: string;
   user_id: string;
   error_taxonomy_id: string;
-  source: 'SRS' | 'WRITING_EVALUATION' | 'PHONETICS_DRILL';
+  source: 'SRS' | 'WRITING_EVALUATION' | 'PHONETICS_DRILL' | 'SPEED_DRILL';
   source_reference_id: string | null;
   context_snippet: string | null;
   incorrect_token: string | null;
@@ -202,6 +269,7 @@ export interface UserStreaksTable {
   longest_streak: number;
   last_activity_date: string | null;
   available_freezes: number;
+  is_in_grace_period: Generated<number>;
   updated_at: Generated<string>;
 }
 
@@ -218,7 +286,13 @@ export interface DailyQuestsTable {
   id: string;
   user_id: string;
   quest_date: string;
-  quest_type: 'VOCAB_SRS' | 'PHONETICS_LISTEN' | 'WRITING_SUBMISSION' | 'MICRO_WORKOUT' | 'SPEED_DRILL' | 'GRADED_READER';
+  quest_type:
+    | 'VOCAB_SRS'
+    | 'PHONETICS_LISTEN'
+    | 'MICRO_WORKOUT'
+    | 'SPEED_DRILL'
+    | 'GRADED_READER'
+    | 'WRITING_SUBMISSION';
   description: string;
   target_count: number;
   current_count: number;
@@ -246,28 +320,12 @@ export interface ReaderArticlesTable {
   source_url: string | null;
   cefr_level: string | null;
   total_words: number;
+  lexical_coverage_ratio: Generated<number>;
+  reading_mode: Generated<'EXTENSIVE' | 'INTENSIVE' | 'OVERLOAD'>;
+  is_simplified: Generated<number>;
+  bottom_up_stage: Generated<'STEP_1_BLIND' | 'STEP_2_TONIC' | 'STEP_3_FULL'>;
   read_percentage: number;
   created_at: Generated<string>;
-}
-
-export interface WritingDraftRevisionsTable {
-  id: string;
-  submission_id: string;
-  revision_number: number;
-  draft_text: string;
-  ai_hints_json: string | null;
-  resolved_errors_count: number;
-  created_at: Generated<string>;
-}
-
-export interface SpeedDrillSessionsTable {
-  id: string;
-  user_id: string;
-  drill_type: 'COLLOCATION_BLITZ' | 'PREPOSITION_RAPID_FIRE' | 'CONNECTED_SPEECH_EAR';
-  total_prompts: number;
-  correct_count: number;
-  avg_response_time_ms: number;
-  completed_at: Generated<string>;
 }
 
 export interface DatabaseSchema {
@@ -276,12 +334,17 @@ export interface DatabaseSchema {
   api_key_model_quotas: ApiKeyModelQuotasTable;
   vocab_items: VocabItemsTable;
   phraseological_units: PhraseologicalUnitsTable;
+  conceptual_motion_verbs: ConceptualMotionVerbsTable;
+  polysemic_pairs: PolysemicPairsTable;
   grammar_rules: GrammarRulesTable;
+  l1_transfer_rules: L1TransferRulesTable;
   phonetic_rules: PhoneticRulesTable;
   srs_cards: SrsCardsTable;
   review_logs: ReviewLogsTable;
+  speed_drill_sessions: SpeedDrillSessionsTable;
   writing_prompts: WritingPromptsTable;
   writing_submissions: WritingSubmissionsTable;
+  writing_draft_revisions: WritingDraftRevisionsTable;
   writing_evaluations: WritingEvaluationsTable;
   error_taxonomy: ErrorTaxonomyTable;
   user_errors: UserErrorsTable;
@@ -292,6 +355,4 @@ export interface DatabaseSchema {
   daily_quests: DailyQuestsTable;
   vocab_context_examples: VocabContextExamplesTable;
   reader_articles: ReaderArticlesTable;
-  writing_draft_revisions: WritingDraftRevisionsTable;
-  speed_drill_sessions: SpeedDrillSessionsTable;
 }

@@ -9,13 +9,13 @@ export type GeminiModelId =
   | 'gemini-3.8-flash'
   | 'gemini-3.7-flash'
   | 'gemini-3.6-flash'
-  | 'gemini-3.5-flash';
+  | 'gemini-3.5-flash-lite';
 
 export const GEMINI_MODEL_HIERARCHY: GeminiModelId[] = [
   'gemini-3.8-flash',
   'gemini-3.7-flash',
   'gemini-3.6-flash',
-  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
 ];
 
 export interface ModelQuotaState {
@@ -119,6 +119,13 @@ export class QuotaMatrixOrchestrator {
   public toggleApiKey(keyId: string): void {
     const key = this.apiKeys.find((k) => k.id === keyId);
     if (key) {
+      if (this.apiKeys.length <= 1 && key.isActive) {
+        return;
+      }
+      const activeCount = this.apiKeys.filter((k) => k.isActive).length;
+      if (key.isActive && activeCount <= 1) {
+        return;
+      }
       key.isActive = !key.isActive;
     }
   }
@@ -142,7 +149,7 @@ export class QuotaMatrixOrchestrator {
       'gemini-3.8-flash': 0,
       'gemini-3.7-flash': 0,
       'gemini-3.6-flash': 0,
-      'gemini-3.5-flash': 0,
+      'gemini-3.5-flash-lite': 0,
     };
 
     for (const model of GEMINI_MODEL_HIERARCHY) {
@@ -182,8 +189,12 @@ export class QuotaMatrixOrchestrator {
 
 
   public setApiKeys(keys: ApiKeyEntry[]): void {
-    this.apiKeys = [...keys];
-    for (const key of keys) {
+    this.apiKeys = keys.map((k) => ({ ...k }));
+    if (this.apiKeys.length === 1) {
+      this.apiKeys[0].isActive = true;
+      this.apiKeys[0].isPrimary = true;
+    }
+    for (const key of this.apiKeys) {
       for (const model of GEMINI_MODEL_HIERARCHY) {
         const id = this.getQuotaKey(key.id, model);
         if (!this.quotaMap.has(id)) {
@@ -234,8 +245,10 @@ export class QuotaMatrixOrchestrator {
       if (quota.lastPtResetDate !== todayPt) {
         quota.requestsToday = 0;
         quota.rpdStatus = 'AVAILABLE';
-        quota.rpmCooldownUntil = null;
         quota.lastPtResetDate = todayPt;
+      }
+      if (quota.rpmCooldownUntil && now >= new Date(quota.rpmCooldownUntil)) {
+        quota.rpmCooldownUntil = null;
       }
     }
   }
@@ -353,8 +366,14 @@ export class QuotaMatrixOrchestrator {
       lower.includes('retry-after') ||
       lower.includes('rate limit');
 
-    if (isRpm) {
-      // 30 seconds RPM cooldown
+    const isServerOverload =
+      lower.includes('503') ||
+      lower.includes('unavailable') ||
+      lower.includes('overloaded') ||
+      lower.includes('high demand');
+
+    if (isRpm || isServerOverload) {
+      // 30 seconds RPM / overload cooldown
       const cooldown = new Date(now.getTime() + 30 * 1000);
       quota.rpmCooldownUntil = cooldown.toISOString();
     } else {

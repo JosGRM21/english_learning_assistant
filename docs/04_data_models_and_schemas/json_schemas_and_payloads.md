@@ -590,84 +590,7 @@ Este esquema se inyecta en Gemini cuando el estudiante solicita evaluación socr
 
 ---
 
-## 11. Esquema de Evaluación TBLT y 4 Competencias Comunicativas (AiTbltEvaluationResponse)
-
-Este esquema se inyecta en Gemini (`gemini-3.8-flash`) en la fase Post-Task para evaluar tareas bajo el marco de Canale, Swain, Bachman y Ellis:
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AiTbltEvaluationResponse",
-  "type": "object",
-  "required": [
-    "task_id",
-    "non_linguistic_outcome_achieved",
-    "competence_scores",
-    "overall_score",
-    "pragmatic_analysis_es",
-    "focus_on_form_recs"
-  ],
-  "properties": {
-    "task_id": { "type": "string" },
-    "non_linguistic_outcome_achieved": {
-      "type": "boolean",
-      "description": "True si el mensaje resolvió el objetivo del escenario (e.g. resolver reclamo, acordar reunión)."
-    },
-    "competence_scores": {
-      "type": "object",
-      "required": ["linguistic", "sociolinguistic_hedging", "discursive", "strategic"],
-      "properties": {
-        "linguistic": {
-          "type": "number",
-          "minimum": 0.0,
-          "maximum": 10.0,
-          "description": "Precisión morfosintáctica y riqueza léxica."
-        },
-        "sociolinguistic_hedging": {
-          "type": "number",
-          "minimum": 0.0,
-          "maximum": 10.0,
-          "description": "Adecuación de registro, distancia social, cortesía y uso de hedging/indirectness."
-        },
-        "discursive": {
-          "type": "number",
-          "minimum": 0.0,
-          "maximum": 10.0,
-          "description": "Cohesión textual, transiciones lógicas y mantenimiento anafórico."
-        },
-        "strategic": {
-          "type": "number",
-          "minimum": 0.0,
-          "maximum": 10.0,
-          "description": "Eficacia en paráfrasis, circunlocución y compensación de vacíos léxicos."
-        }
-      }
-    },
-    "overall_score": { "type": "number", "minimum": 0.0, "maximum": 10.0 },
-    "pragmatic_analysis_es": {
-      "type": "string",
-      "description": "Análisis cualitativo del impacto comunicativo real y tono adoptado."
-    },
-    "focus_on_form_recs": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["user_utterance", "target_reformulation", "linguistic_rule_es", "chunk_to_memorize"],
-        "properties": {
-          "user_utterance": { "type": "string" },
-          "target_reformulation": { "type": "string" },
-          "linguistic_rule_es": { "type": "string" },
-          "chunk_to_memorize": { "type": "string" }
-        }
-      }
-    }
-  }
-}
-```
-
----
-
-## 12. Esquema de Simplificación Contextual Inteligente (AiTextSimplificationResponse)
+## 11. Esquema de Simplificación Contextual Inteligente (AiTextSimplificationResponse)
 
 Utilizado para reescribir textos con sobrecarga léxica ($<95\%$) ajustándolos al umbral de Krashen y Nation:
 
@@ -713,42 +636,5 @@ Utilizado para reescribir textos con sobrecarga léxica ($<95\%$) ajustándolos 
 }
 ```
 
----
-
-## 13. Esquema de Prosodic Shadowing y Tono F0 (ProsodyShadowingPayload)
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "ProsodyShadowingPayload",
-  "type": "object",
-  "required": [
-    "rule_id",
-    "user_id",
-    "time_series_hz",
-    "prosody_match_score",
-    "intonation_pattern_detected"
-  ],
-  "properties": {
-    "rule_id": { "type": "string" },
-    "user_id": { "type": "string" },
-    "time_series_hz": {
-      "type": "array",
-      "items": { "type": "number" },
-      "description": "Valores temporales de F0 en Hz muestreados cada 20 ms."
-    },
-    "prosody_match_score": {
-      "type": "number",
-      "minimum": 0.0,
-      "maximum": 100.0,
-      "example": 89.5
-    },
-    "intonation_pattern_detected": {
-      "type": "string",
-      "enum": ["FALLING", "RISING", "FALL_RISE", "RISE_FALL", "MONOTONE"]
-    }
-  }
-}
-```
 
 

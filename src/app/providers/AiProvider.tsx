@@ -1,7 +1,6 @@
 import React, { createContext, useMemo } from 'react';
 import { IAiGateway } from '@/infrastructure/ai/IAiGateway';
 import { GeminiAiGateway } from '@/infrastructure/ai/GeminiAiGateway';
-import { MockAiGateway } from '@/infrastructure/ai/MockAiGateway';
 import { QuotaMatrixOrchestrator } from '@/core/ai/QuotaMatrixOrchestrator';
 import {
   SocraticFeedbackResponse,
@@ -21,7 +20,19 @@ function loadInitialKeys() {
     const raw = typeof window !== 'undefined' ? localStorage.getItem('ela_ai_api_keys') : null;
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const hasActive = parsed.some((k) => k.isActive);
+        if (!hasActive || parsed.length === 1) {
+          parsed[0].isActive = true;
+          parsed[0].isPrimary = true;
+          try {
+            localStorage.setItem('ela_ai_api_keys', JSON.stringify(parsed));
+          } catch {
+            // ignore
+          }
+        }
+        return parsed;
+      }
     }
   } catch {
     // ignore
@@ -31,26 +42,26 @@ function loadInitialKeys() {
 
 class DelegatingAiGateway implements IAiGateway {
   private readonly geminiGateway: GeminiAiGateway;
-  private readonly mockGateway: MockAiGateway;
 
   constructor(private readonly orchestrator: QuotaMatrixOrchestrator) {
     this.geminiGateway = new GeminiAiGateway(orchestrator);
-    this.mockGateway = new MockAiGateway();
   }
 
   private hasActiveKeys(): boolean {
     return this.orchestrator.getApiKeys().some((k) => k.isActive && k.secretKey.trim().length > 0);
   }
 
-  async evaluateSocraticPhase1(userText: string, _cefrTarget?: string): Promise<SocraticFeedbackResponse> {
-    if (this.hasActiveKeys()) {
-      try {
-        return await this.geminiGateway.evaluateSocraticPhase1(userText);
-      } catch (err) {
-        console.warn('Gemini gateway failed, falling back to mock:', err);
-      }
+  private assertActiveKey(): void {
+    if (!this.hasActiveKeys()) {
+      throw new Error(
+        'No hay ninguna API Key de Google Gemini configurada o activa. Por favor ve a la pestaña "Modelos de IA" para agregar tu clave.'
+      );
     }
-    return this.mockGateway.evaluateSocraticPhase1(userText);
+  }
+
+  async evaluateSocraticPhase1(userText: string, _cefrTarget?: string): Promise<SocraticFeedbackResponse> {
+    this.assertActiveKey();
+    return await this.geminiGateway.evaluateSocraticPhase1(userText);
   }
 
   async evaluateFinalPhase2(
@@ -58,25 +69,13 @@ class DelegatingAiGateway implements IAiGateway {
     draft2: string,
     cefrTarget?: string,
   ): Promise<WritingEvaluationResponse> {
-    if (this.hasActiveKeys()) {
-      try {
-        return await this.geminiGateway.evaluateFinalPhase2(draft1, draft2, cefrTarget);
-      } catch (err) {
-        console.warn('Gemini gateway failed, falling back to mock:', err);
-      }
-    }
-    return this.mockGateway.evaluateFinalPhase2(draft1, draft2, cefrTarget);
+    this.assertActiveKey();
+    return await this.geminiGateway.evaluateFinalPhase2(draft1, draft2, cefrTarget);
   }
 
   async lookupVocabWord(word: string): Promise<VocabEnrichmentResponse> {
-    if (this.hasActiveKeys()) {
-      try {
-        return await this.geminiGateway.lookupVocabWord(word);
-      } catch (err) {
-        console.warn('Gemini gateway lookup failed, falling back to mock:', err);
-      }
-    }
-    return this.mockGateway.lookupVocabWord(word);
+    this.assertActiveKey();
+    return await this.geminiGateway.lookupVocabWord(word);
   }
 }
 

@@ -11,7 +11,10 @@ import {
 } from './schemas';
 
 export class MockAiGateway implements IAiGateway {
-  public async evaluateSocraticPhase1(userText: string): Promise<SocraticFeedbackResponse> {
+  public async evaluateSocraticPhase1(
+    userText: string,
+    _cefrTarget = 'B1',
+  ): Promise<SocraticFeedbackResponse> {
     // Artificial slight latency simulation (sub-50ms in mock)
     await new Promise((r) => setTimeout(r, 40));
 
@@ -19,26 +22,38 @@ export class MockAiGateway implements IAiGateway {
     const lower = userText.toLowerCase();
 
     if (lower.includes('depend of') || lower.includes('depends of')) {
+      const area = lower.includes('depends of') ? 'depends of' : 'depend of';
       clues.push({
         paragraph_index: 1,
         clue_type: 'PREPOSITION',
         hint_question_es:
           "Revisa el verbo 'depend': en español decimos 'depende de', pero en inglés siempre se apoya sobre una superficie figurada. ¿Cuál es esa preposición?",
-        highlighted_area: lower.includes('depends of') ? 'depends of' : 'depend of',
+        highlighted_area: area,
+        zpd_contrastive_es:
+          'En español usamos "de" ("depende de ti"), pero en inglés el verbo "depend" rige obligatoriamente la preposición dependiente fija "on" (o formalmente "upon").',
+        zpd_cloze_sentence: `${area.split(' ')[0]} [ ___ ] the circumstances`,
+        zpd_expected_token: 'on',
+        zpd_native_model: `Colocación estándar nativa: "${area.replace(/\b(of|de)\b/gi, 'on')}".`,
       });
     }
 
     if (lower.includes('am agree') || lower.includes('is agree') || lower.includes('are agree')) {
+      const area = lower.includes('am agree')
+        ? 'am agree'
+        : lower.includes('is agree')
+          ? 'is agree'
+          : 'are agree';
       clues.push({
         paragraph_index: 1,
         clue_type: 'AGREEMENT',
         hint_question_es:
           "En inglés, 'agree' ya es una acción/verbo por sí mismo. ¿Es necesario añadir el verbo 'to be' antes de él?",
-        highlighted_area: lower.includes('am agree')
-          ? 'am agree'
-          : lower.includes('is agree')
-            ? 'is agree'
-            : 'are agree',
+        highlighted_area: area,
+        zpd_contrastive_es:
+          'En español usamos la perífrasis "estar de acuerdo", pero en inglés "agree" es un verbo directo por sí solo. Por lo tanto, no lleva verbo "to be". Decimos "I agree", nunca "I am agree".',
+        zpd_cloze_sentence: 'I [ ___ ] with your proposal completely.',
+        zpd_expected_token: 'agree',
+        zpd_native_model: 'Uso nativo: "I agree with you" / "She agrees with the team".',
       });
     }
 
@@ -49,6 +64,11 @@ export class MockAiGateway implements IAiGateway {
         hint_question_es:
           "'Actually' es un falso amigo muy engañoso. ¿Recuerdas qué adverbio usamos en inglés para expresar 'en este momento/en la actualidad'?",
         highlighted_area: 'actually',
+        zpd_contrastive_es:
+          '"Actually" no significa "actualmente", sino "en realidad" o "de hecho". Para referirte al tiempo presente o actual en inglés se utiliza "currently", "nowadays" o "at present".',
+        zpd_cloze_sentence: '[ ___ ], I am working on several high-priority tasks.',
+        zpd_expected_token: 'currently',
+        zpd_native_model: 'Uso nativo: "Currently, we are analyzing the metrics" / "Actually, that is correct (de hecho)".',
       });
     }
 
@@ -59,6 +79,11 @@ export class MockAiGateway implements IAiGateway {
         hint_question_es:
           "¿Recuerdas cómo conceptualiza el idioma inglés la edad? ¿Se 'tiene' la edad o se 'es' de esa edad?",
         highlighted_area: 'have ... years',
+        zpd_contrastive_es:
+          'En español "tenemos" años (posesión de tiempo), pero en la lingüística cognitiva anglosajona la edad es un estado de existencia que se expresa con el verbo "to be" ("I am 28 years old").',
+        zpd_cloze_sentence: 'I [ ___ ] 25 years old.',
+        zpd_expected_token: 'am',
+        zpd_native_model: 'Uso nativo: "I am 25 years old" o simplemente "I am 25".',
       });
     }
 
@@ -70,6 +95,11 @@ export class MockAiGateway implements IAiGateway {
         hint_question_es:
           "Tu idea se entiende claramente. ¿Podrías enriquecer esta oración utilizando un conector formal como 'furthermore' o 'on the other hand'?",
         highlighted_area: userText.slice(0, Math.min(25, userText.length)),
+        zpd_contrastive_es:
+          'Para alcanzar niveles intermedios-avanzados (B2/C1), conectar ideas con discourse markers enriquece la coherencia textual.',
+        zpd_cloze_sentence: '[ ___ ], this approach guarantees optimal performance.',
+        zpd_expected_token: 'furthermore',
+        zpd_native_model: 'Uso nativo: "Furthermore, the data indicates an upward trend."',
       });
     }
 
@@ -139,7 +169,7 @@ export class MockAiGateway implements IAiGateway {
     const result: WritingEvaluationResponse = {
       overall_feedback_es:
         corrections.length === 0
-          ? '¡Felicitaciones! Has corregido exitosamente todos los puntos observados en el andamiaje socrático. Tu texto final suena natural y gramaticalmente preciso.'
+          ? '¡Felicitaciones! Has corregido exitosamente todas las observaciones de tu borrador. Tu texto final suena natural y gramaticalmente preciso.'
           : 'Buen avance en tu segundo borrador. Observa el desglose comparativo y la reformulación nativa para consolidar las diferencias con el español.',
       estimated_cefr: estimatedCefr,
       scores: {

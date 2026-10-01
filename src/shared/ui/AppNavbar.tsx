@@ -1,4 +1,4 @@
-import { Database, CheckCircle2, AlertCircle, ChevronRight, Menu } from 'lucide-react';
+import { Database, AlertCircle, ChevronRight, Menu } from 'lucide-react';
 import { APP_TABS, AppTab } from '@/shared/constants/app-tabs';
 import { useDatabase } from '@/shared/hooks/useDatabase';
 
@@ -40,12 +40,7 @@ export function AppNavbar({ activeTab, onToggleMobileMenu }: AppNavbarProps) {
 
       {/* Right: System & Database Status */}
       <div className="flex items-center gap-3 shrink-0">
-        {isReady ? (
-          <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80">
-            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
-            <span>SQLite Conectado</span>
-          </div>
-        ) : error ? (
+        {error ? (
           <button
             onClick={retry}
             className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/80 hover:bg-rose-100 transition-colors cursor-pointer"
@@ -54,12 +49,12 @@ export function AppNavbar({ activeTab, onToggleMobileMenu }: AppNavbarProps) {
             <AlertCircle className="w-3.5 h-3.5 mr-1.5 text-rose-500" />
             <span>Reintentar Conexión</span>
           </button>
-        ) : (
+        ) : !isReady ? (
           <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80">
             <Database className="w-3.5 h-3.5 mr-1.5 text-amber-500 animate-pulse" />
             <span>Conectando DB...</span>
           </div>
-        )}
+        ) : null}
       </div>
     </header>
   );

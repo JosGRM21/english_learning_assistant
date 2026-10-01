@@ -17,7 +17,17 @@ function loadStoredKeys(): ApiKeyEntry[] {
     const raw = localStorage.getItem(STORAGE_KEYS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const hasActive = parsed.some((k) => k.isActive);
+        if (!hasActive || parsed.length === 1) {
+          parsed[0].isActive = true;
+          parsed[0].isPrimary = true;
+          try {
+            localStorage.setItem(STORAGE_KEYS_KEY, JSON.stringify(parsed));
+          } catch {
+            // ignore
+          }
+        }
         return parsed;
       }
     }
@@ -140,11 +150,50 @@ export function useQuotaMatrix() {
   }, []);
 
   const toggleApiKey = useCallback((keyId: string) => {
-    setKeys((prev) =>
-      prev.map((k) => (k.id === keyId ? { ...k, isActive: !k.isActive } : k)),
-    );
+    setKeys((prev) => {
+      if (prev.length <= 1) {
+        return prev.map((k) => (k.id === keyId ? { ...k, isActive: true, isPrimary: true } : k));
+      }
+      const target = prev.find((k) => k.id === keyId);
+      const activeCount = prev.filter((k) => k.isActive).length;
+      if (target?.isActive && activeCount <= 1) {
+        return prev;
+      }
+      return prev.map((k) => (k.id === keyId ? { ...k, isActive: !k.isActive } : k));
+    });
     setTick((t) => t + 1);
   }, []);
+
+  const testApiKey = useCallback(
+    async (secretKey: string): Promise<{ success: boolean; message: string }> => {
+      try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({ apiKey: secretKey.trim() });
+        const modelToUse = orchestrator.getDefaultModel();
+        const res = await ai.models.generateContent({
+          model: modelToUse,
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: 'Respond with the single word: "READY"' }],
+            },
+          ],
+        });
+        const text = res.text?.trim() ?? 'READY';
+        return {
+          success: true,
+          message: `Conexión exitosa con Google Gemini (${modelToUse}: "${text}")`,
+        };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+          success: false,
+          message: msg,
+        };
+      }
+    },
+    [orchestrator],
+  );
 
   const setPrimaryApiKey = useCallback((keyId: string) => {
     setKeys((prev) =>
@@ -166,6 +215,7 @@ export function useQuotaMatrix() {
     removeApiKey,
     toggleApiKey,
     setPrimaryApiKey,
+    testApiKey,
     timeUntilReset,
     models: GEMINI_MODEL_HIERARCHY,
     formatCountdown,

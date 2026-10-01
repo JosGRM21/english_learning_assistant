@@ -3,6 +3,7 @@ import { OverviewDashboard } from '@/features/dashboard/components/OverviewDashb
 import { VocabCatalogView } from '@/features/vocab/components/VocabCatalogView';
 import { SrsReviewSession } from '@/features/srs/components/SrsReviewSession';
 import { MinimalPairsGym } from '@/features/phonology/components/MinimalPairsGym';
+import { SemanticsStudio } from '@/features/semantics/components/SemanticsStudio';
 import { SpeedDrillArena } from '@/features/drills/components/SpeedDrillArena';
 import { SocraticWritingStudio } from '@/features/writing/components/SocraticWritingStudio';
 import { GradedReaderView } from '@/features/reader/components/GradedReaderView';
@@ -28,6 +29,8 @@ export function AppRouter({ activeTab, onNavigateTab }: AppRouterProps) {
       return <VocabCatalogView />;
     case 'srs':
       return <SrsReviewSession onNavigateTab={(tab) => onNavigateTab(tab as AppTab)} />;
+    case 'semantics':
+      return <SemanticsStudio />;
     case 'minimal_pairs':
       return <MinimalPairsGym />;
     case 'drills':

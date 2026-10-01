@@ -31,7 +31,8 @@ export class GeminiAiGateway implements IAiGateway {
 
     while (attempts < maxRetries) {
       attempts += 1;
-      const route = this.quotaMatrix.resolveRoute(this.preferredModel);
+      const modelToUse = this.quotaMatrix.getDefaultModel() || this.preferredModel;
+      const route = this.quotaMatrix.resolveRoute(modelToUse);
 
       try {
         const ai = new GoogleGenAI({ apiKey: route.secretKey });
@@ -41,17 +42,23 @@ export class GeminiAiGateway implements IAiGateway {
           contents: [
             {
               role: 'user',
-              parts: [{ text: `${promptSystem}\n\nTexto a evaluar:\n"""\n${promptUser}\n"""` }],
+              parts: [{ text: `Entrada:\n"""\n${promptUser}\n"""` }],
             },
           ],
           config: {
+            systemInstruction: promptSystem,
             responseMimeType: 'application/json',
-            temperature: 0.2, // Low temperature for consistent grading
+            temperature: 0.2, // Low temperature for consistent output
           },
         });
 
-        const text = response.text?.trim() ?? '{}';
-        const parsedJson = JSON.parse(text);
+        const rawText = response.text?.trim() ?? '{}';
+        let cleanedJson = rawText;
+        if (cleanedJson.startsWith('```')) {
+          cleanedJson = cleanedJson.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+        }
+
+        const parsedJson = JSON.parse(cleanedJson);
         const validated = schemaValidator(parsedJson);
 
         // Record successful call
@@ -61,7 +68,15 @@ export class GeminiAiGateway implements IAiGateway {
         lastError = err instanceof Error ? err : new Error(String(err));
         const errMsg = lastError.message;
 
-        if (errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('Quota')) {
+        const isQuotaOrServerUnavailable =
+          errMsg.includes('429') ||
+          errMsg.includes('RESOURCE_EXHAUSTED') ||
+          errMsg.includes('Quota') ||
+          errMsg.includes('503') ||
+          errMsg.includes('UNAVAILABLE') ||
+          errMsg.toLowerCase().includes('overloaded');
+
+        if (isQuotaOrServerUnavailable) {
           this.quotaMatrix.recordHttp429(route.apiKeyId, route.modelId, errMsg);
           // Loop continues and will resolve the next route in the 2D matrix
           continue;
@@ -75,21 +90,30 @@ export class GeminiAiGateway implements IAiGateway {
     throw lastError ?? new Error('Gemini API request failed after retry cascade');
   }
 
-  public async evaluateSocraticPhase1(userText: string): Promise<SocraticFeedbackResponse> {
+  public async evaluateSocraticPhase1(
+    userText: string,
+    cefrTarget = 'B1',
+  ): Promise<SocraticFeedbackResponse> {
     const systemPrompt = `
 Eres "ELA Socratic Mentor", un tutor lingüístico especializado en fomentar el autodescubrimiento y la reestructuración del interlenguaje en hispanohablantes.
-Tu misión es revisar el texto del estudiante en su PRIMER BORRADOR.
+Tu misión es revisar el texto del estudiante en su PRIMER BORRADOR. Nivel objetivo CEFR: ${cefrTarget}.
 
 ### Reglas Pedagógicas Estrictas:
-1. NO entregues la solución corregida ni reescribas la oración.
-2. Identifica dónde se encuentran los errores (especialmente transferencias del español L1 como "depends of", "I am agree", "I have X years", do/make) y formula PISTAS SOCRÁTICAS (*scaffolded clues*) orientadas a la reflexión.
-3. Cada pista debe consistir en una pregunta que guíe la atención del estudiante hacia la regla o colocación infringida.
-4. Devuelve ESTRICTAMENTE un JSON con:
-   - overall_impression_es (string)
+1. NO entregues de inmediato la solución final en la pregunta principal. Guía al estudiante a través de 4 niveles progresivos de andamiaje (ZPD - Zona de Desarrollo Próximo).
+2. Identifica dónde se encuentran los errores (especialmente transferencias del español L1 como "depends of", "I am agree", "I have X years", false friends, colocaciones, orden de palabras) y formula PISTAS SOCRÁTICAS (*scaffolded clues*).
+3. Devuelve ESTRICTAMENTE un JSON con:
+   - overall_impression_es (string motivador y comunicativo)
    - error_count (integer)
-   - allow_self_correction (boolean)
-   - scaffolded_clues (array de { paragraph_index, clue_type, hint_question_es, highlighted_area })
-   Donde clue_type debe ser uno de: 'PREPOSITION', 'TENSE_ASPECT', 'FALSE_FRIEND', 'AGREEMENT', 'WORD_CHOICE'.
+   - allow_self_correction (boolean, default true)
+   - scaffolded_clues: array de objetos con:
+       * paragraph_index (integer, default 1)
+       * clue_type ('PREPOSITION' | 'TENSE_ASPECT' | 'FALSE_FRIEND' | 'AGREEMENT' | 'WORD_CHOICE' | 'WORD_ORDER' | 'COLLOCATION')
+       * hint_question_es: Pregunta socrática que oriente la atención del estudiante a la regla infringida sin dar la respuesta.
+       * highlighted_area: El fragmento exacto del texto del estudiante que contiene el error.
+       * zpd_contrastive_es: Explicación metalingüística clara de la diferencia entre cómo se piensa en español vs. cómo funciona en inglés natural.
+       * zpd_cloze_sentence: Una oración breve con un hueco "[ ___ ]" para que el estudiante intente rellenar la forma correcta.
+       * zpd_expected_token: La palabra o expresión exacta esperada en el hueco (para validación interactiva).
+       * zpd_native_model: La frase completa o colocación idiomática estándar que usaría un hablante nativo.
 `;
 
     return this.executeWithQuotaFailover(systemPrompt, userText, (json) =>
@@ -118,7 +142,13 @@ Borrador original previo: "${draft1}"
    - overall_feedback_es (string)
    - estimated_cefr ('A1'|'A2'|'B1'|'B2'|'C1'|'C2')
    - scores: { grammar, vocabulary, coherence }
-   - corrections: array de { error_span, error_type, taxonomy_code, is_l1_spanish_transfer, explanation_es, native_reformulation }
+   - corrections: array de objetos con:
+       * error_span (string): fragmento exacto del texto del estudiante que contiene el error.
+       * error_type (string): ESTRICTAMENTE uno de ['GRAMMAR', 'LEXICON', 'PREPOSITION', 'WORD_ORDER', 'FALSE_FRIEND', 'PUNCTUATION', 'REGISTER', 'TENSE_ASPECT', 'AGREEMENT', 'COLLOCATION'].
+       * taxonomy_code (string): código de error (ej. 'L1_PREP_DEPEND_ON', 'L1_AGREEMENT_SUBJECT_VERB', 'L1_FALSE_FRIEND_ACTUALLY').
+       * is_l1_spanish_transfer (boolean): true si proviene de interferencia del español, false si es otro tipo de error.
+       * explanation_es (string): explicación pedagógica concisa en español.
+       * native_reformulation (string): formulación nativa y natural en inglés.
    - micro_challenge: { question_es, sentence_with_blank, options (array 2-4 strings), correct_option_index (0-3), explanation_es }
 `;
 

@@ -143,7 +143,7 @@ export function WeaknessHeatmap({
             No se han detectado debilidades activas
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md mx-auto leading-relaxed">
-            Tu perfil no tiene errores recurrentes registrados. A medida que completes prácticas en el Taller Socrático, Speed Drills o SRS, el sistema identificará patrones de interferencia lingüística (L1) para generar Micro-Workouts dirigidos.
+            Tu perfil no tiene errores recurrentes registrados. A medida que completes prácticas en el Taller de Redacción, Entrenamiento Rápido o SRS, el sistema identificará patrones de interferencia lingüística para generar prácticas dirigidas.
           </p>
         </div>
       ) : (

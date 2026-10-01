@@ -25,6 +25,7 @@ export interface SrsState {
   incrementReviewCount: () => void;
   resetSession: () => void;
   addExtractedCard: (payload: OneClickCardPayload) => void;
+  addVocabItem: (item: VocabItem, context?: VocabContextExample | null) => void;
 }
 
 export const useSrsStore = create<SrsState>((set) => ({
@@ -117,5 +118,47 @@ export const useSrsStore = create<SrsState>((set) => ({
       srsCard: newCard,
       showAnswer: false,
     }));
+  },
+
+  addVocabItem: (item: VocabItem, context?: VocabContextExample | null) => {
+    const newCard: SrsCard = {
+      id: `card_${item.id}`,
+      userId: 'user_local',
+      targetType: 'VOCAB',
+      targetId: item.id,
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+
+    set((state) => {
+      const alreadyExists = state.vocabList.some((v) => v.id === item.id);
+      const updatedVocabList = alreadyExists
+        ? state.vocabList.map((v) => (v.id === item.id ? item : v))
+        : [item, ...state.vocabList];
+
+      const contexts = context ? [context] : [];
+
+      // If no card is currently selected or the deck was previously empty, select this card
+      if (!state.selectedVocab || state.vocabList.length === 0) {
+        return {
+          vocabList: updatedVocabList,
+          selectedVocab: item,
+          availableContexts: contexts,
+          currentContext: context || null,
+          srsCard: newCard,
+          showAnswer: false,
+        };
+      }
+
+      return {
+        vocabList: updatedVocabList,
+      };
+    });
   },
 }));

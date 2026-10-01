@@ -9,7 +9,7 @@ A diferencia de las aplicaciones comerciales basadas en gamificación superficia
 3. **Neurobiología del Lenguaje y Adquisición de Habilidades (Cognitive Skill Acquisition & ACT-R)**
 4. **Fonética Acústica, Articulataria y Percepción del Habla (Acoustic Phonetics & Speech Perception)**
 5. **Lingüística de Corpus y el Enfoque Léxico (Corpus Linguistics & Lexical Approach)**
-6. **Diseño Instruccional Basado en Tareas y Autorregulación (TBLT & Self-Regulated Learning)**
+6. **Diseño Instruccional para la Práctica Deliberada y Autorregulación (Deliberate Practice & Self-Regulated Learning)**
 
 ---
 
@@ -21,9 +21,9 @@ El marco pedagógico se organiza en 6 submódulos temáticos de alta densidad ci
 graph TD
     Root["Marco Pedagógico ELA"] --> S1["01. Fundamentos Científicos<br/>(SLA & Neurociencia)"]
     Root --> S2["02. Marco Léxico & Semántica<br/>(Corpus & Chunking)"]
-    Root --> S3["03. Fonética & Habla Conectada<br/>(Percepción & Prosodia)"]
+    Root --> S3["03. Fonética & Habla Conectada<br/>(Percepción & Habla Conectada)"]
     Root --> S4["04. Transferencia L1 Español<br/>(Interferencia Contrastiva)"]
-    Root --> S5["05. Metodología de Instrucción<br/>(TBLT, Drills & Feedback Socrático)"]
+    Root --> S5["05. Metodología de Instrucción<br/>(Drills & Feedback Socrático)"]
     Root --> S6["06. Psicología & Autorregulación<br/>(Hábitos & Filtro Afectivo)"]
 
     S1 --> M1["Hipótesis SLA (Krashen, Schmidt, Swain, Long)"]
@@ -38,13 +38,11 @@ graph TD
     S3 --> P1["Percepción Auditiva & HVPT (Kuhl, Flege, Best)"]
     S3 --> P2["Mecánica Articulataria & IPA Contrastivo"]
     S3 --> P3["Habla Conectada (Elisión, Asimilación, Linking, Schwa)"]
-    S3 --> P4["Suprasegmentales (Acento Nuclear, Entonación, Ritmo)"]
 
     S4 --> T1["Interferencia Fonológica L1 (Pares Mínimos, Prótesis)"]
     S4 --> T2["Interferencia Morfosintáctica (TAM, Pro-Drop, Preposiciones)"]
     S4 --> T3["Falsos Amigos & Colocaciones Contrastivas"]
 
-    S5 --> I1["Task-Based Language Teaching (Ellis, Skehan, Long)"]
     S5 --> I2["Práctica Deliberada & Drills de Velocidad (Ericsson, Interleaving)"]
     S5 --> I3["Feedback Correctivo & Tutoría Socrática IA (Lyster, Vygotsky)"]
     S5 --> I4["Input Comprensible & Lectura Graduada (Nation 95/98%)"]
@@ -75,7 +73,6 @@ Aborda la causa raíz del bloqueo auditivo y la producción no inteligible:
 - [`speech_perception_and_hvpt.md`](./03_phonetics_and_phonology/speech_perception_and_hvpt.md): Modelos perceptivos fonológicos: *Native Language Magnet* (Kuhl), *Speech Learning Model* (SLM-r, Flege), *Perceptual Assimilation Model* (PAM-L2, Best) y Entrenamiento Auditivo de Alta Variabilidad (HVPT: múltiples voces nativas).
 - [`articulatory_mechanics_and_ipa.md`](./03_phonetics_and_phonology/articulatory_mechanics_and_ipa.md): Fisiología articulatoria y mapa IPA comparado: Cuadriláteros vocálicos (vocales tensas vs laxas), fricativas dentales (/θ, ð/), labiodental /v/, sibilantes palatales, 'l' oscura ([ɫ]) y Voice Onset Time (VOT / aspiración de /p, t, k/).
 - [`connected_speech_mechanisms.md`](./03_phonetics_and_phonology/connected_speech_mechanisms.md): Fenómenos del habla rápida: Elisión consonántica y síncopa vocálica, Asimilación regresiva y coalescente (Yod-coalescence), Enlace (catenación, glides intrusivos /j, w/ y linking/intrusive 'r'), geminación y reducción masiva al Schwa (/ə/).
-- [`suprasegmentals_prosody_intonation.md`](./03_phonetics_and_phonology/suprasegmentals_prosody_intonation.md): Prosodia avanzada: Conflicto isocrónico acentual (*stress-timed*) vs silábico (*syllable-timed*), Acento nuclear de frase (*Tonic/Nuclear Pitch Accent*), Grupos de pensamiento (*Thought Groups*) y curvas de entonación funcional.
 
 ### [`04_cross_linguistic_transfer_l1_spanish/`](./04_cross_linguistic_transfer_l1_spanish/) - Interferencia L1 Español $\rightarrow$ Inglés
 Mapeo exhaustivo de los desvíos sistemáticos producidos por la lengua materna:
@@ -85,7 +82,6 @@ Mapeo exhaustivo de los desvíos sistemáticos producidos por la lengua materna:
 
 ### [`05_instructional_methodologies_and_practice/`](./05_instructional_methodologies_and_practice/) - Metodologías de Instrucción y Práctica
 Define los protocolos de entrenamiento aplicados en las vistas y flujos de usuario:
-- [`task_based_language_teaching.md`](./05_instructional_methodologies_and_practice/task_based_language_teaching.md): Enfoque Basado en Tareas (TBLT, Ellis, Skehan, Nunan): Ciclo de 3 fases (Pre-Task, Task Cycle, Post-Task Form Focus) y desarrollo integrado de las 4 Competencias Comunicativas (Lingüística, Sociolingüística/Pragmática, Discursiva y Estratégica).
 - [`deliberate_practice_and_drills.md`](./05_instructional_methodologies_and_practice/deliberate_practice_and_drills.md): Práctica Deliberada (Ericsson). Práctica intercalada (*Interleaving*) vs bloqueada (*Blocking*). Algoritmo de Drills de Velocidad (3-5 s) para proceduralización inmediata.
 - [`corrective_feedback_and_socratic_ai.md`](./05_instructional_methodologies_and_practice/corrective_feedback_and_socratic_ai.md): Enfoque en la Forma (*Focus on Form - FonF*). Taxonomía de Feedback Correctivo de Lyster & Ranta (Recasts, Pistas Metalingüísticas, Elicitación). Andamiaje en la Zona de Desarrollo Próximo (Vygotsky) y directivas formales para los prompts de Gemini.
 - [`comprehensible_input_and_reading.md`](./05_instructional_methodologies_and_practice/comprehensible_input_and_reading.md): Lectura comprensible e incidental: Umbrales matemáticos del 95% y 98% (Nation). Lectura extensiva vs intensiva. Modelo de doble ruta de lectura y decodificación auditiva bottom-up vs inferencia top-down.
@@ -104,7 +100,7 @@ Cada principio pedagógico documentado en este marco gobierna componentes espec�
 | Principio Científico | Autor / Referencia | Componente de Software de ELA |
 | :--- | :--- | :--- |
 | **Noticing & Gap Identification** | Schmidt (1990) | Resaltado visual de brechas morfosintácticas en el Taller de Redacción. |
-| **Comprehensible Output** | Swain (1985) | Taller de Micro-Writing con generación activa de oraciones contextuales. |
+| **Comprehensible Output** | Swain (1985) | Taller de Redacción con generación activa de texto y auto-corrección reflexiva. |
 | **Desirable Difficulties & DSR** | Bjork (1994) / FSRS | Planificador matemático de repetición espaciada `FSRSEngine`. |
 | **High-Variability Phonetic Training** | Logan et al. (1991) | Banco de audio TTS/grabaciones con múltiples voces y acentos nativos. |
 | **Interleaving Practice** | Rohrer & Taylor (2007) | Desagrupación semántica y gramatical en la cola de repaso SRS. |

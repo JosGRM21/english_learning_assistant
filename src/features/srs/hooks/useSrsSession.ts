@@ -1,213 +1,287 @@
-import { useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSrsStore } from '../store/srsStore';
 import { useDatabase } from '@/shared/hooks/useDatabase';
 import { useAudio } from '@/shared/hooks/useAudio';
 import { useHabitsStore } from '@/features/habits/store/habitsStore';
 import { FsrsScheduler } from '@/core/srs/FsrsScheduler';
 import { ContextRotator } from '@/core/srs/ContextRotator';
-import { VocabItem } from '@/core/types/vocab';
-import { FsrsGrade, ReviewLog } from '@/core/types/srs';
+import { SrsSessionEngine, SrsSessionStats } from '@/core/srs/SrsSessionEngine';
+import { SrsQueueBuilder } from '@/core/srs/SrsQueueBuilder';
+import { VocabItem, VocabContextExample } from '@/core/types/vocab';
+import { CardWithTarget, FsrsGrade, ReviewLog } from '@/core/types/srs';
+import { eventBus } from '@/core/common/events/DomainEventBus';
 
 export function useSrsSession() {
-  const { vocabRepo, isReady } = useDatabase();
+  const { cardRepo, isReady } = useDatabase();
   const { audioService } = useAudio();
   const updateQuestProgress = useHabitsStore((s) => s.updateQuestProgress);
   const updateStreak = useHabitsStore((s) => s.updateStreak);
-
-  const {
-    vocabList,
-    selectedVocab,
-    availableContexts,
-    currentContext,
-    srsCard,
-    reviewLogs,
-    searchQuery,
-    showAnswer,
-    reviewCount,
-    setVocabList,
-    setSelectedVocab,
-    setAvailableContexts,
-    setCurrentContext,
-    setSrsCard,
-    addReviewLog,
-    setSearchQuery,
-    setShowAnswer,
-    incrementReviewCount,
-  } = useSrsStore();
+  const incrementStoreReviewCount = useSrsStore((s) => s.incrementReviewCount);
+  const setStoreVocabList = useSrsStore((s) => s.setVocabList);
 
   const scheduler = useMemo(() => new FsrsScheduler(0.9), []);
   const rotator = useMemo(() => new ContextRotator(), []);
+  const queueBuilder = useMemo(() => new SrsQueueBuilder({ maxNewCardsPerDay: 15 }), []);
 
-  // Initialize vocab list and initial card from DB
-  useEffect(() => {
-    if (!isReady || !vocabRepo || vocabList.length > 0) return;
+  // Session state
+  const [sessionEngine, setSessionEngine] = useState<SrsSessionEngine | null>(null);
+  const [currentCard, setCurrentCard] = useState<CardWithTarget | null>(null);
+  const [deckCards, setDeckCards] = useState<CardWithTarget[]>([]);
+  const [currentContextOverride, setCurrentContextOverride] = useState<VocabContextExample | null>(null);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sessionReviewCount, setSessionReviewCount] = useState(0);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
 
-    let isCancelled = false;
+  // Reaction time stopwatch
+  const presentationStartRef = useRef<number>(performance.now());
 
-    async function loadInitialVocab() {
-      try {
-        const all = await vocabRepo!.getAllVocabs(100);
-        if (isCancelled || all.length === 0) return;
+  // Load and build session queue from SQLite
+  const loadSession = useCallback(async () => {
+    if (!isReady || !cardRepo) return;
 
-        setVocabList(all);
+    try {
+      setIsLoadingSession(true);
+      const userId = 'user_local';
 
-        const first = all[0];
-        if (first) {
-          setSelectedVocab(first);
-          const contexts = await vocabRepo!.getContextExamples(first.id);
-          if (isCancelled) return;
+      // 1. Fetch due cards (scheduled <= now and not NEW)
+      const due = await cardRepo.getDueCardsWithDetails(userId, 50);
 
-          setAvailableContexts(contexts);
-          if (contexts.length > 0) {
-            setCurrentContext(contexts[0]);
-          }
+      // 2. Fetch new cards (state === NEW)
+      const newCards = await cardRepo.getNewCardsWithDetails(userId, 30);
 
-          setSrsCard({
-            id: `card_${first.id}`,
-            userId: 'user_local',
-            targetType: 'VOCAB',
-            targetId: first.id,
-            state: 'NEW',
-            stability: 0,
-            difficulty: 5.0,
-            reps: 0,
-            lapses: 0,
-            lastReviewedAt: null,
-            scheduledFor: new Date().toISOString(),
-            createdAt: new Date().toISOString(),
-          });
-        }
-      } catch (err) {
-        console.error('Failed to load initial vocab:', err);
-      }
-    }
+      // 3. Fetch all deck cards for the deck explorer
+      const allDeck = await cardRepo.getAllCardsWithDetails(userId, 200);
+      setDeckCards(allDeck);
 
-    loadInitialVocab();
+      // Synchronize vocabList for dashboard/catalog helpers
+      const vocabs = allDeck
+        .map((c) => c.vocab)
+        .filter((v): v is VocabItem => v !== undefined);
+      setStoreVocabList(vocabs);
 
-    return () => {
-      isCancelled = true;
-    };
-  }, [isReady, vocabRepo, vocabList.length, setVocabList, setSelectedVocab, setAvailableContexts, setCurrentContext, setSrsCard]);
+      // 4. Build session queue with daily limit and interleaving
+      const queue = queueBuilder.buildQueue(due, newCards);
+      const engine = new SrsSessionEngine(queue);
+      setSessionEngine(engine);
 
-  // Handle vocab selection without recreating the entire database!
-  const handleSelectVocab = useCallback(
-    async (item: VocabItem) => {
-      setSelectedVocab(item);
+      const firstCard = engine.getCurrentCard();
+      setCurrentCard(firstCard);
+      setCurrentContextOverride(firstCard?.currentContext || firstCard?.allContexts[0] || null);
       setShowAnswer(false);
+      presentationStartRef.current = performance.now();
+    } catch (err) {
+      console.error('[useSrsSession] Error loading session queue:', err);
+    } finally {
+      setIsLoadingSession(false);
+    }
+  }, [isReady, cardRepo, queueBuilder, setStoreVocabList]);
 
-      if (vocabRepo) {
-        try {
-          const contexts = await vocabRepo.getContextExamples(item.id);
-          setAvailableContexts(contexts);
-          setCurrentContext(contexts.length > 0 ? contexts[0] : null);
-        } catch (err) {
-          console.error('Failed to load contexts for vocab:', err);
-        }
+  useEffect(() => {
+    loadSession();
+  }, [loadSession]);
+
+  // Restart / Free Study session: loads entire deck or restarts
+  const handleRestartSession = useCallback(async () => {
+    if (!cardRepo) return;
+    try {
+      setIsLoadingSession(true);
+      const allDeck = await cardRepo.getAllCardsWithDetails('user_local', 200);
+      setDeckCards(allDeck);
+
+      // Build queue with all available cards
+      const engine = new SrsSessionEngine(allDeck);
+      setSessionEngine(engine);
+
+      const first = engine.getCurrentCard();
+      setCurrentCard(first);
+      setCurrentContextOverride(first?.currentContext || first?.allContexts[0] || null);
+      setShowAnswer(false);
+      presentationStartRef.current = performance.now();
+    } catch (err) {
+      console.error('[useSrsSession] Error restarting session:', err);
+    } finally {
+      setIsLoadingSession(false);
+    }
+  }, [cardRepo]);
+
+  // Select a specific card from the deck explorer
+  const handleSelectCard = useCallback(
+    (cardItem: CardWithTarget) => {
+      setCurrentCard(cardItem);
+      setCurrentContextOverride(cardItem.currentContext || cardItem.allContexts[0] || null);
+      setShowAnswer(false);
+      presentationStartRef.current = performance.now();
+
+      if (sessionEngine) {
+        sessionEngine.jumpToCard(cardItem);
       }
-
-      setSrsCard({
-        id: `card_${item.id}`,
-        userId: 'user_local',
-        targetType: 'VOCAB',
-        targetId: item.id,
-        state: 'NEW',
-        stability: 0,
-        difficulty: 5.0,
-        reps: 0,
-        lapses: 0,
-        lastReviewedAt: null,
-        scheduledFor: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      });
     },
-    [vocabRepo, setSelectedVocab, setShowAnswer, setAvailableContexts, setCurrentContext, setSrsCard],
+    [sessionEngine],
   );
 
-  // Rotate cloze context
+  // Rotate cloze context for current card
   const handleRotateContext = useCallback(() => {
-    if (availableContexts.length > 1 && currentContext) {
-      const next = rotator.selectNextContext(availableContexts, currentContext.id);
-      setCurrentContext(next);
-    }
-  }, [availableContexts, currentContext, rotator, setCurrentContext]);
+    if (!currentCard || currentCard.allContexts.length <= 1) return;
+    const currentId = currentContextOverride?.id;
+    const next = rotator.selectNextContext(currentCard.allContexts, currentId);
+    setCurrentContextOverride(next);
+  }, [currentCard, currentContextOverride, rotator]);
 
-  // Grade card with FSRS
+  // Handle rating a card with FSRS v5 & auto-advance
   const handleRate = useCallback(
-    (grade: FsrsGrade) => {
-      if (!srsCard) return;
+    async (grade: FsrsGrade) => {
+      if (!currentCard || !sessionEngine || !cardRepo) return;
+
       const now = new Date();
-      const { updatedCard, log } = scheduler.schedule(srsCard, grade, now);
-      setSrsCard(updatedCard);
+      const latencyMs = Math.round(performance.now() - presentationStartRef.current);
+
+      // 1. Calculate next FSRS intervals and stability
+      const { updatedCard, log } = scheduler.schedule(currentCard.card, grade, now);
 
       const fullLog: ReviewLog = {
-        id: `rev_${Date.now()}`,
-        cardId: srsCard.id,
+        id: `rev_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        cardId: currentCard.card.id,
         reviewedAt: now.toISOString(),
         ...log,
+        elapsedMs: latencyMs,
       };
-      addReviewLog(fullLog);
-      incrementReviewCount();
-      setShowAnswer(false);
 
-      // Audio chime on successful completion
+      // 2. Persist update in SQLite atomically
+      try {
+        await cardRepo.recordReview(updatedCard, fullLog);
+      } catch (dbErr) {
+        console.error('[useSrsSession] Failed to persist review to SQLite:', dbErr);
+      }
+
+      // 3. Process rating in SessionEngine (auto-advance & intra-session re-queue on Grade 1)
+      const result = sessionEngine.processRating(grade, updatedCard, latencyMs);
+
+      // 4. Advance UI to next card!
+      setCurrentCard(result.nextCard);
+      setCurrentContextOverride(
+        result.nextCard?.currentContext || result.nextCard?.allContexts[0] || null,
+      );
+      setShowAnswer(false);
+      presentationStartRef.current = performance.now();
+
+      // 5. Update counts
+      setSessionReviewCount((c) => c + 1);
+      incrementStoreReviewCount();
+
+      // 6. Play audio feedback chime
       audioService.playFeedback(grade >= 3);
 
-      // Rotate context on review for next repetition
-      handleRotateContext();
+      // 7. Publish domain event
+      eventBus.publish('CARD_REVIEWED', {
+        userId: 'user_local',
+        cardId: currentCard.card.id,
+        rating: grade,
+        elapsedMs: latencyMs,
+        newStability: updatedCard.stability,
+        newDifficulty: updatedCard.difficulty,
+        stateBefore: currentCard.card.state,
+        stateAfter: updatedCard.state,
+        timestamp: now.toISOString(),
+      });
 
-      // Update VOCAB_SRS quest progress
+      // 8. Update habits quest & streak
       updateQuestProgress('VOCAB_SRS', 1);
-
-      // Refresh streak
       updateStreak();
     },
     [
-      srsCard,
+      currentCard,
+      sessionEngine,
+      cardRepo,
       scheduler,
-      setSrsCard,
-      addReviewLog,
-      incrementReviewCount,
-      setShowAnswer,
       audioService,
-      handleRotateContext,
+      incrementStoreReviewCount,
       updateQuestProgress,
       updateStreak,
     ],
   );
 
-  // Filtered vocabulary list
-  const filteredVocab = useMemo(() => {
-    return vocabList.filter((item) => {
-      return (
-        item.word.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.translationEs.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    });
-  }, [vocabList, searchQuery]);
-
-  // Preview intervals for FSRS buttons
+  // Interval previews for FSRS buttons
   const previewIntervals = useMemo(() => {
-    if (!srsCard) return { 1: 1, 2: 1, 3: 3, 4: 16 };
-    return scheduler.previewIntervals(srsCard);
-  }, [srsCard, scheduler]);
+    if (!currentCard) return { 1: 1, 2: 1, 3: 3, 4: 16 };
+    return scheduler.previewIntervals(currentCard.card);
+  }, [currentCard, scheduler]);
+
+  // Filtered deck for drawer
+  const filteredVocab = useMemo(() => {
+    return deckCards
+      .map((c) => c.vocab)
+      .filter((v): v is VocabItem => v !== undefined)
+      .filter((item) => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase().trim();
+        return (
+          item.word.toLowerCase().includes(q) ||
+          item.translationEs.toLowerCase().includes(q)
+        );
+      });
+  }, [deckCards, searchQuery]);
+
+  // Backward compatibility alias for handleSelectVocab
+  const handleSelectVocab = useCallback(
+    (item: VocabItem) => {
+      const match = deckCards.find((c) => c.vocab?.id === item.id);
+      if (match) {
+        handleSelectCard(match);
+      }
+    },
+    [deckCards, handleSelectCard],
+  );
+
+  const isSessionFinished = sessionEngine ? sessionEngine.isFinished() : false;
+  const sessionStats: SrsSessionStats = sessionEngine
+    ? sessionEngine.getStats()
+    : {
+        totalReviewed: 0,
+        successfulRecalls: 0,
+        lapses: 0,
+        averageLatencyMs: 0,
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+      };
+
+  const remainingCount = sessionEngine ? sessionEngine.getRemainingCount() : 0;
+  const completedCount = sessionEngine ? sessionEngine.getCompletedCount() : 0;
+  const progressPercentage = sessionEngine ? sessionEngine.getProgressPercentage() : 0;
 
   return {
-    vocabList,
-    selectedVocab,
-    availableContexts,
-    currentContext,
-    srsCard,
-    reviewLogs,
-    searchQuery,
+    // Current Active Card Details
+    currentCard,
+    selectedVocab: currentCard?.vocab || null,
+    currentContext: currentContextOverride,
+    availableContexts: currentCard?.allContexts || [],
+    srsCard: currentCard?.card || null,
+
+    // Queue & Session State
+    sessionEngine,
+    deckCards,
+    vocabList: deckCards.map((c) => c.vocab).filter((v): v is VocabItem => v !== undefined),
+    isSessionFinished,
+    sessionStats,
+    remainingCount,
+    completedCount,
+    progressPercentage,
+    reviewCount: sessionReviewCount,
+    isLoadingSession,
+    isReady: isReady && !isLoadingSession,
+
+    // UI state & Controls
     showAnswer,
-    reviewCount,
+    searchQuery,
     filteredVocab,
     previewIntervals,
-    setSearchQuery,
     setShowAnswer,
-    handleSelectVocab,
-    handleRotateContext,
+    setSearchQuery,
     handleRate,
-    isReady,
+    handleRotateContext,
+    handleSelectCard,
+    handleSelectVocab,
+    handleRestartSession,
+    refreshSession: loadSession,
   };
 }

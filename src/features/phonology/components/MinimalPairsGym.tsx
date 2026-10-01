@@ -8,9 +8,11 @@ import {
   Clock,
   Ear,
   AlertCircle,
+  Users,
 } from 'lucide-react';
 import { AudioService } from '@/infrastructure/audio/AudioService';
 import { useMinimalPairs } from '../hooks/useMinimalPairs';
+import { SpectrogramDiffView } from './SpectrogramDiffView';
 
 export interface MinimalPairsGymProps {
   audioService?: AudioService;
@@ -19,6 +21,8 @@ export interface MinimalPairsGymProps {
 export function MinimalPairsGym(_props: MinimalPairsGymProps) {
   const {
     filterType,
+    selectedSpeakerId,
+    speakers,
     currentChallenge,
     lastResult,
     isPlayingAudio,
@@ -28,9 +32,12 @@ export function MinimalPairsGym(_props: MinimalPairsGymProps) {
     avgLatency,
     accuracy,
     setFilterType,
+    setSelectedSpeakerId,
     nextChallenge,
     handleSelect,
     repeatAudio,
+    playWord,
+    playComparativeSequence,
   } = useMinimalPairs();
 
   return (
@@ -45,31 +52,50 @@ export function MinimalPairsGym(_props: MinimalPairsGymProps) {
               </span>
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Gimnasio de Pares Mínimos (Minimal Pairs Gym)
+                  Gimnasio de Pares Mínimos
                 </h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Entrenamiento de discriminación auditiva rápida (ventana de 2.0s) para reprogramar
-                  el sesgo fonológico del español (L1 Transfer).
+                  Entrenamiento de discriminación auditiva con múltiples voces nativas para superar la interferencia fonética del español.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Filter Pills */}
-          <div className="flex items-center gap-2">
-            {(['ALL', 'VOWEL', 'CONSONANT'] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => setFilterType(type)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                  filterType === type
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
+          {/* Filter Pills & Speaker Selector */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl">
+              <span className="px-2 text-[11px] text-gray-500 font-semibold flex items-center gap-1">
+                <Users className="w-3 h-3 text-indigo-500" /> Voz:
+              </span>
+              <select
+                value={selectedSpeakerId}
+                onChange={(e) => setSelectedSpeakerId(e.target.value)}
+                className="bg-white dark:bg-[#1A1F2C] border-none text-xs rounded-xl px-2 py-1 text-gray-800 dark:text-gray-200 font-medium cursor-pointer focus:ring-1 focus:ring-indigo-500"
               >
-                {type === 'ALL' ? 'Todos los Fonemas' : type === 'VOWEL' ? 'Vocales Críticas' : 'Consonantes Críticas'}
-              </button>
-            ))}
+                <option value="ALL">🎲 Todas (HVPT Aleatorio)</option>
+                {speakers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label} ({s.name})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1">
+              {(['ALL', 'VOWEL', 'CONSONANT'] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                    filterType === type
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {type === 'ALL' ? 'Todos' : type === 'VOWEL' ? 'Vocales' : 'Consonantes'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -136,21 +162,39 @@ export function MinimalPairsGym(_props: MinimalPairsGymProps) {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Contrast Header */}
-            <div className="flex items-center justify-between">
-              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                Contraste Fonémico: {currentChallenge.pair.phonemicContrast}
-              </span>
+            {/* Contrast Header & Speaker Profile */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                  Contraste: {currentChallenge.pair.phonemicContrast}
+                </span>
+                <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40 px-2.5 py-1 rounded-xl border border-indigo-100 dark:border-indigo-900 flex items-center gap-1.5">
+                  <Users className="w-3 h-3" />
+                  <span>Voz: {currentChallenge.speaker.label}</span>
+                </span>
+              </div>
 
-              <button
-                onClick={repeatAudio}
-                disabled={isPlayingAudio}
-                className="p-2 rounded-xl text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5 text-xs font-medium cursor-pointer disabled:opacity-50"
-                title="Repetir audio"
-              >
-                <Volume2 className="w-4 h-4 text-indigo-500" />
-                <span>Re-escuchar</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={playComparativeSequence}
+                  disabled={isPlayingAudio}
+                  className="px-2.5 py-1.5 rounded-xl text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors flex items-center gap-1 text-xs font-medium cursor-pointer disabled:opacity-50"
+                  title="Escuchar secuencia A -> B"
+                >
+                  <Volume2 className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Secuencia A→B</span>
+                </button>
+
+                <button
+                  onClick={repeatAudio}
+                  disabled={isPlayingAudio}
+                  className="p-2 rounded-xl text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5 text-xs font-medium cursor-pointer disabled:opacity-50"
+                  title="Repetir audio del estímulo"
+                >
+                  <Volume2 className="w-4 h-4 text-indigo-500" />
+                  <span>Re-escuchar</span>
+                </button>
+              </div>
             </div>
 
             {/* Countdown Progress Bar (2.0s) */}
@@ -228,45 +272,57 @@ export function MinimalPairsGym(_props: MinimalPairsGymProps) {
 
             {/* Result & Pedagogical Feedback */}
             {lastResult && (
-              <div
-                className={`p-4 rounded-2xl border animate-in fade-in duration-200 ${
-                  lastResult.isCorrect
-                    ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60'
-                    : 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    {lastResult.isCorrect ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-                    )}
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div
+                  className={`p-4 rounded-2xl border ${
+                    lastResult.isCorrect
+                      ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60'
+                      : 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      {lastResult.isCorrect ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                      )}
 
-                    <div>
-                      <div className="text-sm font-bold text-gray-900 dark:text-white">
-                        {lastResult.isCorrect
-                          ? `¡Correcto! Identificaste "${lastResult.targetWord}" en ${lastResult.responseTimeMs}ms`
-                          : `Identificación incorrecta. La palabra emitida era "${lastResult.targetWord}".`}
-                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-gray-900 dark:text-white">
+                          {lastResult.isCorrect
+                            ? `¡Correcto! Identificaste "${lastResult.targetWord}" en ${lastResult.responseTimeMs}ms`
+                            : `Identificación incorrecta. La palabra emitida era "${lastResult.targetWord}".`}
+                        </div>
 
-                      <div className="text-xs text-gray-600 dark:text-gray-300 mt-2 flex items-start gap-1.5">
-                        <AlertCircle className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
-                        <span>
-                          <strong>Trampa L1 Español:</strong> {currentChallenge.pair.l1PitfallEs}
-                        </span>
+                        <div className="text-xs text-gray-600 dark:text-gray-300 mt-2 flex items-start gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
+                          <span>
+                            <strong>Trampa L1 Español:</strong> {currentChallenge.pair.l1PitfallEs}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <button
-                    onClick={nextChallenge}
-                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors shrink-0 cursor-pointer flex items-center gap-1.5"
-                  >
-                    <span>Siguiente Reto</span>
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </button>
+                    <button
+                      onClick={nextChallenge}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors shrink-0 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>Siguiente Reto</span>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
+
+                {/* Spectrogram & Acoustic Formants Comparative Diff View */}
+                <SpectrogramDiffView
+                  pair={currentChallenge.pair}
+                  targetWord={currentChallenge.targetWord}
+                  selectedWord={lastResult.selectedWord}
+                  onPlayWordA={() => playWord(currentChallenge.pair.wordA)}
+                  onPlayWordB={() => playWord(currentChallenge.pair.wordB)}
+                  onPlaySequence={playComparativeSequence}
+                />
               </div>
             )}
           </div>

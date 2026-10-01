@@ -13,11 +13,9 @@ erDiagram
     USERS ||--o{ DAILY_QUESTS : "tiene asignadas"
     USERS ||--o{ SRS_CARDS : "estudia"
     USERS ||--o{ WRITING_SUBMISSIONS : "redacta"
-    USERS ||--o{ TBLT_TASK_SUBMISSIONS : "ejecuta misiones en"
     USERS ||--o{ AI_API_KEYS : "administra"
     USERS ||--o{ READER_ARTICLES : "lee textos en"
     USERS ||--o{ SPEED_DRILL_SESSIONS : "ejecuta drills en"
-    USERS ||--o{ PROSODY_SHADOWING_RECORDS : "graba voz en"
     USERS ||--o{ USER_ERRORS : "comete fallos en"
 
     AI_API_KEYS ||--o{ API_KEY_MODEL_QUOTAS : "monitorea cuota"
@@ -30,9 +28,7 @@ erDiagram
 
     GRAMMAR_RULES ||--o{ SRS_CARDS : "se practica en"
     PHONETIC_RULES ||--o{ SRS_CARDS : "se entrena en"
-    PROSODY_RULES ||--o{ PROSODY_SHADOWING_RECORDS : "evalúa imitación de"
     L1_TRANSFER_RULES ||--o{ SRS_CARDS : "genera drills en"
-    TBLT_TASKS ||--o{ TBLT_TASK_SUBMISSIONS : "recibe entregables de"
 
     SRS_CARDS ||--o{ REVIEW_LOGS : "registra historial"
     SRS_CARDS ||--o{ USER_ERRORS : "produce fallos en"
@@ -148,27 +144,6 @@ erDiagram
         string audio_sample_path
     }
 
-    PROSODY_RULES {
-        string id PK
-        string prosody_type "NUCLEAR_STRESS | THOUGHT_GROUP | PITCH_FALLING | PITCH_RISING | PITCH_FALL_RISE"
-        string title
-        string pragmatic_function_es
-        string example_sentence
-        integer tonic_word_index
-        json native_f0_curve_json
-    }
-
-    PROSODY_SHADOWING_RECORDS {
-        string id PK
-        string user_id FK
-        string prosody_rule_id FK
-        json user_f0_curve_json
-        json target_f0_curve_json
-        float prosodic_match_score
-        string audio_recording_path
-        datetime recorded_at
-    }
-
     SRS_CARDS {
         string id PK
         string user_id FK
@@ -196,31 +171,6 @@ erDiagram
         datetime completed_at
     }
 
-    TBLT_TASKS {
-        string id PK
-        string title
-        text scenario_description
-        string cefr_level
-        string task_type "INFO_EXCHANGE | PROBLEM_SOLVING | NEGOTIATION | PERSUASION"
-        json suggested_priming_chunks_json
-        string expected_non_linguistic_outcome
-        integer time_limit_minutes
-    }
-
-    TBLT_TASK_SUBMISSIONS {
-        string id PK
-        string task_id FK
-        string user_id FK
-        text during_task_text
-        float linguistic_score
-        float sociolinguistic_score
-        float discursive_score
-        float strategic_score
-        float overall_score
-        json fonf_feedback_json
-        datetime submitted_at
-    }
-
     READER_ARTICLES {
         string id PK
         string user_id FK
@@ -239,7 +189,7 @@ erDiagram
         string id PK
         string user_id FK
         string error_taxonomy_id FK
-        string source "SRS | WRITING_EVALUATION | PHONETICS_DRILL | SPEED_DRILL | TBLT"
+        string source "SRS | WRITING_EVALUATION | PHONETICS_DRILL | SPEED_DRILL"
         string source_reference_id
         text context_snippet
         text incorrect_token

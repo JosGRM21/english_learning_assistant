@@ -201,46 +201,7 @@ sequenceDiagram
 
 ---
 
-## 6. Flujo 6: Ciclo Completo TBLT en Tres Fases y Evaluación de 4 Competencias
-
-Describe el flujo pedagógico riguroso de una tarea basada en tareas (Ellis & Skehan):
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Estudiante
-    participant UI as TbltStudioView
-    participant TbltEngine as TbltMissionEngine
-    participant GeminiGateway as GeminiAiGateway
-    participant Gemini as Google Gemini (gemini-3.8-flash)
-    participant DB as SQLite Database
-
-    %% Fase 1: Pre-Task
-    User->>UI: Selecciona Misión B2: "Negociar prórroga de entrega con cliente"
-    UI->>TbltEngine: startPreTaskPhase(taskId)
-    TbltEngine-->>UI: { scenarioDescription, goal, primingChunks: ["take into account", "look into the matter", "would appreciate it"] }
-    UI->>User: Muestra contexto situacional y activa memoria con chunks de priming
-
-    %% Fase 2: During-Task
-    User->>UI: Inicia redacción en la Fase During-Task
-    UI->>UI: Inicia temporizador orientativo (presión comunicativa realista)
-    User->>UI: Redacta borrador y presiona "Completar Misión"
-    
-    %% Fase 3: Post-Task
-    UI->>TbltEngine: submitDuringTask(taskId, draftText)
-    TbltEngine->>GeminiGateway: evaluateTbltSubmission(draftText, rubric='4_COMPETENCIES')
-    GeminiGateway->>Gemini: POST generateContent (Prompt TBLT + AiTbltEvaluationResponse Schema)
-    Gemini-->>GeminiGateway: 200 OK { linguisticScore: 8.5, sociolinguisticScore: 9.0, discursiveScore: 8.0, strategicScore: 8.5, fonfFeedback: [...] }
-    
-    GeminiGateway-->>TbltEngine: EvaluationPayload
-    TbltEngine->>DB: INSERT INTO tblt_task_submissions (...)
-    TbltEngine-->>UI: Renderiza informe Post-Task FonF con scores de las 4 competencias
-    UI->>User: Muestra fortalezas pragmáticas, brechas sintácticas y añade nuevos giros a FSRS
-```
-
----
-
-## 7. Flujo 7: Decodificación Auditiva Bottom-Up en Tres Pasos con Simplificación al 95%
+## 6. Flujo 6: Decodificación Auditiva Bottom-Up en Tres Pasos con Simplificación al 95%
 
 Describe cómo el alumno entrena su audición segmentando el habla continua de forma ascendente:
 
@@ -283,7 +244,7 @@ sequenceDiagram
 
 ---
 
-## 8. Flujo 8: Speed Drills, Bucle de Micro-Recuperación (N+3/N+7) y Certificación de Proceduralización
+## 7. Flujo 7: Speed Drills, Bucle de Micro-Recuperación (N+3/N+7) y Certificación de Proceduralización
 
 Describe el proceso de compilación motora en ganglios basales:
 
@@ -318,40 +279,4 @@ sequenceDiagram
         DrillEngine->>DB: INSERT INTO user_errors (...)
         UI->>DrillEngine: Carga Ítem 2 inmediatamente
     end
-```
-
----
-
-## 9. Flujo 9: Prosodic Shadowing con Rastreador de Tono Fundamental ($F_0$)
-
-Describe cómo se captura la voz del usuario y se compara espectrográficamente con el modelo nativo:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Estudiante
-    participant UI as ProsodyStudioView
-    participant AudioSys as AudioSubsystem
-    participant PitchTracker as PitchTrackerService
-    participant MicStream as Web Audio API AnalyserNode (FFT)
-    participant DB as SQLite Database
-
-    User->>UI: Selecciona frase: "Actually, it starts at six." (Curva Fall-Rise \/~)
-    UI->>AudioSys: playNativeSentence()
-    AudioSys-->>User: Emite modelo nativo con contorno entonativo
-    UI->>UI: Grafica curva nativa de tono F0 en pantalla
-
-    User->>UI: Presiona "Grabar mi Shadowing"
-    UI->>MicStream: openMicrophoneStream()
-    User->>UI: Pronuncia la frase imitando la melodía
-    MicStream->>PitchTracker: streamAudioFrames(buffer)
-    PitchTracker->>PitchTracker: Calcula F0 (50-400 Hz) mediante autocorrelación
-    PitchTracker-->>UI: Vector temporal de frecuencias F0 del usuario en tiempo real
-    UI->>UI: Grafica curva del usuario superpuesta sobre la curva nativa
-
-    User->>UI: Detiene grabación
-    UI->>PitchTracker: computeProsodicMatch(userF0Vector, nativeF0Vector)
-    PitchTracker-->>UI: ProsodyScore = 92% (Excelente entonación Fall-Rise)
-    UI->>DB: INSERT INTO prosody_shadowing_records (score=92, f0_data)
-    UI->>User: Felicitación visual y opción de escuchar ambas grabaciones en estéreo
 ```
