@@ -203,13 +203,9 @@ export function VocabDetailDrawer({
       isOpen={isOpen && Boolean(vocab)}
       onOpenChange={(open) => {
         if (!open) {
-          if (showDeleteConfirm) {
-            setShowDeleteConfirm(false);
-          } else if (isEditing) {
-            setIsEditing(false);
-          } else {
-            onClose();
-          }
+          setShowDeleteConfirm(false);
+          setIsEditing(false);
+          onClose();
         }
       }}
     >

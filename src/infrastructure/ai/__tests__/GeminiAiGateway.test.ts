@@ -77,4 +77,24 @@ describe('GeminiAiGateway - No Automatic Model Failover', () => {
     expect(mockGenerateContent.mock.calls[0][0].model).toBe('gemini-3.8-flash');
     expect(mockGenerateContent.mock.calls[1][0].model).toBe('gemini-3.8-flash');
   });
+
+  it('records persistent request log entries on success and rate limit', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify({
+        overall_impression_es: 'Excelente texto.',
+        error_count: 0,
+        allow_self_correction: true,
+        scaffolded_clues: [],
+      }),
+    });
+
+    await gateway.evaluateSocraticPhase1('My draft text');
+
+    const logs = orchestrator.getRequestLogs();
+    expect(logs.length).toBe(1);
+    expect(logs[0].action).toBe('Taller de Redacción (Fase 1: Pistas Socráticas)');
+    expect(logs[0].status).toBe('SUCCESS');
+    expect(logs[0].modelId).toBe('gemini-3.8-flash');
+    expect(logs[0].apiKeyId).toBe('key_1');
+  });
 });

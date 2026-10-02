@@ -21,4 +21,5 @@ export interface ICardRepository {
   getNewCardsWithDetails(userId: string, limit?: number): Promise<CardWithTarget[]>;
   getAllCardsWithDetails(userId: string, limit?: number): Promise<CardWithTarget[]>;
   getDeckStatistics(userId: string): Promise<DeckStatistics>;
+  getAllReviewLogs(limit?: number): Promise<ReviewLog[]>;
 }

@@ -216,4 +216,59 @@ describe('SrsReviewSession Component Integration', () => {
       expect(screen.getAllByText('first_word').length).toBeGreaterThan(0);
     });
   });
+
+  it('prevents duplicate reviews when rating buttons are clicked rapidly (race condition protection)', async () => {
+    const card1 = createMockCardWithTarget('1', 'apple');
+    const card2 = createMockCardWithTarget('2', 'banana');
+
+    // Simulate async database latency
+    let resolveReview: () => void = () => {};
+    const mockRecordReview = vi.fn().mockImplementation(() => {
+      return new Promise<void>((resolve) => {
+        resolveReview = resolve;
+      });
+    });
+
+    vi.spyOn(dbHook, 'useDatabase').mockReturnValue({
+      db: {} as any,
+      vocabRepo: {} as any,
+      cardRepo: {
+        getDueCardsWithDetails: vi.fn().mockResolvedValue([card1, card2]),
+        getNewCardsWithDetails: vi.fn().mockResolvedValue([]),
+        getAllCardsWithDetails: vi.fn().mockResolvedValue([card1, card2]),
+        recordReview: mockRecordReview,
+      } as any,
+      isReady: true,
+      error: null,
+      retry: vi.fn(),
+    });
+
+    render(<SrsReviewSession />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('apple').length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getByText('Mostrar Respuesta'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Bueno')).toBeDefined();
+    });
+
+    const goodBtn = screen.getByText('Bueno');
+
+    // Fire double-click rapidly
+    fireEvent.click(goodBtn);
+    fireEvent.click(goodBtn);
+
+    // Only 1 call should be made while processing
+    expect(mockRecordReview).toHaveBeenCalledTimes(1);
+
+    // Finish the pending review
+    resolveReview();
+
+    await waitFor(() => {
+      expect(screen.getAllByText('banana').length).toBeGreaterThan(0);
+    });
+  });
 });

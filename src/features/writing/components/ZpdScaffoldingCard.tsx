@@ -122,10 +122,18 @@ export function ZpdScaffoldingCard({
       return;
     }
 
-    const cleanInput = clueUserAnswer.trim().toLowerCase();
-    const cleanExpected = zpd.expectedToken.trim().toLowerCase();
+    const cleanInput = clueUserAnswer
+      .trim()
+      .toLowerCase()
+      .replace(/['"´`]/g, "'")
+      .replace(/\s+/g, ' ');
+    const cleanExpected = zpd.expectedToken
+      .trim()
+      .toLowerCase()
+      .replace(/['"´`]/g, "'")
+      .replace(/\s+/g, ' ');
 
-    if (cleanInput === cleanExpected || cleanExpected.includes(cleanInput)) {
+    if (cleanInput === cleanExpected) {
       setClueFeedback('CORRECT');
     } else {
       setClueFeedback('INCORRECT');

@@ -55,8 +55,11 @@ export class SqlJsDriver implements Driver {
       async executeQuery<R>(compiledQuery: CompiledQuery): Promise<QueryResult<R>> {
         const sql = compiledQuery.sql.trim();
 
-        // Direct execution for PRAGMA or multi-statement DDL scripts if needed
-        if (sql.startsWith('PRAGMA') || sql.includes(';')) {
+        const cleanSingle = sql.replace(/;+\s*$/, '');
+        const hasMultipleStatements = cleanSingle.includes(';');
+
+        // Direct execution for multi-statement DDL scripts without parameters
+        if (hasMultipleStatements && (!compiledQuery.parameters || compiledQuery.parameters.length === 0)) {
           db.run(sql);
           return {
             rows: [],
@@ -64,7 +67,7 @@ export class SqlJsDriver implements Driver {
           };
         }
 
-        const stmt = db.prepare(sql);
+        const stmt = db.prepare(cleanSingle);
         try {
           const params = (compiledQuery.parameters ?? []) as (string | number | null | Uint8Array)[];
           if (params.length > 0) {

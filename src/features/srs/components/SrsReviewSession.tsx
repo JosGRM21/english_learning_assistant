@@ -41,6 +41,10 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
     handleRate,
     handleSelectCard,
     handleRestartSession,
+    handleStartEarlyStudy,
+    cooldownCount,
+    earliestCooldownDate,
+    isRating,
     isReady,
   } = useSrsSession();
 
@@ -92,7 +96,10 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
           stats={sessionStats}
           streakDays={streak.currentStreak}
           totalDeckCount={deckCards.length}
+          cooldownCount={cooldownCount}
+          earliestCooldownDate={earliestCooldownDate}
           onRestartSession={handleRestartSession}
+          onStartEarlyStudy={handleStartEarlyStudy}
           onNavigateTab={onNavigateTab}
         />
 
@@ -171,6 +178,7 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
           onShowAnswer={() => setShowAnswer(true)}
           onFlipBack={() => setShowAnswer(false)}
           onRate={handleRate}
+          isRating={isRating}
           audioService={audioService}
         />
       )}

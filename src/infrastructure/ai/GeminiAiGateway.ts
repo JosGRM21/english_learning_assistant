@@ -21,6 +21,7 @@ export class GeminiAiGateway implements IAiGateway {
   }
 
   private async executeWithQuotaFailover<T>(
+    actionName: string,
     promptSystem: string,
     promptUser: string,
     schemaValidator: (rawJson: unknown) => T,
@@ -33,6 +34,9 @@ export class GeminiAiGateway implements IAiGateway {
       attempts += 1;
       const modelToUse = this.quotaMatrix.getDefaultModel() || this.preferredModel;
       const route = this.quotaMatrix.resolveRoute(modelToUse);
+      const keyLabel =
+        this.quotaMatrix.getApiKeys().find((k) => k.id === route.apiKeyId)?.label ??
+        'Gemini Key';
 
       try {
         const ai = new GoogleGenAI({ apiKey: route.secretKey });
@@ -63,6 +67,14 @@ export class GeminiAiGateway implements IAiGateway {
 
         // Record successful call
         this.quotaMatrix.recordSuccess(route.apiKeyId, route.modelId);
+        this.quotaMatrix.logRequest({
+          timestamp: new Date().toISOString(),
+          apiKeyId: route.apiKeyId,
+          apiKeyLabel: keyLabel,
+          modelId: route.modelId,
+          action: actionName,
+          status: 'SUCCESS',
+        });
         return validated;
       } catch (err: unknown) {
         lastError = err instanceof Error ? err : new Error(String(err));
@@ -74,6 +86,15 @@ export class GeminiAiGateway implements IAiGateway {
           errMsg.toLowerCase().includes('overloaded');
 
         if (is503OrServerOverload) {
+          this.quotaMatrix.logRequest({
+            timestamp: new Date().toISOString(),
+            apiKeyId: route.apiKeyId,
+            apiKeyLabel: keyLabel,
+            modelId: route.modelId,
+            action: actionName,
+            status: 'ERROR',
+            errorDetails: `[503 Sobrecarga] ${errMsg}`,
+          });
           // Automatic model failover on 503 or server errors is strictly eliminated.
           // Throw immediately so the user can be notified and switch model manually if desired.
           throw new Error(
@@ -88,9 +109,28 @@ export class GeminiAiGateway implements IAiGateway {
 
         if (isQuotaError) {
           this.quotaMatrix.recordHttp429(route.apiKeyId, route.modelId, errMsg);
+          this.quotaMatrix.logRequest({
+            timestamp: new Date().toISOString(),
+            apiKeyId: route.apiKeyId,
+            apiKeyLabel: keyLabel,
+            modelId: route.modelId,
+            action: actionName,
+            status: 'RATE_LIMITED',
+            errorDetails: errMsg,
+          });
           // Loop continues and will try the next available API key for the SAME model
           continue;
         }
+
+        this.quotaMatrix.logRequest({
+          timestamp: new Date().toISOString(),
+          apiKeyId: route.apiKeyId,
+          apiKeyLabel: keyLabel,
+          modelId: route.modelId,
+          action: actionName,
+          status: 'ERROR',
+          errorDetails: errMsg,
+        });
 
         // For non-quota errors (e.g. invalid response format), rethrow immediately
         throw lastError;
@@ -130,8 +170,11 @@ Tu misión es revisar el texto del estudiante en su PRIMER BORRADOR. Nivel objet
        * zpd_native_model: La resolución COMPLETA y nativa de la oración del Nivel 3 con el hueco resuelto (ej. si zpd_cloze_sentence es 'I need to rest to [ ___ ] my energy back.' y el token es 'get', zpd_native_model DEBE ser 'I need to rest to get my energy back.'). Debe existir TOTAL COHERENCIA Y CONSISTENCIA entre la oración del Nivel 3 y la resolución del Nivel 4; nunca propongas una oración o colocación divergente en el Nivel 4 que desconecte el Nivel 4 del Nivel 3.
 `;
 
-    return this.executeWithQuotaFailover(systemPrompt, userText, (json) =>
-      SocraticFeedbackResponseSchema.parse(json),
+    return this.executeWithQuotaFailover(
+      'Taller de Redacción (Fase 1: Pistas Socráticas)',
+      systemPrompt,
+      userText,
+      (json) => SocraticFeedbackResponseSchema.parse(json),
     );
   }
 
@@ -181,8 +224,11 @@ Borrador original previo (Draft 1): "${draft1}"
    - micro_challenges: array opcional de objetos micro-challenge adicionales
 `;
 
-    return this.executeWithQuotaFailover(systemPrompt, draft2, (json) =>
-      WritingEvaluationResponseSchema.parse(json),
+    return this.executeWithQuotaFailover(
+      'Taller de Redacción (Fase 2: Evaluación Final)',
+      systemPrompt,
+      draft2,
+      (json) => WritingEvaluationResponseSchema.parse(json),
     );
   }
 
@@ -212,8 +258,11 @@ Tu tarea es analizar la palabra, frase o término en inglés proporcionado y gen
 Devuelve ESTRICTAMENTE un JSON válido con estas propiedades.
 `;
 
-    return this.executeWithQuotaFailover(systemPrompt, word.trim(), (json) =>
-      VocabEnrichmentResponseSchema.parse(json),
+    return this.executeWithQuotaFailover(
+      'Enriquecimiento Léxico (Ficha de Vocabulario)',
+      systemPrompt,
+      word.trim(),
+      (json) => VocabEnrichmentResponseSchema.parse(json),
     );
   }
 }

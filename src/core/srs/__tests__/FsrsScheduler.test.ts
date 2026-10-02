@@ -16,8 +16,8 @@ describe('FsrsScheduler', () => {
     reps: 0,
     lapses: 0,
     lastReviewedAt: null,
-    scheduledFor: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
+    scheduledFor: '2026-09-20T10:00:00Z',
+    createdAt: '2026-09-20T10:00:00Z',
     ...overrides,
   });
 
@@ -60,9 +60,9 @@ describe('FsrsScheduler', () => {
       expect(interval).toBe(14);
     });
 
-    it('returns at least 1 day even for very small stability', () => {
-      const interval = scheduler.nextInterval(0.2);
-      expect(interval).toBeGreaterThanOrEqual(1);
+    it('returns 0 (intraday) for stability < 1.0 and at least 1 day for stability >= 1.0', () => {
+      expect(scheduler.nextInterval(0.2)).toBe(0);
+      expect(scheduler.nextInterval(1.0)).toBe(1);
     });
   });
 
@@ -156,6 +156,56 @@ describe('FsrsScheduler', () => {
       expect(intervals[1]).toBeLessThanOrEqual(intervals[2]);
       expect(intervals[2]).toBeLessThanOrEqual(intervals[3]);
       expect(intervals[3]).toBeLessThanOrEqual(intervals[4]);
+    });
+  });
+
+  describe('intraday learning steps and early review priming prevention', () => {
+    it('caps initial stability to at most 1.5 days if a new card is reviewed prematurely before cooldown', () => {
+      const futureCooldown = new Date(Date.now() + 3 * 3600 * 1000).toISOString();
+      const prematureCard = createNewCard({ scheduledFor: futureCooldown });
+
+      const { updatedCard: cardEasy, intervalDays: daysEasy } = scheduler.schedule(prematureCard, 4);
+      expect(cardEasy.stability).toBeLessThanOrEqual(1.5);
+      expect(daysEasy).toBeLessThanOrEqual(2);
+
+      const { updatedCard: cardGood, intervalDays: daysGood } = scheduler.schedule(prematureCard, 3);
+      expect(cardGood.stability).toBeLessThanOrEqual(1.0);
+      expect(daysGood).toBe(1);
+    });
+
+    it('caps graduation interval to at most 2 days when graduating a LEARNING card with Easy', () => {
+      const learningCard = createNewCard({
+        state: 'LEARNING',
+        stability: 0.4,
+        difficulty: 7.2,
+        reps: 1,
+        lapses: 1,
+      });
+
+      const { updatedCard, intervalDays } = scheduler.schedule(learningCard, 4);
+      expect(updatedCard.state).toBe('REVIEW');
+      expect(updatedCard.stability).toBe(1.5);
+      expect(intervalDays).toBeLessThanOrEqual(2);
+      expect(intervalDays).toBeGreaterThanOrEqual(1);
+
+      // Must never assign 16 days!
+      expect(intervalDays).not.toBe(16);
+    });
+
+    it('caps graduation interval to at most 2 days when graduating a RELEARNING card with Easy', () => {
+      const relearningCard = createNewCard({
+        state: 'RELEARNING',
+        stability: 0.5,
+        difficulty: 6.0,
+        reps: 4,
+        lapses: 1,
+      });
+
+      const { updatedCard, intervalDays } = scheduler.schedule(relearningCard, 4);
+      expect(updatedCard.state).toBe('REVIEW');
+      expect(updatedCard.stability).toBe(1.5);
+      expect(intervalDays).toBeLessThanOrEqual(2);
+      expect(intervalDays).toBeGreaterThanOrEqual(1);
     });
   });
 });

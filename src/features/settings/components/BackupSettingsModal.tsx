@@ -13,6 +13,9 @@ import { useSrsStore } from '@/features/srs/store/srsStore';
 import { useHabitsStore } from '@/features/habits/store/habitsStore';
 import { useDiagnosticsStore } from '@/features/diagnostics/store/diagnosticsStore';
 
+import { useState, useEffect } from 'react';
+import { useDatabase } from '@/shared/hooks/useDatabase';
+
 export interface BackupSettingsModalProps {
   userId?: string;
   cards?: Record<string, unknown>[];
@@ -32,6 +35,10 @@ export function BackupSettingsModal({
   quests,
   onRestoreBackup,
 }: BackupSettingsModalProps) {
+  const { cardRepo, isReady } = useDatabase();
+  const [dbCards, setDbCards] = useState<Record<string, unknown>[] | null>(null);
+  const [dbLogs, setDbLogs] = useState<ReviewLog[] | null>(null);
+
   const storeCard = useSrsStore((s) => s.srsCard);
   const storeLogs = useSrsStore((s) => s.reviewLogs);
   const storeStreak = useHabitsStore((s) => s.streak);
@@ -39,8 +46,31 @@ export function BackupSettingsModal({
   const storeWeaknesses = useDiagnosticsStore((s) => s.weaknesses);
 
   const finalUserId = userId ?? 'user_local';
-  const finalCards = cards ?? (storeCard ? [storeCard as unknown as Record<string, unknown>] : []);
-  const finalLogs = reviewLogs ?? storeLogs;
+
+  useEffect(() => {
+    if (!isReady || !cardRepo) return;
+    const repo = cardRepo;
+    let isMounted = true;
+    async function loadData() {
+      try {
+        const allCards = await repo.getAllCardsWithDetails(finalUserId, 1000);
+        const allLogs = await repo.getAllReviewLogs(1000);
+        if (isMounted) {
+          setDbCards(allCards.map((c) => ({ ...c.card, vocab: c.vocab })));
+          setDbLogs(allLogs);
+        }
+      } catch (err) {
+        console.error('Failed to load backup data from SQLite:', err);
+      }
+    }
+    loadData();
+    return () => {
+      isMounted = false;
+    };
+  }, [isReady, cardRepo, finalUserId]);
+
+  const finalCards = cards ?? dbCards ?? (storeCard ? [storeCard as unknown as Record<string, unknown>] : []);
+  const finalLogs = reviewLogs ?? dbLogs ?? storeLogs;
   const finalErrors = errors ?? (storeWeaknesses as unknown as Record<string, unknown>[]);
   const finalStreak = streak !== undefined ? streak : (storeStreak as unknown as Record<string, unknown>);
   const finalQuests = quests ?? (storeQuests as unknown as Record<string, unknown>[]);

@@ -237,12 +237,21 @@ export function useWritingSession() {
 
   // Micro-challenge answer
   const handleAnswerQuiz = useCallback(
-    (index: number) => {
-      if (quizSubmitted || !evalResult) return;
-      setSelectedQuizOption(index);
-      setQuizSubmitted(true);
+    (index: number, challengeIdx = 0) => {
+      if (!evalResult) return;
+      if (challengeIdx === 0) {
+        if (quizSubmitted) return;
+        setSelectedQuizOption(index);
+        setQuizSubmitted(true);
+      }
 
-      const isCorrect = index === evalResult.micro_challenge.correct_option_index;
+      const allChallenges =
+        evalResult.micro_challenges && evalResult.micro_challenges.length > 0
+          ? evalResult.micro_challenges
+          : [evalResult.micro_challenge];
+
+      const challenge = allChallenges[challengeIdx] ?? evalResult.micro_challenge;
+      const isCorrect = index === challenge.correct_option_index;
       audioService.playFeedback(isCorrect);
     },
     [quizSubmitted, evalResult, setSelectedQuizOption, setQuizSubmitted, audioService],
@@ -329,7 +338,7 @@ export function useWritingSession() {
           reps: 0,
           lapses: 0,
           lastReviewedAt: null,
-          scheduledFor: new Date().toISOString(),
+          scheduledFor: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
         });
 
         audioService.playFeedback(true);

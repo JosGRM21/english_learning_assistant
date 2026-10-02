@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DiffCalculator, DiffSegment } from '@/infrastructure/ai/DiffCalculator';
 import {
   GitCompare,
@@ -28,6 +28,13 @@ export function DiffVisualizer({
 }: DiffVisualizerProps) {
   const [viewMode, setViewMode] = useState<DiffViewMode>('INLINE');
   const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    };
+  }, []);
 
   const diffCalc = useMemo(() => new DiffCalculator(), []);
 
@@ -42,7 +49,8 @@ export function DiffVisualizer({
   const handleCopyClean = () => {
     navigator.clipboard.writeText(updated);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
   };
 
   return (

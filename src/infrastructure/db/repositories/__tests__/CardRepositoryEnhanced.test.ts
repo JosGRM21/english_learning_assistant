@@ -184,4 +184,150 @@ describe('CardRepository Enhanced Methods', () => {
     expect(logs[0].rating).toBe(3);
     expect(logs[0].elapsed_ms).toBe(1450);
   });
+
+  it('populates details for PHRASE, GRAMMAR, and PHONETICS cards without dropping them', async () => {
+    // 1. Insert a phraseological unit
+    await db
+      .insertInto('phraseological_units')
+      .values({
+        id: 'phrase_1',
+        chunk_type: 'COLLOCATION',
+        text: 'bear in mind',
+        meaning_es: 'tener en cuenta',
+        example_1: 'Please bear in mind that rules apply to everyone.',
+        example_2: 'Ten en cuenta que las reglas aplican a todos.',
+        cefr_level: 'B2',
+        created_at: new Date().toISOString(),
+      })
+      .execute();
+
+    // 2. Insert a grammar rule
+    await db
+      .insertInto('grammar_rules')
+      .values({
+        id: 'gram_1',
+        code: 'MODAL_SHOULD',
+        title: 'Should for Advice',
+        category: 'MODALS',
+        explanation_es: 'Uso de should para consejos o recomendaciones.',
+        formula_syntax: 'Subject + should + verb bare infinitive',
+        cefr_level: 'A2',
+        created_at: new Date().toISOString(),
+      })
+      .execute();
+
+    // 3. Create SRS cards for PHRASE and GRAMMAR
+    await cardRepo.createCard({
+      id: 'card_phrase',
+      userId: 'user_test',
+      targetType: 'PHRASE',
+      targetId: 'phrase_1',
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+    });
+
+    await cardRepo.createCard({
+      id: 'card_grammar',
+      userId: 'user_test',
+      targetType: 'GRAMMAR',
+      targetId: 'gram_1',
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+    });
+
+    const allCards = await cardRepo.getAllCardsWithDetails('user_test');
+    expect(allCards.length).toBe(2);
+
+    const phraseCard = allCards.find((c) => c.card.id === 'card_phrase');
+    expect(phraseCard).toBeDefined();
+    expect(phraseCard?.phrase?.text).toBe('bear in mind');
+    expect(phraseCard?.vocab?.word).toBe('bear in mind');
+    expect(phraseCard?.allContexts.length).toBe(1);
+
+    const grammarCard = allCards.find((c) => c.card.id === 'card_grammar');
+    expect(grammarCard).toBeDefined();
+    expect(grammarCard?.vocab?.word).toBe('Should for Advice');
+    expect(grammarCard?.vocab?.translationEs).toBe('Uso de should para consejos o recomendaciones.');
+  });
+
+  it('prevents duplicate card creation for the same targetId and targetType', async () => {
+    const card1 = await cardRepo.createCard({
+      id: 'card_dup_1',
+      userId: 'user_test',
+      targetType: 'VOCAB',
+      targetId: 'voc_1',
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+    });
+
+    // Attempt to create second card for same target
+    const card2 = await cardRepo.createCard({
+      id: 'card_dup_2',
+      userId: 'user_test',
+      targetType: 'VOCAB',
+      targetId: 'voc_1',
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+    });
+
+    // Must return the already existing card without creating another row
+    expect(card2.id).toBe(card1.id);
+
+    const all = await cardRepo.getAllCardsWithDetails('user_test');
+    expect(all.filter((c) => c.card.targetId === 'voc_1').length).toBe(1);
+  });
+
+  it('retrieves all historical review logs with getAllReviewLogs', async () => {
+    const card = await cardRepo.createCard({
+      id: 'card_for_logs',
+      userId: 'user_test',
+      targetType: 'VOCAB',
+      targetId: 'voc_1',
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+    });
+
+    await cardRepo.recordReviewLog({
+      id: 'rev_log_1',
+      cardId: card.id,
+      rating: 3,
+      stateBefore: 'NEW',
+      stabilityBefore: 0,
+      difficultyBefore: 5.0,
+      newStability: 3.17,
+      newDifficulty: 5.0,
+      elapsedMs: 1200,
+      reviewedAt: new Date().toISOString(),
+    });
+
+    const logs = await cardRepo.getAllReviewLogs();
+    expect(logs.length).toBeGreaterThanOrEqual(1);
+    expect(logs[0].cardId).toBe(card.id);
+    expect(logs[0].rating).toBe(3);
+  });
 });

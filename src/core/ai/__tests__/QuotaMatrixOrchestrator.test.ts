@@ -3,6 +3,10 @@ import {
   QuotaMatrixOrchestrator,
   ApiKeyEntry,
   QuotaExhaustedError,
+  GEMINI_MODEL_LIMITS,
+  TOTAL_DAILY_LIMIT_PER_KEY,
+  STORAGE_QUOTA_STATES_KEY,
+  STORAGE_REQUEST_LOGS_KEY,
 } from '../QuotaMatrixOrchestrator';
 
 describe('QuotaMatrixOrchestrator', () => {
@@ -28,7 +32,25 @@ describe('QuotaMatrixOrchestrator', () => {
   ];
 
   beforeEach(() => {
+    localStorage.clear();
     orchestrator = new QuotaMatrixOrchestrator(mockKeys);
+  });
+
+  it('configures model limits correctly (3.8, 3.7, 3.6: 5 RPM / 20 RPD; 3.5 Flash Lite: 15 RPM / 500 RPD)', () => {
+    expect(GEMINI_MODEL_LIMITS['gemini-3.8-flash']).toEqual({ rpmLimit: 5, dailyLimit: 20 });
+    expect(GEMINI_MODEL_LIMITS['gemini-3.7-flash']).toEqual({ rpmLimit: 5, dailyLimit: 20 });
+    expect(GEMINI_MODEL_LIMITS['gemini-3.6-flash']).toEqual({ rpmLimit: 5, dailyLimit: 20 });
+    expect(GEMINI_MODEL_LIMITS['gemini-3.5-flash-lite']).toEqual({ rpmLimit: 15, dailyLimit: 500 });
+
+    const q38 = orchestrator.getQuotaState('key_1', 'gemini-3.8-flash');
+    expect(q38?.dailyLimit).toBe(20);
+    expect(q38?.rpmLimit).toBe(5);
+
+    const q35 = orchestrator.getQuotaState('key_1', 'gemini-3.5-flash-lite');
+    expect(q35?.dailyLimit).toBe(500);
+    expect(q35?.rpmLimit).toBe(15);
+
+    expect(TOTAL_DAILY_LIMIT_PER_KEY).toBe(560);
   });
 
   it('routes to primary key and preferred model initially', () => {
@@ -48,6 +70,19 @@ describe('QuotaMatrixOrchestrator', () => {
     expect(route.apiKeyId).toBe('key_2');
     expect(route.modelId).toBe('gemini-3.8-flash');
     expect(route.fallbackOccurred).toBe(true);
+  });
+
+  it('supports up to 500 RPD for gemini-3.5-flash-lite', () => {
+    for (let i = 0; i < 25; i++) {
+      orchestrator.recordSuccess('key_1', 'gemini-3.5-flash-lite');
+    }
+    const q35 = orchestrator.getQuotaState('key_1', 'gemini-3.5-flash-lite');
+    expect(q35?.requestsToday).toBe(25);
+    expect(q35?.rpdStatus).toBe('AVAILABLE');
+
+    // Route still picks key_1 for 3.5 flash lite because 25 < 500
+    const route = orchestrator.resolveRoute('gemini-3.5-flash-lite');
+    expect(route.apiKeyId).toBe('key_1');
   });
 
   it('does NOT cascade down model hierarchy when all keys exhaust a model (throws QuotaExhaustedError for that model)', () => {
@@ -92,19 +127,6 @@ describe('QuotaMatrixOrchestrator', () => {
     expect(manualRoute.apiKeyId).toBe('key_1');
   });
 
-  it('throws QuotaExhaustedError when all keys and models reach their 20 RPD limits', () => {
-    const models = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'] as const;
-    for (const key of mockKeys) {
-      for (const model of models) {
-        for (let i = 0; i < 20; i++) {
-          orchestrator.recordSuccess(key.id, model);
-        }
-      }
-    }
-
-    expect(() => orchestrator.resolveRoute('gemini-3.8-flash')).toThrowError(QuotaExhaustedError);
-  });
-
   it('computes time remaining until midnight PT correctly', () => {
     const { ms, isoDate } = orchestrator.getTimeUntilMidnightPt();
     expect(ms).toBeGreaterThan(0);
@@ -112,7 +134,7 @@ describe('QuotaMatrixOrchestrator', () => {
     expect(isoDate).toBeDefined();
   });
 
-  it('aggregates quota per API key correctly with 80 total daily limit', () => {
+  it('aggregates quota per API key correctly with 560 total daily limit', () => {
     // Record 5 requests on 3.8 and 10 on 3.7 for key_1
     for (let i = 0; i < 5; i++) {
       orchestrator.recordSuccess('key_1', 'gemini-3.8-flash');
@@ -123,12 +145,82 @@ describe('QuotaMatrixOrchestrator', () => {
 
     const summary = orchestrator.getKeyQuotaSummary('key_1');
     expect(summary).toBeDefined();
-    expect(summary?.dailyLimit).toBe(80);
+    expect(summary?.dailyLimit).toBe(560);
     expect(summary?.totalRequestsToday).toBe(15);
-    expect(summary?.remainingRequests).toBe(65);
+    expect(summary?.remainingRequests).toBe(545);
     expect(summary?.rpdStatus).toBe('AVAILABLE');
     expect(summary?.modelBreakdown['gemini-3.8-flash']).toBe(5);
     expect(summary?.modelBreakdown['gemini-3.7-flash']).toBe(10);
+    expect(summary?.modelBreakdown['gemini-3.6-flash']).toBe(0);
+    expect(summary?.modelBreakdown['gemini-3.5-flash-lite']).toBe(0);
+  });
+
+  it('persists requests today to localStorage and reloads them on new instance start', () => {
+    // Record 7 requests on 3.8 for key_1
+    for (let i = 0; i < 7; i++) {
+      orchestrator.recordSuccess('key_1', 'gemini-3.8-flash');
+    }
+
+    // Verify localStorage has saved the state
+    const savedRaw = localStorage.getItem(STORAGE_QUOTA_STATES_KEY);
+    expect(savedRaw).toBeTruthy();
+
+    // Create a new orchestrator instance (simulating app restart / refresh)
+    const newOrchestrator = new QuotaMatrixOrchestrator(mockKeys);
+    const loadedState = newOrchestrator.getQuotaState('key_1', 'gemini-3.8-flash');
+
+    // The requests must NOT be lost on application restart!
+    expect(loadedState?.requestsToday).toBe(7);
+    expect(loadedState?.dailyLimit).toBe(20);
+
+    const summary = newOrchestrator.getKeyQuotaSummary('key_1');
+    expect(summary?.totalRequestsToday).toBe(7);
+    expect(summary?.remainingRequests).toBe(560 - 7);
+  });
+
+  it('records and persists request logs across app restarts', () => {
+    orchestrator.logRequest({
+      timestamp: new Date().toISOString(),
+      apiKeyId: 'key_1',
+      apiKeyLabel: 'Personal Primary Key',
+      modelId: 'gemini-3.8-flash',
+      action: 'Taller de Redacción (Fase 1)',
+      status: 'SUCCESS',
+    });
+
+    const logs = orchestrator.getRequestLogs();
+    expect(logs.length).toBe(1);
+    expect(logs[0].action).toBe('Taller de Redacción (Fase 1)');
+
+    const savedLogsRaw = localStorage.getItem(STORAGE_REQUEST_LOGS_KEY);
+    expect(savedLogsRaw).toBeTruthy();
+
+    // Simulating app restart
+    const newOrchestrator = new QuotaMatrixOrchestrator(mockKeys);
+    const reloadedLogs = newOrchestrator.getRequestLogs();
+    expect(reloadedLogs.length).toBe(1);
+    expect(reloadedLogs[0].action).toBe('Taller de Redacción (Fase 1)');
+
+    // Can clear logs
+    newOrchestrator.clearRequestLogs();
+    expect(newOrchestrator.getRequestLogs().length).toBe(0);
+  });
+
+  it('notifies subscribers when quotas or requests change', () => {
+    let callCount = 0;
+    const unsubscribe = orchestrator.subscribe(() => {
+      callCount += 1;
+    });
+
+    orchestrator.recordSuccess('key_1', 'gemini-3.8-flash');
+    expect(callCount).toBe(1);
+
+    orchestrator.recordHttp429('key_1', 'gemini-3.8-flash', 'rate limit');
+    expect(callCount).toBe(2);
+
+    unsubscribe();
+    orchestrator.recordSuccess('key_1', 'gemini-3.8-flash');
+    expect(callCount).toBe(2);
   });
 
   it('allows adding, removing, and toggling API keys dynamically', () => {
@@ -146,7 +238,7 @@ describe('QuotaMatrixOrchestrator', () => {
 
     const summary = orchestrator.getKeyQuotaSummary('key_custom');
     expect(summary).toBeDefined();
-    expect(summary?.dailyLimit).toBe(80);
+    expect(summary?.dailyLimit).toBe(560);
 
     orchestrator.toggleApiKey('key_custom');
     const toggled = orchestrator.getApiKeys().find((k) => k.id === 'key_custom');
@@ -166,4 +258,3 @@ describe('QuotaMatrixOrchestrator', () => {
     expect(customOrchestrator.getDefaultModel()).toBe('gemini-3.5-flash-lite');
   });
 });
-

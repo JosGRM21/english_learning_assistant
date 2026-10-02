@@ -24,7 +24,7 @@ export interface WritingStageThreeProps {
   quizSubmitted: boolean;
   isPlayingTts?: boolean;
   srsSuccessMessage?: string | null;
-  onAnswerQuiz: (idx: number) => void;
+  onAnswerQuiz: (idx: number, challengeIdx?: number) => void;
   onPlayTts?: (text: string) => void;
   onAddToSrs?: (correction: CorrectionItem, draftContext?: string) => void;
   onReset: () => void;
@@ -75,9 +75,7 @@ export function WritingStageThree({
 
   const handleSelectOption = (idx: number) => {
     if (isChallengeAnswered) return;
-    if (activeChallengeIdx === 0) {
-      onAnswerQuiz(idx);
-    }
+    onAnswerQuiz(idx, activeChallengeIdx);
     setLocalQuizAnswers((prev) => ({ ...prev, [activeChallengeIdx]: idx }));
   };
 

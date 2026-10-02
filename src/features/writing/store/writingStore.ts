@@ -108,10 +108,17 @@ export const useWritingStore = create<WritingState>((set) => ({
     }),
 
   loadSubmissionIntoStudio: (item) => {
+    const prompt = item.promptId
+      ? WRITING_PROMPTS_CATALOG.find((p) => p.id === item.promptId) ?? null
+      : null;
+    const resolvedMode = item.submissionMode ?? (prompt ? 'GUIDED' : 'FREE');
+
     // If it was already evaluated, show Stage 3 directly
     if (item.evaluation) {
       set({
         currentSubmissionId: item.id,
+        submissionMode: resolvedMode,
+        selectedPrompt: prompt,
         draft1: item.userText,
         draft2: item.draft2Text ?? item.userText,
         targetCefr: (item.evaluation.estimated_cefr as any) ?? 'B1',
@@ -125,6 +132,8 @@ export const useWritingStore = create<WritingState>((set) => ({
     } else if (item.socraticResult) {
       set({
         currentSubmissionId: item.id,
+        submissionMode: resolvedMode,
+        selectedPrompt: prompt,
         draft1: item.userText,
         draft2: item.draft2Text ?? item.userText,
         socraticResult: item.socraticResult,
@@ -137,6 +146,8 @@ export const useWritingStore = create<WritingState>((set) => ({
     } else {
       set({
         currentSubmissionId: item.id,
+        submissionMode: resolvedMode,
+        selectedPrompt: prompt,
         draft1: item.userText,
         draft2: item.draft2Text ?? '',
         currentStage: 1,

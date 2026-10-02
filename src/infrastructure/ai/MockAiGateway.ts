@@ -75,13 +75,14 @@ export class MockAiGateway implements IAiGateway {
       });
     }
 
-    if (lower.match(/\bhave\s+\d+\s+years\b/)) {
+    const haveMatch = userText.match(/\bhave\s+\d+\s+years\b/i);
+    if (haveMatch) {
       clues.push({
         paragraph_index: 1,
         clue_type: 'TENSE_ASPECT',
         hint_question_es:
           "¿Recuerdas cómo conceptualiza el idioma inglés la edad? ¿Se 'tiene' la edad o se 'es' de esa edad?",
-        highlighted_area: 'have ... years',
+        highlighted_area: haveMatch[0],
         sentence_context: userText.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('years')) ?? userText,
         zpd_contrastive_es:
           'En español "tenemos" años (posesión de tiempo), pero en la lingüística cognitiva anglosajona la edad es un estado de existencia que se expresa con el verbo "to be" ("I am 28 years old").',

@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { invoke } from '@tauri-apps/api/core';
 import { AudioService } from '../AudioService';
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(),
+}));
 
 describe('AudioService', () => {
   let audioService: AudioService;
+  const mockInvoke = vi.mocked(invoke);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -21,6 +27,16 @@ describe('AudioService', () => {
     const voices = await audioService.getBackendVoices();
     expect(ready).toBe(false);
     expect(voices).toEqual([]);
+  });
+
+  it('reports web build target when outside Tauri', async () => {
+    const target = await audioService.getBuildTarget?.();
+    expect(target).toBe('web');
+  });
+
+  it('reports active engine as webspeech or wasm/webgpu when backend is not ready', async () => {
+    const engine = await audioService.getActiveEngine?.();
+    expect(['webspeech', 'wasm', 'webgpu']).toContain(engine);
   });
 
   it('falls back to Web Speech API when not running in Tauri', async () => {
@@ -84,5 +100,60 @@ describe('AudioService', () => {
       audioService.stop();
       audioService.stop();
     }).not.toThrow();
+  });
+
+  it('synthesizes via native backend when running in Tauri and backend is available', async () => {
+    // Simulate Tauri runtime
+    (window as any).__TAURI_INTERNALS__ = {};
+
+    mockInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'kokoro_is_ready') return true;
+      if (cmd === 'get_build_target') return 'avx2-native';
+      if (cmd === 'kokoro_synthesize') {
+        // Return dummy bytes representing audio
+        return [0, 0, 0, 0];
+      }
+      return null;
+    });
+
+    // Mock AudioContext and decodeAudioData
+    const mockAudioBuffer = {
+      length: 100,
+      numberOfChannels: 1,
+      sampleRate: 24000,
+      duration: 0.1,
+    } as AudioBuffer;
+
+    const mockSource = {
+      connect: vi.fn(),
+      start: vi.fn(function (this: any) {
+        if (this.onended) this.onended();
+      }),
+      stop: vi.fn(),
+      buffer: null,
+      onended: null,
+    };
+
+    class MockAudioContext {
+      state = 'running';
+      destination = {};
+      resume = vi.fn().mockResolvedValue(undefined);
+      decodeAudioData = vi.fn().mockResolvedValue(mockAudioBuffer);
+      createBufferSource = vi.fn().mockReturnValue(mockSource);
+    }
+    // @ts-expect-error test mock
+    window.AudioContext = MockAudioContext;
+
+    expect(await audioService.isBackendAvailable()).toBe(true);
+    expect(await audioService.getBuildTarget?.()).toBe('avx2-native');
+    expect(await audioService.getActiveEngine?.()).toBe('native-avx2');
+
+    await audioService.speak('Hello world', 1.0);
+
+    expect(mockInvoke).toHaveBeenCalledWith('kokoro_synthesize', expect.objectContaining({
+      text: 'Hello world',
+    }));
+
+    delete (window as any).__TAURI_INTERNALS__;
   });
 });

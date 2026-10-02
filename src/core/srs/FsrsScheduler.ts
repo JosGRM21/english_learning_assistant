@@ -38,10 +38,34 @@ export class FsrsScheduler {
 
   /**
    * Calculates optimal review interval for target retention.
+   * Returns 0 for sub-day stability (< 1.0) indicating an intraday learning/relearning step.
+   * Capped at 365 days.
    */
   public nextInterval(stability: number): number {
+    if (stability < 1.0) {
+      return 0;
+    }
     const interval = (stability / this.factor) * (Math.pow(this.requestedRetention, -1.0 / this.decay) - 1.0);
-    return Math.max(1, Math.round(interval));
+    return Math.min(365, Math.max(1, Math.round(interval)));
+  }
+
+  /**
+   * Calculates the scheduled date with daily study cut-off (04:00 AM),
+   * ensuring cards reviewed late at night become due on the intended morning.
+   * Sub-day intervals (0 days) schedule 10 minutes in the future for intraday repetition.
+   */
+  public calculateScheduledDate(now: Date, intervalDays: number, cutoffHour = 4): Date {
+    if (intervalDays <= 0) {
+      return new Date(now.getTime() + 10 * 60 * 1000);
+    }
+
+    const target = new Date(now);
+    const isBeforeCutoff = target.getHours() < cutoffHour;
+    const daysToAdd = isBeforeCutoff ? Math.max(1, intervalDays) : intervalDays;
+
+    target.setDate(target.getDate() + daysToAdd);
+    target.setHours(cutoffHour, 0, 0, 0);
+    return target;
   }
 
   /**
@@ -71,11 +95,46 @@ export class FsrsScheduler {
     const difficultyBefore = card.difficulty;
 
     if (card.state === 'NEW') {
-      newS = this.w[grade - 1];
-      newD = Math.min(Math.max(this.w[4] - Math.exp(this.w[5] * (grade - 1)) + 1, 1.0), 10.0);
-      newState = grade === 1 ? 'LEARNING' : 'REVIEW';
+      const isEarlyReview = card.scheduledFor && new Date(card.scheduledFor).getTime() > now.getTime();
+      if (isEarlyReview && grade >= 3) {
+        // Early review before consolidation cooldown: cap initial stability to 1.0 - 1.5 days to prevent working-memory inflation
+        newS = grade === 4 ? 1.5 : 1.0;
+        newD = Math.min(Math.max(this.w[4] - Math.exp(this.w[5] * (grade - 1)) + 1, 1.0), 10.0);
+        newState = 'REVIEW';
+      } else {
+        newS = this.w[grade - 1];
+        newD = Math.min(Math.max(this.w[4] - Math.exp(this.w[5] * (grade - 1)) + 1, 1.0), 10.0);
+        newState = grade === 1 ? 'LEARNING' : 'REVIEW';
+        if (grade === 1) {
+          newLapses += 1;
+        }
+      }
+    } else if (card.state === 'LEARNING') {
+      // In-session or intraday learning step review
       if (grade === 1) {
+        newS = this.w[0];
+        newD = Math.min(card.difficulty + 0.2, 10.0);
+        newState = 'LEARNING';
         newLapses += 1;
+      } else {
+        // Graduate to REVIEW with strict intraday consolidation cap (max 1.0 - 1.5 days).
+        // Prevents working-memory priming from falsely inflating interval to 16 days.
+        newS = grade === 4 ? 1.5 : 1.0;
+        newD = grade === 4 ? Math.max(card.difficulty - 0.2, 1.0) : grade === 2 ? Math.min(card.difficulty + 0.2, 10.0) : card.difficulty;
+        newState = 'REVIEW';
+      }
+    } else if (card.state === 'RELEARNING') {
+      // In-session or intraday relearning step after a lapse
+      if (grade === 1) {
+        newS = Math.max(0.1, card.stability * 0.8);
+        newD = Math.min(card.difficulty + 0.2, 10.0);
+        newState = 'RELEARNING';
+        newLapses += 1;
+      } else {
+        // Graduate back to REVIEW with strict 1.0 - 1.5 day consolidation step after a lapse
+        newS = grade === 4 ? 1.5 : 1.0;
+        newD = grade === 4 ? Math.max(card.difficulty - 0.2, 1.0) : grade === 2 ? Math.min(card.difficulty + 0.2, 10.0) : card.difficulty;
+        newState = 'REVIEW';
       }
     } else {
       const R = this.calculateRetrievability(card, now);
@@ -107,7 +166,7 @@ export class FsrsScheduler {
     }
 
     const intervalDays = this.nextInterval(newS);
-    const scheduledForDate = new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000);
+    const scheduledForDate = this.calculateScheduledDate(now, intervalDays);
 
     const updatedCard: SrsCard = {
       ...card,

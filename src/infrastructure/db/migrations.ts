@@ -2,17 +2,50 @@ import { Kysely, sql } from 'kysely';
 import { DatabaseSchema } from '../../core/types/database';
 
 /**
- * Migration 1:
- * Updates tables with outdated CHECK constraints that restricted AI models to:
- * ('gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash')
- * by changing 'gemini-3.5-flash' to 'gemini-3.5-flash-lite'.
- *
- * Affects:
- * - writing_evaluations
- * - users
- * - api_key_model_quotas
+ * Executes a batch of SQL statements sequentially.
+ * Strips comments and empty statements to guarantee compatibility
+ * with native SQLite drivers that only execute the first statement per call.
+ */
+export async function executeSqlBatch(
+  db: Kysely<DatabaseSchema>,
+  sqlBatch: string,
+): Promise<void> {
+  const cleanSql = sqlBatch
+    .replace(/\/\*[\s\S]*?\*\//g, '') // remove multi-line comments
+    .replace(/--.*$/gm, '');          // remove single-line comments
+
+  const statements = cleanSql
+    .split(';')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  for (const statement of statements) {
+    await sql.raw(statement).execute(db);
+  }
+}
+
+/**
+ * Runs pending schema migrations sequentially based on PRAGMA user_version.
  */
 export async function runMigrations(db: Kysely<DatabaseSchema>): Promise<void> {
+  // Self-healing recovery: ensure any intermediate migration tables are safely renamed if previous migration was interrupted
+  try {
+    const intermediateTables = [
+      { temp: 'users_new', target: 'users' },
+      { temp: 'writing_evaluations_new', target: 'writing_evaluations' },
+      { temp: 'api_key_model_quotas_new', target: 'api_key_model_quotas' },
+    ];
+    for (const { temp, target } of intermediateTables) {
+      const checkTemp = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name=${temp}`.execute(db);
+      const checkTarget = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name=${target}`.execute(db);
+      if (checkTemp.rows.length > 0 && checkTarget.rows.length === 0) {
+        await sql.raw(`ALTER TABLE ${temp} RENAME TO ${target}`).execute(db);
+      }
+    }
+  } catch (err) {
+    console.warn('[runMigrations] Intermediate table check error:', err);
+  }
+
   // Check current pragma user_version
   const versionResult = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
   const currentVersion = versionResult.rows[0]?.user_version ?? 0;
@@ -20,11 +53,21 @@ export async function runMigrations(db: Kysely<DatabaseSchema>): Promise<void> {
   if (currentVersion < 1) {
     await migrateToV1(db);
   }
+
+  if (currentVersion < 2) {
+    await migrateToV2(db);
+  }
+
+  if (currentVersion < 3) {
+    await migrateToV3(db);
+  }
 }
 
 async function migrateToV1(db: Kysely<DatabaseSchema>): Promise<void> {
   // SQLite table re-creation pattern to update CHECK constraints without losing data
-  await sql.raw(`
+  await executeSqlBatch(
+    db,
+    `
     PRAGMA foreign_keys = OFF;
 
     -- 1. writing_evaluations
@@ -119,5 +162,38 @@ async function migrateToV1(db: Kysely<DatabaseSchema>): Promise<void> {
 
     PRAGMA user_version = 1;
     PRAGMA foreign_keys = ON;
-  `).execute(db);
+    `,
+  );
+}
+
+async function migrateToV2(db: Kysely<DatabaseSchema>): Promise<void> {
+  await executeSqlBatch(
+    db,
+    `
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_srs_user_target_unique ON srs_cards(user_id, target_type, target_id);
+    PRAGMA user_version = 2;
+    `,
+  );
+}
+
+async function migrateToV3(db: Kysely<DatabaseSchema>): Promise<void> {
+  // Check if successful_repairs_json already exists (e.g. fresh database created with new schema)
+  const columns = await sql<{ name: string }>`PRAGMA table_info(writing_evaluations)`.execute(db);
+  const hasColumn = columns.rows.some((c) => c.name === 'successful_repairs_json');
+
+  if (!hasColumn) {
+    await executeSqlBatch(
+      db,
+      `
+      ALTER TABLE writing_evaluations ADD COLUMN successful_repairs_json TEXT;
+      `,
+    );
+  }
+
+  await executeSqlBatch(
+    db,
+    `
+    PRAGMA user_version = 3;
+    `,
+  );
 }

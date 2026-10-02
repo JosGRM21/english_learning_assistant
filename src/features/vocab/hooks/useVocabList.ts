@@ -109,9 +109,12 @@ export function useVocabList() {
       }
 
       // Add SRS flashcard by default unless explicitly disabled
+      const cardId = `card_${created.id}`;
       if (payload.createSrsCard !== false && cardRepo) {
+        // Schedule new card with consolidation cooldown (4 hours) so working-memory priming does not distort long-term FSRS stability
+        const cooldownScheduledFor = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
         await cardRepo.createCard({
-          id: `card_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          id: cardId,
           userId: 'user_local',
           targetType: 'VOCAB',
           targetId: created.id,
@@ -121,12 +124,12 @@ export function useVocabList() {
           reps: 0,
           lapses: 0,
           lastReviewedAt: null,
-          scheduledFor: new Date().toISOString(),
+          scheduledFor: cooldownScheduledFor,
         });
       }
 
-      // Synchronize in-memory SRS store so that SRS & Fonología reflects the new word immediately without reload
-      useSrsStore.getState().addVocabItem(created, createdExample);
+      // Synchronize in-memory SRS store with matching cardId
+      useSrsStore.getState().addVocabItem(created, createdExample, cardId);
 
       // Update in-memory words list immediately
       setWords((prev) => [created, ...prev]);
@@ -140,6 +143,7 @@ export function useVocabList() {
       if (!vocabRepo) return null;
       const updated = await vocabRepo.updateVocab(id, updates);
       setWords((prev) => prev.map((w) => (w.id === id ? updated : w)));
+      useSrsStore.getState().updateVocabItem(updated);
       return updated;
     },
     [vocabRepo],
@@ -156,6 +160,7 @@ export function useVocabList() {
           delete next[id];
           return next;
         });
+        useSrsStore.getState().removeVocabItem(id);
       }
       return success;
     },
@@ -247,9 +252,8 @@ export function useVocabList() {
       searchQuery.trim().length > 0 ||
       selectedCefr !== 'ALL' ||
       selectedDimension !== 'ALL' ||
-      onlyFalseFriends ||
-      sortBy !== 'RECENT',
-    [searchQuery, selectedCefr, selectedDimension, onlyFalseFriends, sortBy],
+      onlyFalseFriends,
+    [searchQuery, selectedCefr, selectedDimension, onlyFalseFriends],
   );
 
   return {

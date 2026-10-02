@@ -18,12 +18,32 @@ export const GEMINI_MODEL_HIERARCHY: GeminiModelId[] = [
   'gemini-3.5-flash-lite',
 ];
 
+export interface ModelLimitConfig {
+  rpmLimit: number;
+  dailyLimit: number;
+}
+
+export const GEMINI_MODEL_LIMITS: Record<GeminiModelId, ModelLimitConfig> = {
+  'gemini-3.8-flash': { rpmLimit: 5, dailyLimit: 20 },
+  'gemini-3.7-flash': { rpmLimit: 5, dailyLimit: 20 },
+  'gemini-3.6-flash': { rpmLimit: 5, dailyLimit: 20 },
+  'gemini-3.5-flash-lite': { rpmLimit: 15, dailyLimit: 500 },
+};
+
+export const TOTAL_DAILY_LIMIT_PER_KEY = Object.values(GEMINI_MODEL_LIMITS).reduce(
+  (acc, val) => acc + val.dailyLimit,
+  0,
+); // 20 + 20 + 20 + 500 = 560
+
+export const STORAGE_QUOTA_STATES_KEY = 'ela_ai_quota_states';
+export const STORAGE_REQUEST_LOGS_KEY = 'ela_ai_request_logs';
+
 export interface ModelQuotaState {
   apiKeyId: string;
   modelId: GeminiModelId;
   requestsToday: number;
-  dailyLimit: number; // 20
-  rpmLimit: number; // 5
+  dailyLimit: number;
+  rpmLimit: number;
   lastRequestTimestamp: string | null;
   rpmCooldownUntil: string | null;
   rpdStatus: 'AVAILABLE' | 'EXHAUSTED_UNTIL_MIDNIGHT_PT';
@@ -39,14 +59,27 @@ export interface ApiKeyEntry {
   isPrimary: boolean;
 }
 
+export interface ApiRequestLog {
+  id: string;
+  timestamp: string; // ISO string
+  apiKeyId: string;
+  apiKeyLabel: string;
+  modelId: GeminiModelId;
+  action: string;
+  status: 'SUCCESS' | 'ERROR' | 'RATE_LIMITED';
+  errorDetails?: string;
+}
+
 export interface ApiKeyQuotaSummary {
   apiKey: ApiKeyEntry;
   totalRequestsToday: number;
-  dailyLimit: number; // 80 (20 * 4 models)
+  dailyLimit: number; // 560 (20 + 20 + 20 + 500)
   remainingRequests: number;
   rpdStatus: 'AVAILABLE' | 'EXHAUSTED_UNTIL_MIDNIGHT_PT';
   hasRpmCooldown: boolean;
   modelBreakdown: Record<GeminiModelId, number>;
+  modelLimits: Record<GeminiModelId, ModelLimitConfig>;
+  modelQuotas: Record<GeminiModelId, ModelQuotaState>;
 }
 
 export interface ResolvedRoute {
@@ -69,17 +102,143 @@ export class QuotaExhaustedError extends Error {
 }
 
 export class QuotaMatrixOrchestrator {
-  private readonly defaultDailyLimit = 20;
-  private readonly defaultRpmLimit = 5;
   private readonly quotaMap = new Map<string, ModelQuotaState>(); // key: `${apiKeyId}::${modelId}`
   private apiKeys: ApiKeyEntry[] = [];
   private defaultModel: GeminiModelId = 'gemini-3.8-flash';
+  private requestLogs: ApiRequestLog[] = [];
+  private readonly listeners = new Set<() => void>();
 
-  constructor(initialKeys: ApiKeyEntry[] = [], initialModel?: GeminiModelId) {
+  constructor(
+    initialKeys: ApiKeyEntry[] = [],
+    initialModel?: GeminiModelId,
+    initialQuotas?: ModelQuotaState[],
+    initialLogs?: ApiRequestLog[],
+  ) {
+    if (initialQuotas && initialQuotas.length > 0) {
+      for (const item of initialQuotas) {
+        const key = this.getQuotaKey(item.apiKeyId, item.modelId);
+        const limits = GEMINI_MODEL_LIMITS[item.modelId];
+        this.quotaMap.set(key, {
+          ...item,
+          dailyLimit: limits ? limits.dailyLimit : item.dailyLimit,
+          rpmLimit: limits ? limits.rpmLimit : item.rpmLimit,
+        });
+      }
+    } else {
+      this.loadQuotasFromStorage();
+    }
+
+    if (initialLogs && initialLogs.length > 0) {
+      this.requestLogs = [...initialLogs];
+    } else {
+      this.loadRequestLogsFromStorage();
+    }
+
     this.setApiKeys(initialKeys);
     if (initialModel && GEMINI_MODEL_HIERARCHY.includes(initialModel)) {
       this.defaultModel = initialModel;
     }
+  }
+
+  public subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notifyListeners(): void {
+    for (const listener of this.listeners) {
+      try {
+        listener();
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  private loadQuotasFromStorage(): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const raw = localStorage.getItem(STORAGE_QUOTA_STATES_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item && item.apiKeyId && item.modelId) {
+            const key = this.getQuotaKey(item.apiKeyId, item.modelId);
+            const limits = GEMINI_MODEL_LIMITS[item.modelId as GeminiModelId];
+            this.quotaMap.set(key, {
+              ...item,
+              dailyLimit: limits ? limits.dailyLimit : item.dailyLimit,
+              rpmLimit: limits ? limits.rpmLimit : item.rpmLimit,
+            });
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  private persistQuotas(): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const items = Array.from(this.quotaMap.values());
+      localStorage.setItem(STORAGE_QUOTA_STATES_KEY, JSON.stringify(items));
+    } catch {
+      // ignore
+    }
+  }
+
+  private loadRequestLogsFromStorage(): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const raw = localStorage.getItem(STORAGE_REQUEST_LOGS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        this.requestLogs = parsed;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  private persistRequestLogs(): void {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      localStorage.setItem(
+        STORAGE_REQUEST_LOGS_KEY,
+        JSON.stringify(this.requestLogs.slice(0, 100)),
+      );
+    } catch {
+      // ignore
+    }
+  }
+
+  public logRequest(log: Omit<ApiRequestLog, 'id'>): ApiRequestLog {
+    const entry: ApiRequestLog = {
+      id: `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      ...log,
+    };
+    this.requestLogs.unshift(entry);
+    if (this.requestLogs.length > 100) {
+      this.requestLogs = this.requestLogs.slice(0, 100);
+    }
+    this.persistRequestLogs();
+    this.notifyListeners();
+    return entry;
+  }
+
+  public getRequestLogs(): ApiRequestLog[] {
+    return [...this.requestLogs];
+  }
+
+  public clearRequestLogs(): void {
+    this.requestLogs = [];
+    this.persistRequestLogs();
+    this.notifyListeners();
   }
 
   public getDefaultModel(): GeminiModelId {
@@ -89,6 +248,7 @@ export class QuotaMatrixOrchestrator {
   public setDefaultModel(model: GeminiModelId): void {
     if (GEMINI_MODEL_HIERARCHY.includes(model)) {
       this.defaultModel = model;
+      this.notifyListeners();
     }
   }
 
@@ -117,6 +277,8 @@ export class QuotaMatrixOrchestrator {
     for (const model of GEMINI_MODEL_HIERARCHY) {
       this.quotaMap.delete(this.getQuotaKey(keyId, model));
     }
+    this.persistQuotas();
+    this.notifyListeners();
   }
 
   public toggleApiKey(keyId: string): void {
@@ -130,6 +292,7 @@ export class QuotaMatrixOrchestrator {
         return;
       }
       key.isActive = !key.isActive;
+      this.notifyListeners();
     }
   }
 
@@ -137,6 +300,7 @@ export class QuotaMatrixOrchestrator {
     this.apiKeys.forEach((k) => {
       k.isPrimary = k.id === keyId;
     });
+    this.notifyListeners();
   }
 
   public getKeyQuotaSummary(apiKeyId: string): ApiKeyQuotaSummary | undefined {
@@ -145,6 +309,7 @@ export class QuotaMatrixOrchestrator {
     if (!key) return undefined;
 
     let totalRequestsToday = 0;
+    let totalLimit = 0;
     let hasRpmCooldown = false;
     let isExhausted = true;
     const now = new Date();
@@ -154,12 +319,15 @@ export class QuotaMatrixOrchestrator {
       'gemini-3.6-flash': 0,
       'gemini-3.5-flash-lite': 0,
     };
+    const modelQuotas: Record<GeminiModelId, ModelQuotaState> = {} as Record<GeminiModelId, ModelQuotaState>;
 
     for (const model of GEMINI_MODEL_HIERARCHY) {
       const q = this.getQuotaState(apiKeyId, model);
       if (q) {
         totalRequestsToday += q.requestsToday;
+        totalLimit += q.dailyLimit;
         modelBreakdown[model] = q.requestsToday;
+        modelQuotas[model] = { ...q };
         if (q.rpdStatus === 'AVAILABLE' && q.requestsToday < q.dailyLimit) {
           isExhausted = false;
         }
@@ -169,17 +337,18 @@ export class QuotaMatrixOrchestrator {
       }
     }
 
-    const totalLimit = this.defaultDailyLimit * GEMINI_MODEL_HIERARCHY.length; // 20 * 4 = 80
     const remainingRequests = Math.max(0, totalLimit - totalRequestsToday);
 
     return {
       apiKey: { ...key },
       totalRequestsToday,
-      dailyLimit: totalLimit,
+      dailyLimit: totalLimit || TOTAL_DAILY_LIMIT_PER_KEY,
       remainingRequests,
       rpdStatus: isExhausted || remainingRequests === 0 ? 'EXHAUSTED_UNTIL_MIDNIGHT_PT' : 'AVAILABLE',
       hasRpmCooldown,
       modelBreakdown,
+      modelLimits: { ...GEMINI_MODEL_LIMITS },
+      modelQuotas,
     };
   }
 
@@ -190,31 +359,49 @@ export class QuotaMatrixOrchestrator {
       .filter((s): s is ApiKeyQuotaSummary => Boolean(s));
   }
 
-
   public setApiKeys(keys: ApiKeyEntry[]): void {
     this.apiKeys = keys.map((k) => ({ ...k }));
     if (this.apiKeys.length === 1) {
       this.apiKeys[0].isActive = true;
       this.apiKeys[0].isPrimary = true;
     }
+
+    // Clean up quotas for removed keys
+    const currentKeyIds = new Set(this.apiKeys.map((k) => k.id));
+    for (const [quotaKey, quota] of this.quotaMap.entries()) {
+      if (!currentKeyIds.has(quota.apiKeyId)) {
+        this.quotaMap.delete(quotaKey);
+      }
+    }
+
     for (const key of this.apiKeys) {
       for (const model of GEMINI_MODEL_HIERARCHY) {
         const id = this.getQuotaKey(key.id, model);
-        if (!this.quotaMap.has(id)) {
+        const limits = GEMINI_MODEL_LIMITS[model];
+        const existing = this.quotaMap.get(id);
+        if (!existing) {
           this.quotaMap.set(id, {
             apiKeyId: key.id,
             modelId: model,
             requestsToday: 0,
-            dailyLimit: this.defaultDailyLimit,
-            rpmLimit: this.defaultRpmLimit,
+            dailyLimit: limits.dailyLimit,
+            rpmLimit: limits.rpmLimit,
             lastRequestTimestamp: null,
             rpmCooldownUntil: null,
             rpdStatus: 'AVAILABLE',
             lastPtResetDate: this.getCurrentPtDate(),
           });
+        } else {
+          // Keep requestsToday and state, but ensure limits are up to date
+          existing.dailyLimit = limits.dailyLimit;
+          existing.rpmLimit = limits.rpmLimit;
         }
       }
     }
+
+    this.checkAndResetPtQuotas();
+    this.persistQuotas();
+    this.notifyListeners();
   }
 
   public getQuotaKey(apiKeyId: string, modelId: GeminiModelId): string {
@@ -243,16 +430,24 @@ export class QuotaMatrixOrchestrator {
    */
   public checkAndResetPtQuotas(now: Date = new Date()): void {
     const todayPt = this.getCurrentPtDate(now);
+    let changed = false;
 
     for (const quota of this.quotaMap.values()) {
       if (quota.lastPtResetDate !== todayPt) {
         quota.requestsToday = 0;
         quota.rpdStatus = 'AVAILABLE';
         quota.lastPtResetDate = todayPt;
+        changed = true;
       }
       if (quota.rpmCooldownUntil && now >= new Date(quota.rpmCooldownUntil)) {
         quota.rpmCooldownUntil = null;
+        changed = true;
       }
+    }
+
+    if (changed) {
+      this.persistQuotas();
+      this.notifyListeners();
     }
   }
 
@@ -342,6 +537,9 @@ export class QuotaMatrixOrchestrator {
     if (quota.requestsToday >= quota.dailyLimit) {
       quota.rpdStatus = 'EXHAUSTED_UNTIL_MIDNIGHT_PT';
     }
+
+    this.persistQuotas();
+    this.notifyListeners();
   }
 
   /**
@@ -372,5 +570,8 @@ export class QuotaMatrixOrchestrator {
       quota.requestsToday = quota.dailyLimit;
       quota.rpdStatus = 'EXHAUSTED_UNTIL_MIDNIGHT_PT';
     }
+
+    this.persistQuotas();
+    this.notifyListeners();
   }
 }

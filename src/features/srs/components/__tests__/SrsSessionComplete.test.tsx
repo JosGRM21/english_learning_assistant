@@ -67,4 +67,37 @@ describe('SrsSessionComplete Component', () => {
     expect(screen.getByText('¡Tu Mazo está al Día!')).toBeDefined();
     expect(screen.getByText('100%')).toBeDefined();
   });
+
+  it('renders educational consolidation cooldown view when new words are in 4h cooldown', () => {
+    const zeroStats: SrsSessionStats = {
+      totalReviewed: 0,
+      successfulRecalls: 0,
+      lapses: 0,
+      averageLatencyMs: 0,
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+    };
+
+    const handleEarlyStudy = vi.fn();
+    const futureDate = new Date(Date.now() + 2 * 3600 * 1000).toISOString();
+
+    render(
+      <SrsSessionComplete
+        stats={zeroStats}
+        streakDays={3}
+        totalDeckCount={5}
+        cooldownCount={5}
+        earliestCooldownDate={futureDate}
+        onStartEarlyStudy={handleEarlyStudy}
+      />
+    );
+
+    expect(screen.getByText('Fase de Fijación Neural en Curso')).toBeDefined();
+    expect(screen.getByText(/periodo de consolidación neural inicial/i)).toBeDefined();
+
+    const earlyBtn = screen.getByText(/Estudiar Ahora de Todos Modos/i);
+    expect(earlyBtn).toBeDefined();
+    fireEvent.click(earlyBtn);
+    expect(handleEarlyStudy).toHaveBeenCalledTimes(1);
+  });
 });

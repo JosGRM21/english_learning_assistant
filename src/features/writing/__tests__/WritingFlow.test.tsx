@@ -72,6 +72,8 @@ describe('Writing Studio Components & Store', () => {
       expect(state.draft1).toBe('Original text');
       expect(state.draft2).toBe('Corrected text');
       expect(state.evalResult?.estimated_cefr).toBe('B2');
+      expect(state.submissionMode).toBe('FREE');
+      expect(state.selectedPrompt).toBeNull();
     });
   });
 
@@ -122,6 +124,28 @@ describe('Writing Studio Components & Store', () => {
 
       // Ensure 'Aplicar cambio al Borrador 2' button is removed
       expect(screen.queryByRole('button', { name: /Aplicar cambio al Borrador 2/i })).toBeNull();
+    });
+
+    it('rejects partial substring input in cloze validation and requires exact token', () => {
+      render(<ZpdScaffoldingCard clue={mockClue} index={0} />);
+      const lvl3Btn = screen.getByRole('button', { name: /Nivel 3/i });
+      fireEvent.click(lvl3Btn);
+
+      const input = screen.getByPlaceholderText(/Escribe la corrección/i);
+      const submitBtn = screen.getByRole('button', { name: /Comprobar/i });
+
+      // Partial substring 'o' of 'on' must NOT pass
+      fireEvent.change(input, { target: { value: 'o' } });
+      fireEvent.click(submitBtn);
+
+      expect(screen.getByText(/Intenta nuevamente o avanza al Nivel 4/i)).toBeDefined();
+      expect(screen.queryByText(/¡Exacto! Asimilaste la estructura/i)).toBeNull();
+
+      // Exact token 'on' must pass
+      fireEvent.change(input, { target: { value: 'on' } });
+      fireEvent.click(submitBtn);
+
+      expect(screen.getByText(/¡Exacto! Asimilaste la estructura/i)).toBeDefined();
     });
 
     it('renders applied status badge when isApplied is true', () => {

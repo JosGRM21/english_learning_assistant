@@ -180,6 +180,7 @@ CREATE TABLE IF NOT EXISTS srs_cards (
 
 CREATE INDEX IF NOT EXISTS idx_srs_due ON srs_cards(user_id, scheduled_for, state);
 CREATE INDEX IF NOT EXISTS idx_srs_target ON srs_cards(target_type, target_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_srs_user_target_unique ON srs_cards(user_id, target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_srs_procedural ON srs_cards(is_proceduralized);
 
 CREATE TABLE IF NOT EXISTS review_logs (
@@ -265,6 +266,7 @@ CREATE TABLE IF NOT EXISTS writing_evaluations (
     overall_feedback_es TEXT NOT NULL,
     corrections_json TEXT NOT NULL,
     micro_challenge_json TEXT,
+    successful_repairs_json TEXT,
     evaluated_at TEXT NOT NULL DEFAULT (DATETIME('now')),
     FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE
 );

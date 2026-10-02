@@ -1,8 +1,8 @@
 import { Kysely, Selectable } from 'kysely';
 import { DatabaseSchema, SrsCardsTable } from '../../../core/types/database';
 import { ICardRepository, DeckStatistics } from '../../../core/repositories/ICardRepository';
-import { SrsCard, ReviewLog, CardWithTarget, CardState, TargetType } from '../../../core/types/srs';
-import { CefrLevel, GrammaticalDimension, PartOfSpeech } from '../../../core/types/vocab';
+import { SrsCard, ReviewLog, CardWithTarget, CardState, TargetType, FsrsGrade } from '../../../core/types/srs';
+import { CefrLevel, GrammaticalDimension, PartOfSpeech, ChunkType, PhrasalVerbType, VocabContextExample } from '../../../core/types/vocab';
 
 export class CardRepository implements ICardRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
@@ -22,6 +22,15 @@ export class CardRepository implements ICardRepository {
       scheduledFor: row.scheduled_for,
       createdAt: row.created_at,
     };
+  }
+
+  private parseJsonSafe<T>(jsonStr: string | null | undefined, fallback: T): T {
+    if (!jsonStr) return fallback;
+    try {
+      return JSON.parse(jsonStr) as T;
+    } catch {
+      return fallback;
+    }
   }
 
   async getDueCards(userId: string, limit = 50): Promise<SrsCard[]> {
@@ -60,6 +69,12 @@ export class CardRepository implements ICardRepository {
   }
 
   async createCard(card: Omit<SrsCard, 'createdAt'>): Promise<SrsCard> {
+    // Prevent duplicate cards for the exact same target
+    const existing = await this.getCardByTargetId(card.targetId, card.targetType);
+    if (existing) {
+      return existing;
+    }
+
     const createdAt = new Date().toISOString();
 
     // Ensure the referenced user exists to guarantee foreign key integrity
@@ -184,14 +199,188 @@ export class CardRepository implements ICardRepository {
                 cefrLevel: vocabRow.cefr_level as CefrLevel,
                 isFalseFriend: Boolean(vocabRow.is_false_friend),
                 falseFriendNote: vocabRow.false_friend_note,
-                morphologicalFamilyJson: vocabRow.morphological_family_json
-                  ? JSON.parse(vocabRow.morphological_family_json)
-                  : [],
+                morphologicalFamilyJson: this.parseJsonSafe<string[]>(
+                  vocabRow.morphological_family_json,
+                  [],
+                ),
                 createdAt: vocabRow.created_at,
               }
             : undefined,
           allContexts: contexts,
           currentContext: contexts[0],
+        });
+      } else if (card.targetType === 'PHRASE') {
+        // 1. Check phraseological_units
+        const phraseRow = await this.db
+          .selectFrom('phraseological_units')
+          .selectAll()
+          .where('id', '=', card.targetId)
+          .executeTakeFirst();
+
+        if (phraseRow) {
+          const contexts: VocabContextExample[] = [];
+          if (phraseRow.example_1) {
+            contexts.push({
+              id: `ctx_${phraseRow.id}_1`,
+              phraseId: phraseRow.id,
+              sentenceEn: phraseRow.example_1,
+              sentenceEs: phraseRow.example_2 || phraseRow.meaning_es,
+              clozeTarget: phraseRow.text,
+              cefrLevel: phraseRow.cefr_level as CefrLevel,
+              createdAt: phraseRow.created_at,
+            });
+          }
+
+          results.push({
+            card,
+            phrase: {
+              id: phraseRow.id,
+              primaryVocabId: phraseRow.primary_vocab_id,
+              chunkType: phraseRow.chunk_type as ChunkType,
+              text: phraseRow.text,
+              meaningEs: phraseRow.meaning_es,
+              phrasalVerbType: phraseRow.phrasal_verb_type as PhrasalVerbType | null,
+              example1: phraseRow.example_1,
+              example2: phraseRow.example_2,
+              cefrLevel: phraseRow.cefr_level as CefrLevel,
+              createdAt: phraseRow.created_at,
+            },
+            vocab: {
+              id: phraseRow.id,
+              word: phraseRow.text,
+              grammaticalDimension: 'CHUNK',
+              partOfSpeech: 'NOUN',
+              definitionEn: phraseRow.meaning_es,
+              translationEs: phraseRow.meaning_es,
+              ipaGeneralAmerican: '',
+              cefrLevel: phraseRow.cefr_level as CefrLevel,
+              isFalseFriend: false,
+              createdAt: phraseRow.created_at,
+            },
+            allContexts: contexts,
+            currentContext: contexts[0],
+          });
+        } else {
+          // 2. Check vocab_items (e.g. phrases or chunks registered through Writing Studio)
+          const vocabRow = await this.db
+            .selectFrom('vocab_items')
+            .selectAll()
+            .where('id', '=', card.targetId)
+            .executeTakeFirst();
+
+          const contextRows = await this.db
+            .selectFrom('vocab_context_examples')
+            .selectAll()
+            .where('vocab_id', '=', card.targetId)
+            .execute();
+
+          const contexts = contextRows.map((c) => ({
+            id: c.id,
+            vocabId: c.vocab_id,
+            phraseId: c.phrase_id,
+            sentenceEn: c.sentence_en,
+            sentenceEs: c.sentence_es,
+            clozeTarget: c.cloze_target,
+            audioUrl: c.audio_url,
+            cefrLevel: c.cefr_level as CefrLevel,
+            createdAt: c.created_at,
+          }));
+
+          results.push({
+            card,
+            vocab: vocabRow
+              ? {
+                  id: vocabRow.id,
+                  word: vocabRow.word,
+                  grammaticalDimension: vocabRow.grammatical_dimension as GrammaticalDimension,
+                  partOfSpeech: vocabRow.part_of_speech as PartOfSpeech,
+                  subcategory: vocabRow.subcategory,
+                  definitionEn: vocabRow.definition_en,
+                  translationEs: vocabRow.translation_es,
+                  ipaGeneralAmerican: vocabRow.ipa_general_american,
+                  ipaReceivedPronunciation: vocabRow.ipa_received_pronunciation,
+                  cefrLevel: vocabRow.cefr_level as CefrLevel,
+                  isFalseFriend: Boolean(vocabRow.is_false_friend),
+                  falseFriendNote: vocabRow.false_friend_note,
+                  morphologicalFamilyJson: this.parseJsonSafe<string[]>(
+                    vocabRow.morphological_family_json,
+                    [],
+                  ),
+                  createdAt: vocabRow.created_at,
+                }
+              : undefined,
+            allContexts: contexts,
+            currentContext: contexts[0],
+          });
+        }
+      } else if (card.targetType === 'GRAMMAR') {
+        const grammarRow = await this.db
+          .selectFrom('grammar_rules')
+          .selectAll()
+          .where('id', '=', card.targetId)
+          .executeTakeFirst();
+
+        results.push({
+          card,
+          vocab: grammarRow
+            ? {
+                id: grammarRow.id,
+                word: grammarRow.title,
+                grammaticalDimension: 'FUNCTION',
+                partOfSpeech: 'CONJUNCTION',
+                definitionEn: grammarRow.formula_syntax || grammarRow.title,
+                translationEs: grammarRow.explanation_es,
+                ipaGeneralAmerican: '',
+                cefrLevel: grammarRow.cefr_level as CefrLevel,
+                isFalseFriend: false,
+                createdAt: grammarRow.created_at,
+              }
+            : undefined,
+          allContexts: [],
+        });
+      } else if (card.targetType === 'PHONETICS') {
+        const phoneticRow = await this.db
+          .selectFrom('phonetic_rules')
+          .selectAll()
+          .where('id', '=', card.targetId)
+          .executeTakeFirst();
+
+        const contexts: VocabContextExample[] = [];
+        if (phoneticRow?.example_sentence) {
+          contexts.push({
+            id: `ctx_phon_${phoneticRow.id}`,
+            sentenceEn: phoneticRow.example_sentence,
+            sentenceEs: phoneticRow.description_es,
+            clozeTarget: phoneticRow.rule_name,
+            cefrLevel: 'B1',
+            createdAt: phoneticRow.created_at,
+          });
+        }
+
+        results.push({
+          card,
+          vocab: phoneticRow
+            ? {
+                id: phoneticRow.id,
+                word: phoneticRow.rule_name,
+                grammaticalDimension: 'CONTENT',
+                partOfSpeech: 'NOUN',
+                definitionEn: phoneticRow.example_sentence,
+                translationEs: phoneticRow.description_es,
+                ipaGeneralAmerican: phoneticRow.example_ipa_breakdown,
+                cefrLevel: 'B1',
+                isFalseFriend: false,
+                createdAt: phoneticRow.created_at,
+              }
+            : undefined,
+          allContexts: contexts,
+          currentContext: contexts[0],
+        });
+      } else {
+        // Fallback for any other custom target type
+        results.push({
+          card,
+          allContexts: [],
         });
       }
     }
@@ -221,11 +410,13 @@ export class CardRepository implements ICardRepository {
   }
 
   async getNewCardsWithDetails(userId: string, limit = 50): Promise<CardWithTarget[]> {
+    const now = new Date().toISOString();
     const rows = await this.db
       .selectFrom('srs_cards')
       .selectAll()
       .where('user_id', '=', userId)
       .where('state', '=', 'NEW')
+      .where('scheduled_for', '<=', now)
       .orderBy('created_at', 'asc')
       .limit(limit)
       .execute();
@@ -282,5 +473,27 @@ export class CardRepository implements ICardRepository {
       reviewCount,
       totalCount: all.length,
     };
+  }
+
+  async getAllReviewLogs(limit = 1000): Promise<ReviewLog[]> {
+    const rows = await this.db
+      .selectFrom('review_logs')
+      .selectAll()
+      .orderBy('reviewed_at', 'desc')
+      .limit(limit)
+      .execute();
+
+    return rows.map((r) => ({
+      id: r.id,
+      cardId: r.card_id,
+      rating: r.rating as FsrsGrade,
+      stateBefore: r.state_before as CardState,
+      stabilityBefore: r.stability_before,
+      difficultyBefore: r.difficulty_before,
+      newStability: r.new_stability,
+      newDifficulty: r.new_difficulty,
+      elapsedMs: r.elapsed_ms,
+      reviewedAt: r.reviewed_at,
+    }));
   }
 }

@@ -27,6 +27,7 @@ export interface SrsCardDisplayProps {
   onShowAnswer: () => void;
   onFlipBack?: () => void;
   onRate: (grade: FsrsGrade) => void;
+  isRating?: boolean;
   audioService?: AudioService;
 }
 
@@ -48,6 +49,7 @@ export function SrsCardDisplay({
   onShowAnswer,
   onFlipBack,
   onRate,
+  isRating = false,
   audioService: audioProp,
 }: SrsCardDisplayProps) {
   const { audioService: defaultAudio } = useAudio();
@@ -139,38 +141,40 @@ export function SrsCardDisplay({
             </div>
 
             {/* Context Cloze Hint */}
-            <div className="py-1">
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setShowHint(!showHint)}
-                  className="text-xs font-semibold text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{showHint ? 'Ocultar pista' : '¿Pista? Ver contexto cloze'}</span>
-                </button>
-
-                {availableContexts.length > 1 && showHint && (
+            {currentContext ? (
+              <div className="py-1">
+                <div className="flex items-center justify-between">
                   <button
                     type="button"
-                    onClick={onRotateContext}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-                    title="Rotar a otro ejemplo contextual"
+                    onClick={() => setShowHint(!showHint)}
+                    className="text-xs font-semibold text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    <RotateCw className="w-3 h-3" />
-                    <span>Rotar</span>
+                    <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{showHint ? 'Ocultar pista' : '¿Pista? Ver contexto cloze'}</span>
                   </button>
+
+                  {availableContexts.length > 1 && showHint && (
+                    <button
+                      type="button"
+                      onClick={onRotateContext}
+                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      title="Rotar a otro ejemplo contextual"
+                    >
+                      <RotateCw className="w-3 h-3" />
+                      <span>Rotar</span>
+                    </button>
+                  )}
+                </div>
+
+                {showHint && (
+                  <div className="mt-3 p-4 rounded-2xl bg-gray-50 dark:bg-[#161B28] border border-gray-200/60 dark:border-gray-800 text-xs animate-in fade-in duration-200">
+                    <p className="font-editorial text-sm text-gray-800 dark:text-gray-200 italic">
+                      &ldquo;{currentContext.sentenceEn}&rdquo;
+                    </p>
+                  </div>
                 )}
               </div>
-
-              {showHint && currentContext && (
-                <div className="mt-3 p-4 rounded-2xl bg-gray-50 dark:bg-[#161B28] border border-gray-200/60 dark:border-gray-800 text-xs animate-in fade-in duration-200">
-                  <p className="font-editorial text-sm text-gray-800 dark:text-gray-200 italic">
-                    &ldquo;{currentContext.sentenceEn}&rdquo;
-                  </p>
-                </div>
-              )}
-            </div>
+            ) : null}
           </div>
 
           {/* Action: Reveal Answer */}
@@ -265,7 +269,7 @@ export function SrsCardDisplay({
             </div>
 
             {/* Contextual Narrative Section (Clean & Typographic) */}
-            {currentContext && (
+            {currentContext ? (
               <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#161B28]/60 border border-gray-100 dark:border-gray-800/80 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
@@ -321,6 +325,34 @@ export function SrsCardDisplay({
                   )}
                 </div>
               </div>
+            ) : (
+              /* When no context sentence is registered, ensure phonetic analysis is still fully accessible for the word */
+              <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#161B28]/60 border border-gray-100 dark:border-gray-800/80 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPhoneticsDrawer(!showPhoneticsDrawer)}
+                  className="w-full flex items-center justify-between text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold cursor-pointer py-0.5"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Análisis Fonológico de la Palabra</span>
+                  </span>
+                  {showPhoneticsDrawer ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                </button>
+
+                {showPhoneticsDrawer && (
+                  <div className="pt-2 animate-in fade-in duration-200">
+                    <ConnectedSpeechPill
+                      sentence={selectedVocab.word}
+                      audioService={audioService}
+                    />
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -328,6 +360,16 @@ export function SrsCardDisplay({
           {/* FSRS RATING DOCK (HERO INTERACTION)                         */}
           {/* ============================================================ */}
           <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-800/80">
+            {/* Intraday learning / relearning step callout to prevent false priming expectations */}
+            {(srsCard?.state === 'LEARNING' || srsCard?.state === 'RELEARNING') && (
+              <div className="flex items-center gap-2 p-2.5 px-3 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-[11px] text-amber-800 dark:text-amber-200 animate-in fade-in duration-200">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>
+                  <strong>Paso de Consolidación Intradía:</strong> Al repasar esta tarjeta en la misma sesión, las opciones exitosas la afianzan para mañana (1-2 días) evitando sobrestimar tu memoria por recuerdo inmediato (<em>priming</em>).
+                </span>
+              </div>
+            )}
+
             <div className="flex items-center justify-between text-xs text-gray-400">
               <span className="font-semibold text-gray-700 dark:text-gray-300">
                 Califica tu retención (FSRS v5):
@@ -339,8 +381,9 @@ export function SrsCardDisplay({
               {/* Grade 1: Repetir */}
               <button
                 type="button"
+                disabled={isRating}
                 onClick={() => onRate(1)}
-                className="group py-3 px-2 rounded-2xl bg-gray-50/90 dark:bg-[#161B28] hover:bg-white dark:hover:bg-[#1D2335] border border-gray-200/70 dark:border-gray-800 hover:border-rose-300 dark:hover:border-rose-900/60 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95"
+                className="group py-3 px-2 rounded-2xl bg-gray-50/90 dark:bg-[#161B28] hover:bg-white dark:hover:bg-[#1D2335] border border-gray-200/70 dark:border-gray-800 hover:border-rose-300 dark:hover:border-rose-900/60 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
               >
                 <div className="flex items-center gap-1.5 font-semibold text-xs text-gray-800 dark:text-gray-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500/80" />
@@ -354,8 +397,9 @@ export function SrsCardDisplay({
               {/* Grade 2: Difícil */}
               <button
                 type="button"
+                disabled={isRating}
                 onClick={() => onRate(2)}
-                className="group py-3 px-2 rounded-2xl bg-gray-50/90 dark:bg-[#161B28] hover:bg-white dark:hover:bg-[#1D2335] border border-gray-200/70 dark:border-gray-800 hover:border-amber-300 dark:hover:border-amber-900/60 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95"
+                className="group py-3 px-2 rounded-2xl bg-gray-50/90 dark:bg-[#161B28] hover:bg-white dark:hover:bg-[#1D2335] border border-gray-200/70 dark:border-gray-800 hover:border-amber-300 dark:hover:border-amber-900/60 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
               >
                 <div className="flex items-center gap-1.5 font-semibold text-xs text-gray-800 dark:text-gray-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80" />
@@ -369,8 +413,9 @@ export function SrsCardDisplay({
               {/* Grade 3: Bueno (Sugerido / Hero Option) */}
               <button
                 type="button"
+                disabled={isRating}
                 onClick={() => onRate(3)}
-                className="group py-3 px-2 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/80 hover:border-indigo-400 dark:hover:border-indigo-600 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95"
+                className="group py-3 px-2 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/80 hover:border-indigo-400 dark:hover:border-indigo-600 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
               >
                 <div className="flex items-center gap-1.5 font-bold text-xs text-indigo-900 dark:text-indigo-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
@@ -384,8 +429,9 @@ export function SrsCardDisplay({
               {/* Grade 4: Fácil */}
               <button
                 type="button"
+                disabled={isRating}
                 onClick={() => onRate(4)}
-                className="group py-3 px-2 rounded-2xl bg-gray-50/90 dark:bg-[#161B28] hover:bg-white dark:hover:bg-[#1D2335] border border-gray-200/70 dark:border-gray-800 hover:border-emerald-300 dark:hover:border-emerald-900/60 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95"
+                className="group py-3 px-2 rounded-2xl bg-gray-50/90 dark:bg-[#161B28] hover:bg-white dark:hover:bg-[#1D2335] border border-gray-200/70 dark:border-gray-800 hover:border-emerald-300 dark:hover:border-emerald-900/60 transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-1 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
               >
                 <div className="flex items-center gap-1.5 font-semibold text-xs text-gray-800 dark:text-gray-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80" />

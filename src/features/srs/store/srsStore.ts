@@ -25,7 +25,9 @@ export interface SrsState {
   incrementReviewCount: () => void;
   resetSession: () => void;
   addExtractedCard: (payload: OneClickCardPayload) => void;
-  addVocabItem: (item: VocabItem, context?: VocabContextExample | null) => void;
+  addVocabItem: (item: VocabItem, context?: VocabContextExample | null, cardId?: string) => void;
+  updateVocabItem: (item: VocabItem) => void;
+  removeVocabItem: (id: string) => void;
 }
 
 export const useSrsStore = create<SrsState>((set) => ({
@@ -120,9 +122,9 @@ export const useSrsStore = create<SrsState>((set) => ({
     }));
   },
 
-  addVocabItem: (item: VocabItem, context?: VocabContextExample | null) => {
+  addVocabItem: (item: VocabItem, context?: VocabContextExample | null, cardId?: string) => {
     const newCard: SrsCard = {
-      id: `card_${item.id}`,
+      id: cardId || `card_${item.id}`,
       userId: 'user_local',
       targetType: 'VOCAB',
       targetId: item.id,
@@ -160,5 +162,22 @@ export const useSrsStore = create<SrsState>((set) => ({
         vocabList: updatedVocabList,
       };
     });
+  },
+
+  updateVocabItem: (item: VocabItem) => {
+    set((state) => ({
+      vocabList: state.vocabList.map((v) => (v.id === item.id ? item : v)),
+      selectedVocab: state.selectedVocab?.id === item.id ? item : state.selectedVocab,
+    }));
+  },
+
+  removeVocabItem: (id: string) => {
+    set((state) => ({
+      vocabList: state.vocabList.filter((v) => v.id !== id),
+      selectedVocab: state.selectedVocab?.id === id ? null : state.selectedVocab,
+      srsCard: state.srsCard?.targetId === id ? null : state.srsCard,
+      availableContexts: state.selectedVocab?.id === id ? [] : state.availableContexts,
+      currentContext: state.selectedVocab?.id === id ? null : state.currentContext,
+    }));
   },
 }));

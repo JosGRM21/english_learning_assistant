@@ -8,6 +8,8 @@ export interface IAudioService {
   isBackendAvailable(): Promise<boolean>;
   getBackendVoices(): Promise<string[]>;
   getActiveDevice?(): 'webgpu' | 'wasm';
+  getActiveEngine?(): Promise<'native-avx2' | 'webgpu' | 'wasm' | 'webspeech'>;
+  getBuildTarget?(): Promise<'avx2-native' | 'legacy-universal' | 'web'>;
 }
 
 export class AudioService implements IAudioService {
@@ -80,10 +82,40 @@ export class AudioService implements IAudioService {
   }
 
   /**
+   * Returns the current application build target (AVX2 native, Legacy universal, or web).
+   */
+  public async getBuildTarget(): Promise<'avx2-native' | 'legacy-universal' | 'web'> {
+    if (!this.isTauri()) return 'web';
+    try {
+      return await invoke<'avx2-native' | 'legacy-universal'>('get_build_target');
+    } catch {
+      return 'legacy-universal';
+    }
+  }
+
+  /**
+   * Returns the active TTS synthesis engine being utilized.
+   */
+  public async getActiveEngine(): Promise<'native-avx2' | 'webgpu' | 'wasm' | 'webspeech'> {
+    const isNativeReady = await this.isBackendAvailable();
+    if (isNativeReady) return 'native-avx2';
+    if (KokoroEngine.isReady()) {
+      return KokoroEngine.getActiveDevice();
+    }
+    return 'webspeech';
+  }
+
+  /**
    * Retrieves available voices from Kokoro.
    */
   public async getBackendVoices(): Promise<string[]> {
     if (!this.isTauri()) return [];
+    try {
+      const voices = await invoke<string[]>('kokoro_get_voices');
+      if (voices && voices.length > 0) return voices;
+    } catch {
+      // ignore fallback
+    }
     return [
       'af_heart',
       'af_sky',
@@ -129,7 +161,47 @@ export class AudioService implements IAudioService {
       return;
     }
 
-    // 1. Primary: High-fidelity Kokoro-ONNX with Sentence Streaming
+    // 1. Primary for AVX2 build: Native Kokoro in Rust backend
+    try {
+      const isNativeReady = await this.isBackendAvailable();
+      if (isNativeReady) {
+        const rawWavBytes = await invoke<number[]>('kokoro_synthesize', {
+          text: trimmed,
+          voice,
+          speed: rate,
+        });
+
+        if (signal.aborted) return;
+
+        if (rawWavBytes && rawWavBytes.length > 0) {
+          const ctx = this.getAudioContext();
+          if (ctx) {
+            const uint8Array = new Uint8Array(rawWavBytes);
+            const arrayBuffer = uint8Array.buffer.slice(
+              uint8Array.byteOffset,
+              uint8Array.byteOffset + uint8Array.byteLength,
+            );
+            const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
+            if (signal.aborted) return;
+
+            if (this.audioBufferCache.size >= AudioService.MAX_CACHE_ENTRIES) {
+              const firstKey = this.audioBufferCache.keys().next().value;
+              if (firstKey) this.audioBufferCache.delete(firstKey);
+            }
+            this.audioBufferCache.set(cacheKey, decodedBuffer);
+
+            await this.playAudioBuffer(decodedBuffer, signal);
+            return;
+          }
+        }
+      }
+    } catch (nativeErr) {
+      console.warn('[AudioService] Native AVX2 Kokoro synthesis unavailable, falling back to client engine:', nativeErr);
+    }
+
+    if (signal.aborted) return;
+
+    // 2. Secondary (Legacy build or Web): High-fidelity Kokoro-ONNX with Sentence Streaming
     try {
       const tts = await KokoroEngine.getInstance();
       if (signal.aborted) return;
@@ -226,7 +298,7 @@ export class AudioService implements IAudioService {
 
     if (signal.aborted) return;
 
-    // 2. Fallback: Web Speech API
+    // 3. Fallback: Web Speech API
     await this.speakWebSpeech(trimmed, rate, signal);
   }
 

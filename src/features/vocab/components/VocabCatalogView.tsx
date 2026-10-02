@@ -312,19 +312,19 @@ export function VocabCatalogView() {
       ) : words.length === 0 ? (
         <div className="p-14 rounded-3xl bg-white dark:bg-[#121622] border border-gray-200/80 dark:border-white/[0.08] text-center space-y-3 shadow-xs">
           <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-500 dark:text-indigo-400 mx-auto flex items-center justify-center">
-            {hasActiveFilters ? <FolderOpen className="w-7 h-7" /> : <Sparkles className="w-7 h-7" />}
+            {totalCount > 0 && hasActiveFilters ? <FolderOpen className="w-7 h-7" /> : <Sparkles className="w-7 h-7" />}
           </div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-white font-sans">
-            {hasActiveFilters ? 'No se encontraron palabras con estos filtros' : 'Catálogo de vocabulario vacío'}
+            {totalCount > 0 && hasActiveFilters ? 'No se encontraron palabras con estos filtros' : 'Catálogo de vocabulario vacío'}
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto leading-relaxed">
-            {hasActiveFilters
+            {totalCount > 0 && hasActiveFilters
               ? 'Prueba modificando el término de búsqueda o desactivando el filtro de nivel CEFR o falsos amigos.'
               : 'Empieza a registrar palabras o expresiones en inglés para enriquecer tu léxico con fonética IPA y oraciones auténticas.'}
           </p>
 
           <div className="pt-2 flex items-center justify-center gap-2">
-            {hasActiveFilters ? (
+            {totalCount > 0 && hasActiveFilters ? (
               <Button
                 onPress={resetFilters}
                 className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5"

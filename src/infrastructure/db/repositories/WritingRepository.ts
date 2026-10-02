@@ -130,6 +130,7 @@ export class WritingRepository implements IWritingRepository {
           overall_feedback_es: input.evaluation.overall_feedback_es,
           corrections_json: JSON.stringify(input.evaluation.corrections),
           micro_challenge_json: JSON.stringify(input.evaluation.micro_challenge),
+          successful_repairs_json: JSON.stringify(input.evaluation.successful_repairs ?? []),
         })
         .where('id', '=', existing.id)
         .execute();
@@ -149,6 +150,7 @@ export class WritingRepository implements IWritingRepository {
           overall_feedback_es: input.evaluation.overall_feedback_es,
           corrections_json: JSON.stringify(input.evaluation.corrections),
           micro_challenge_json: JSON.stringify(input.evaluation.micro_challenge),
+          successful_repairs_json: JSON.stringify(input.evaluation.successful_repairs ?? []),
         })
         .execute();
     }
@@ -180,14 +182,14 @@ export class WritingRepository implements IWritingRepository {
 
     for (const sub of submissions) {
       // Find latest revision
-      const revisions = await this.db
+      const latestRev = await this.db
         .selectFrom('writing_draft_revisions')
         .selectAll()
         .where('submission_id', '=', sub.id)
         .orderBy('revision_number', 'desc')
-        .execute();
+        .limit(1)
+        .executeTakeFirst();
 
-      const latestRev = revisions[0];
       let socraticResult: SocraticFeedbackResponse | null = null;
       if (latestRev?.ai_hints_json) {
         try {
@@ -215,8 +217,8 @@ export class WritingRepository implements IWritingRepository {
               vocabulary: evalRow.vocabulary_score,
               coherence: evalRow.coherence_score,
             },
-            successful_repairs: (evalRow as any).successful_repairs_json
-              ? JSON.parse((evalRow as any).successful_repairs_json)
+            successful_repairs: evalRow.successful_repairs_json
+              ? JSON.parse(evalRow.successful_repairs_json)
               : [],
             corrections: JSON.parse(evalRow.corrections_json),
             micro_challenge: evalRow.micro_challenge_json
@@ -289,8 +291,8 @@ export class WritingRepository implements IWritingRepository {
             vocabulary: evalRow.vocabulary_score,
             coherence: evalRow.coherence_score,
           },
-          successful_repairs: (evalRow as any).successful_repairs_json
-            ? JSON.parse((evalRow as any).successful_repairs_json)
+          successful_repairs: evalRow.successful_repairs_json
+            ? JSON.parse(evalRow.successful_repairs_json)
             : [],
           corrections: JSON.parse(evalRow.corrections_json),
           micro_challenge: evalRow.micro_challenge_json

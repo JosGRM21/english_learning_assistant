@@ -211,20 +211,35 @@ export class VocabRepository implements IVocabRepository {
   }
 
   async deleteVocab(vocabId: string): Promise<boolean> {
-    // Delete associated SRS cards
-    await this.db
-      .deleteFrom('srs_cards')
-      .where('target_type', '=', 'VOCAB')
+    // 1. Find all associated SRS card IDs
+    const associatedCards = await this.db
+      .selectFrom('srs_cards')
+      .select('id')
       .where('target_id', '=', vocabId)
       .execute();
 
-    // Delete context examples (safety in case SQLite FK cascade is disabled in dialect)
+    // 2. Delete review logs first to guarantee FK integrity even if PRAGMA foreign_keys is off
+    if (associatedCards.length > 0) {
+      const cardIds = associatedCards.map((c) => c.id);
+      await this.db
+        .deleteFrom('review_logs')
+        .where('card_id', 'in', cardIds)
+        .execute();
+    }
+
+    // 3. Delete associated SRS cards (both VOCAB and PHRASE target types)
+    await this.db
+      .deleteFrom('srs_cards')
+      .where('target_id', '=', vocabId)
+      .execute();
+
+    // 4. Delete context examples
     await this.db
       .deleteFrom('vocab_context_examples')
       .where('vocab_id', '=', vocabId)
       .execute();
 
-    // Delete vocab item
+    // 5. Delete vocab item
     const result = await this.db
       .deleteFrom('vocab_items')
       .where('id', '=', vocabId)

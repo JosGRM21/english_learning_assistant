@@ -15,6 +15,7 @@ import {
 
 export const STORAGE_KEYS_KEY = 'ela_ai_api_keys';
 export const STORAGE_DEFAULT_MODEL_KEY = 'ela_default_ai_model';
+export { STORAGE_QUOTA_STATES_KEY, STORAGE_REQUEST_LOGS_KEY } from '@/core/ai/QuotaMatrixOrchestrator';
 
 export interface AiContextValue {
   aiGateway: IAiGateway;

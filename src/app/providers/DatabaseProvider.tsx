@@ -44,13 +44,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         let database: Kysely<DatabaseSchema>;
 
         if (isTauri()) {
-          try {
-            database = createTauriDatabase('sqlite:ela.db');
-            await initializeDatabase(database);
-          } catch (tauriErr) {
-            console.warn('Tauri native SQLite unavailable, falling back to WASM SQLite:', tauriErr);
-            database = await createTestDatabase();
-          }
+          database = createTauriDatabase('sqlite:ela.db');
+          await initializeDatabase(database);
         } else {
           // In-browser / Vite environment with WASM SQLite
           database = await createTestDatabase();

@@ -217,6 +217,7 @@ export interface WritingEvaluationsTable {
   overall_feedback_es: string;
   corrections_json: string;
   micro_challenge_json: string | null;
+  successful_repairs_json: string | null;
   evaluated_at: Generated<string>;
 }
 

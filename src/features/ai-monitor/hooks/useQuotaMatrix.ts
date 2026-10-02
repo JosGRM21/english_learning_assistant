@@ -5,6 +5,7 @@ import {
   GEMINI_MODEL_HIERARCHY,
   ApiKeyEntry,
   ApiKeyQuotaSummary,
+  ApiRequestLog,
 } from '@/core/ai/QuotaMatrixOrchestrator';
 
 export const INITIAL_KEYS: ApiKeyEntry[] = [];
@@ -45,6 +46,14 @@ export function useQuotaMatrix() {
   const [tick, setTick] = useState(0);
   const [timeUntilReset, setTimeUntilReset] = useState({ ms: 0, isoDate: '' });
 
+  // Subscribe to changes in orchestrator (success, 429, resets, logs)
+  useEffect(() => {
+    const unsubscribe = orchestrator.subscribe(() => {
+      setTick((t) => t + 1);
+    });
+    return unsubscribe;
+  }, [orchestrator]);
+
   // Sync keys to orchestrator and localStorage
   useEffect(() => {
     orchestrator.setApiKeys(keys);
@@ -69,6 +78,16 @@ export function useQuotaMatrix() {
     return orchestrator.getAllKeyQuotaSummaries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orchestrator, keys, tick]);
+
+  const requestLogs = useMemo<ApiRequestLog[]>(() => {
+    return orchestrator.getRequestLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orchestrator, tick]);
+
+  const clearRequestLogs = useCallback(() => {
+    orchestrator.clearRequestLogs();
+    setTick((t) => t + 1);
+  }, [orchestrator]);
 
   const formatCountdown = useCallback((ms: number) => {
     const totalSec = Math.floor(ms / 1000);
@@ -164,10 +183,13 @@ export function useQuotaMatrix() {
 
   const testApiKey = useCallback(
     async (secretKey: string): Promise<{ success: boolean; message: string }> => {
+      const modelToUse = orchestrator.getDefaultModel();
+      const targetKey = keys.find((k) => k.secretKey === secretKey.trim());
+      const label = targetKey?.label || 'Clave en prueba';
+
       try {
         const { GoogleGenAI } = await import('@google/genai');
         const ai = new GoogleGenAI({ apiKey: secretKey.trim() });
-        const modelToUse = orchestrator.getDefaultModel();
         const res = await ai.models.generateContent({
           model: modelToUse,
           contents: [
@@ -178,19 +200,36 @@ export function useQuotaMatrix() {
           ],
         });
         const text = res.text?.trim() ?? 'READY';
+        orchestrator.logRequest({
+          timestamp: new Date().toISOString(),
+          apiKeyId: targetKey?.id ?? 'test_key',
+          apiKeyLabel: label,
+          modelId: modelToUse,
+          action: 'Prueba de Conexión (Ping API)',
+          status: 'SUCCESS',
+        });
         return {
           success: true,
           message: `Conexión exitosa con Google Gemini (${modelToUse}: "${text}")`,
         };
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+        orchestrator.logRequest({
+          timestamp: new Date().toISOString(),
+          apiKeyId: targetKey?.id ?? 'test_key',
+          apiKeyLabel: label,
+          modelId: modelToUse,
+          action: 'Prueba de Conexión (Ping API)',
+          status: 'ERROR',
+          errorDetails: msg,
+        });
         return {
           success: false,
           message: msg,
         };
       }
     },
-    [orchestrator],
+    [orchestrator, keys],
   );
 
   const setPrimaryApiKey = useCallback(
@@ -227,5 +266,7 @@ export function useQuotaMatrix() {
     timeUntilReset,
     models: GEMINI_MODEL_HIERARCHY,
     formatCountdown,
+    requestLogs,
+    clearRequestLogs,
   };
 }

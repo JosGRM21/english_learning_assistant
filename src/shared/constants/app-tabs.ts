@@ -117,7 +117,7 @@ export const APP_TABS: TabDefinition[] = [
     label: 'Modelos de IA',
     icon: Cpu,
     activeColorClass: 'text-indigo-600 dark:text-indigo-400',
-    description: 'Gestión de API Keys (80 peticiones por clave) y selección de modelo principal',
+    description: 'Gestión de API Keys (hasta 560 peticiones/clave) y selección de modelo principal',
   },
   {
     id: 'settings',

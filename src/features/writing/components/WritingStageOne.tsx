@@ -104,23 +104,23 @@ export function WritingStageOne({
   const [sprintFinished, setSprintFinished] = useState(false);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout | null = null;
-    if (isSprintActive && timeLeft > 0) {
-      timer = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            setIsSprintActive(false);
-            setSprintFinished(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+    if (!isSprintActive) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          setIsSprintActive(false);
+          setSprintFinished(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
     return () => {
-      if (timer) clearInterval(timer);
+      clearInterval(timer);
     };
-  }, [isSprintActive, timeLeft]);
+  }, [isSprintActive]);
 
   const handleStartSprint = (durationSec = 180) => {
     setSprintDuration(durationSec);

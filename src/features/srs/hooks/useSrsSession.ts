@@ -32,6 +32,10 @@ export function useSrsSession() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sessionReviewCount, setSessionReviewCount] = useState(0);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [isRating, setIsRating] = useState(false);
+
+  // Mutex lock to prevent race conditions on double clicks
+  const isRatingRef = useRef(false);
 
   // Reaction time stopwatch
   const presentationStartRef = useRef<number>(performance.now());
@@ -47,8 +51,8 @@ export function useSrsSession() {
       // 1. Fetch due cards (scheduled <= now and not NEW)
       const due = await cardRepo.getDueCardsWithDetails(userId, 50);
 
-      // 2. Fetch new cards (state === NEW)
-      const newCards = await cardRepo.getNewCardsWithDetails(userId, 30);
+      // 2. Fetch new cards (state === NEW and scheduled <= now)
+      let newCards = await cardRepo.getNewCardsWithDetails(userId, 30);
 
       // 3. Fetch all deck cards for the deck explorer
       const allDeck = await cardRepo.getAllCardsWithDetails(userId, 200);
@@ -131,63 +135,70 @@ export function useSrsSession() {
   // Handle rating a card with FSRS v5 & auto-advance
   const handleRate = useCallback(
     async (grade: FsrsGrade) => {
-      if (!currentCard || !sessionEngine || !cardRepo) return;
+      if (!currentCard || !sessionEngine || !cardRepo || isRatingRef.current) return;
+      isRatingRef.current = true;
+      setIsRating(true);
 
-      const now = new Date();
-      const latencyMs = Math.round(performance.now() - presentationStartRef.current);
-
-      // 1. Calculate next FSRS intervals and stability
-      const { updatedCard, log } = scheduler.schedule(currentCard.card, grade, now);
-
-      const fullLog: ReviewLog = {
-        id: `rev_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        cardId: currentCard.card.id,
-        reviewedAt: now.toISOString(),
-        ...log,
-        elapsedMs: latencyMs,
-      };
-
-      // 2. Persist update in SQLite atomically
       try {
-        await cardRepo.recordReview(updatedCard, fullLog);
-      } catch (dbErr) {
-        console.error('[useSrsSession] Failed to persist review to SQLite:', dbErr);
+        const now = new Date();
+        const latencyMs = Math.round(performance.now() - presentationStartRef.current);
+
+        // 1. Calculate next FSRS intervals and stability
+        const { updatedCard, log } = scheduler.schedule(currentCard.card, grade, now);
+
+        const fullLog: ReviewLog = {
+          id: `rev_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          cardId: currentCard.card.id,
+          reviewedAt: now.toISOString(),
+          ...log,
+          elapsedMs: latencyMs,
+        };
+
+        // 2. Persist update in SQLite atomically
+        try {
+          await cardRepo.recordReview(updatedCard, fullLog);
+        } catch (dbErr) {
+          console.error('[useSrsSession] Failed to persist review to SQLite:', dbErr);
+        }
+
+        // 3. Process rating in SessionEngine (auto-advance & intra-session re-queue on Grade 1)
+        const result = sessionEngine.processRating(grade, updatedCard, latencyMs);
+
+        // 4. Advance UI to next card!
+        setCurrentCard(result.nextCard);
+        setCurrentContextOverride(
+          result.nextCard?.currentContext || result.nextCard?.allContexts[0] || null,
+        );
+        setShowAnswer(false);
+        presentationStartRef.current = performance.now();
+
+        // 5. Update counts
+        setSessionReviewCount((c) => c + 1);
+        incrementStoreReviewCount();
+
+        // 6. Play audio feedback chime
+        audioService.playFeedback(grade >= 3);
+
+        // 7. Publish domain event
+        eventBus.publish('CARD_REVIEWED', {
+          userId: 'user_local',
+          cardId: currentCard.card.id,
+          rating: grade,
+          elapsedMs: latencyMs,
+          newStability: updatedCard.stability,
+          newDifficulty: updatedCard.difficulty,
+          stateBefore: currentCard.card.state,
+          stateAfter: updatedCard.state,
+          timestamp: now.toISOString(),
+        });
+
+        // 8. Update habits quest & streak
+        updateQuestProgress('VOCAB_SRS', 1);
+        updateStreak();
+      } finally {
+        isRatingRef.current = false;
+        setIsRating(false);
       }
-
-      // 3. Process rating in SessionEngine (auto-advance & intra-session re-queue on Grade 1)
-      const result = sessionEngine.processRating(grade, updatedCard, latencyMs);
-
-      // 4. Advance UI to next card!
-      setCurrentCard(result.nextCard);
-      setCurrentContextOverride(
-        result.nextCard?.currentContext || result.nextCard?.allContexts[0] || null,
-      );
-      setShowAnswer(false);
-      presentationStartRef.current = performance.now();
-
-      // 5. Update counts
-      setSessionReviewCount((c) => c + 1);
-      incrementStoreReviewCount();
-
-      // 6. Play audio feedback chime
-      audioService.playFeedback(grade >= 3);
-
-      // 7. Publish domain event
-      eventBus.publish('CARD_REVIEWED', {
-        userId: 'user_local',
-        cardId: currentCard.card.id,
-        rating: grade,
-        elapsedMs: latencyMs,
-        newStability: updatedCard.stability,
-        newDifficulty: updatedCard.difficulty,
-        stateBefore: currentCard.card.state,
-        stateAfter: updatedCard.state,
-        timestamp: now.toISOString(),
-      });
-
-      // 8. Update habits quest & streak
-      updateQuestProgress('VOCAB_SRS', 1);
-      updateStreak();
     },
     [
       currentCard,
@@ -203,7 +214,7 @@ export function useSrsSession() {
 
   // Interval previews for FSRS buttons
   const previewIntervals = useMemo(() => {
-    if (!currentCard) return { 1: 1, 2: 1, 3: 3, 4: 16 };
+    if (!currentCard) return { 1: 0, 2: 1, 3: 3, 4: 16 };
     return scheduler.previewIntervals(currentCard.card);
   }, [currentCard, scheduler]);
 
@@ -249,6 +260,35 @@ export function useSrsSession() {
   const completedCount = sessionEngine ? sessionEngine.getCompletedCount() : 0;
   const progressPercentage = sessionEngine ? sessionEngine.getProgressPercentage() : 0;
 
+  // Telemetry for cards currently under the 4-hour consolidation cooldown
+  const nowIso = new Date().toISOString();
+  const cooldownCards = useMemo(() => {
+    return deckCards.filter(
+      (c) => c.card.state === 'NEW' && c.card.scheduledFor > nowIso,
+    );
+  }, [deckCards, nowIso]);
+
+  const earliestCooldownDate = useMemo(() => {
+    if (cooldownCards.length === 0) return null;
+    const sorted = [...cooldownCards].sort(
+      (a, b) => new Date(a.card.scheduledFor).getTime() - new Date(b.card.scheduledFor).getTime(),
+    );
+    return sorted[0].card.scheduledFor;
+  }, [cooldownCards]);
+
+  const handleStartEarlyStudy = useCallback(() => {
+    if (deckCards.length === 0) return;
+    const pendingNew = deckCards.filter((c) => c.card.state === 'NEW');
+    const cardsToStudy = pendingNew.length > 0 ? pendingNew.slice(0, 15) : deckCards.slice(0, 15);
+    const engine = new SrsSessionEngine(cardsToStudy);
+    setSessionEngine(engine);
+    const first = engine.getCurrentCard();
+    setCurrentCard(first);
+    setCurrentContextOverride(first?.currentContext || first?.allContexts[0] || null);
+    setShowAnswer(false);
+    presentationStartRef.current = performance.now();
+  }, [deckCards]);
+
   return {
     // Current Active Card Details
     currentCard,
@@ -268,7 +308,11 @@ export function useSrsSession() {
     progressPercentage,
     reviewCount: sessionReviewCount,
     isLoadingSession,
+    isRating,
     isReady: isReady && !isLoadingSession,
+    cooldownCards,
+    cooldownCount: cooldownCards.length,
+    earliestCooldownDate,
 
     // UI state & Controls
     showAnswer,
@@ -282,6 +326,7 @@ export function useSrsSession() {
     handleSelectCard,
     handleSelectVocab,
     handleRestartSession,
+    handleStartEarlyStudy,
     refreshSession: loadSession,
   };
 }

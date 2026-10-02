@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Sparkles,
@@ -27,7 +27,9 @@ export interface AddVocabModalProps {
 
 export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps) {
   const { aiGateway, orchestrator } = useAiGateway();
-  const isAiConnected = orchestrator.getApiKeys().some((k) => k.isActive && k.secretKey.trim().length > 0);
+  const isAiConnected = Boolean(
+    orchestrator.getApiKeys().some((k) => k?.isActive && (k?.secretKey?.trim()?.length ?? 0) > 0),
+  );
 
   const [word, setWord] = useState('');
   const [translationEs, setTranslationEs] = useState('');
@@ -46,24 +48,6 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
   const [activeTab, setActiveTab] = useState<'preview' | 'manual'>('preview');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Keyboard navigation: Escape to close, Ctrl+Enter to submit
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
-      if (e.key === 'Escape') {
-        handleClose();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        handleSubmit(e as unknown as React.FormEvent);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, word, translationEs, definitionEn, cefrLevel, partOfSpeech]);
-
-  if (!isOpen) return null;
 
   const resetForm = () => {
     setWord('');
@@ -208,6 +192,32 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
     }
   };
 
+  const handleSubmitRef = useRef(handleSubmit);
+  useEffect(() => {
+    handleSubmitRef.current = handleSubmit;
+  });
+
+  const handleCloseRef = useRef(handleClose);
+  useEffect(() => {
+    handleCloseRef.current = handleClose;
+  });
+
+  // Keyboard navigation: Escape to close, Ctrl+Enter to submit (fresh closure guaranteed)
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleCloseRef.current();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleSubmitRef.current(e as unknown as React.FormEvent);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
   const cefrLevels: CefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
   const getCefrBadgeStyle = (level: CefrLevel) => {
@@ -223,6 +233,8 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
         return 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-300 dark:border-purple-800';
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">

@@ -81,7 +81,7 @@ export function GradedReaderView({
             reps: 0,
             lapses: 0,
             lastReviewedAt: null,
-            scheduledFor: new Date().toISOString(),
+            scheduledFor: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
           });
         } catch (err) {
           console.error('[GradedReaderView] Failed to persist extracted card to DB:', err);

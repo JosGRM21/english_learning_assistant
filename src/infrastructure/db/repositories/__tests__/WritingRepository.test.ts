@@ -63,7 +63,13 @@ describe('WritingRepository Integration Tests', () => {
       overall_feedback_es: '¡Excelente corrección!',
       estimated_cefr: 'B1',
       scores: { grammar: 9.0, vocabulary: 8.5, coherence: 8.5 },
-      successful_repairs: [],
+      successful_repairs: [
+        {
+          original_snippet: 'I am agree',
+          corrected_snippet: 'I agree',
+          praise_es: '¡Excelente auto-reparación!',
+        },
+      ],
       corrections: [
         {
           error_span: 'depend of',
@@ -96,11 +102,14 @@ describe('WritingRepository Integration Tests', () => {
     expect(found?.status).toBe('EVALUATED');
     expect(found?.evaluation?.scores.grammar).toBe(9.0);
     expect(found?.evaluation?.corrections).toHaveLength(1);
+    expect(found?.evaluation?.successful_repairs).toHaveLength(1);
+    expect(found?.evaluation?.successful_repairs[0].corrected_snippet).toBe('I agree');
 
     // 5. List submissions
     const list = await repo.getSubmissions('user_local');
     expect(list.length).toBeGreaterThanOrEqual(1);
     expect(list[0].id).toBe(subId);
+    expect(list[0].evaluation?.successful_repairs).toHaveLength(1);
   });
 
   it('records writing errors into user_errors and updates weakness_metrics', async () => {

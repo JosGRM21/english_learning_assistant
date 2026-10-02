@@ -57,7 +57,7 @@ export function AddApiKeyModal({ isOpen, onClose, onAddKey }: AddApiKeyModalProp
                 Agregar API Key de Google Gemini
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Límite de 80 peticiones por día compartido entre modelos 3.5, 3.6, 3.7 y 3.8.
+                Límites por modelo: 20 RPD (3.8, 3.7, 3.6) y 500 RPD (3.5 Flash Lite) — Hasta 560 peticiones/día por clave.
               </p>
             </div>
           </div>
