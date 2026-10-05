@@ -10,7 +10,7 @@ interface UseBackupRestoreParams {
   errors: Record<string, unknown>[];
   streak: Record<string, unknown> | null;
   quests: Record<string, unknown>[];
-  onRestoreBackup?: (restoredData: Record<string, unknown>) => void;
+  onRestoreBackup?: (restoredData: Record<string, unknown>) => void | Promise<void>;
 }
 
 export function useBackupRestore({
@@ -27,6 +27,7 @@ export function useBackupRestore({
 
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState<boolean>(false);
 
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -106,25 +107,37 @@ export function useBackupRestore({
 
       setImportError(null);
       setImportStatus(null);
+      setIsImporting(true);
 
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         try {
           const content = event.target?.result as string;
           const restored = backupManager.deserialize(content);
 
+          if (onRestoreBackup) {
+            await onRestoreBackup(restored.payload);
+          }
+
           setImportStatus(
             `Copia de seguridad válida restaurada con éxito: ${restored.cardsCount} tarjetas, ${restored.reviewsCount} repasos históricos.`,
           );
-
-          if (onRestoreBackup) {
-            onRestoreBackup(restored.payload);
-          }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          setImportError(`Error al procesar el archivo de respaldo: ${msg}`);
+          setImportError(`Error al procesar o restaurar la copia de seguridad: ${msg}`);
+        } finally {
+          setIsImporting(false);
+          // Permite volver a seleccionar el mismo archivo si fuese necesario
+          e.target.value = '';
         }
       };
+
+      reader.onerror = () => {
+        setImportError('Error al leer el archivo desde el disco.');
+        setIsImporting(false);
+        e.target.value = '';
+      };
+
       reader.readAsText(file);
     },
     [backupManager, onRestoreBackup],
@@ -134,6 +147,7 @@ export function useBackupRestore({
     calibrationReport,
     importStatus,
     importError,
+    isImporting,
     exportStatus,
     exportError,
     handleExport,

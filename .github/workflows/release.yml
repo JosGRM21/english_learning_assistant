@@ -62,18 +62,66 @@ jobs:
           includeUpdaterJson: false
           args: --config ${{ matrix.flavor.config_file }} ${{ matrix.flavor.features }}
 
-      - name: Rename and Upload Manifest (${{ matrix.flavor.manifest_name }})
+      - name: Generate and Upload Updater Manifest (${{ matrix.flavor.manifest_name }})
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ github.ref_name }}
         run: |
-          $manifestSrc = Get-ChildItem -Path "src-tauri/target/release/bundle/updater" -Filter "latest.json" -Recurse | Select-Object -First 1
-          if ($manifestSrc) {
-            $destFile = "src-tauri/target/release/bundle/updater/${{ matrix.flavor.manifest_name }}"
-            Copy-Item $manifestSrc.FullName -Destination $destFile -Force
-            gh release upload $env:TAG_NAME "$destFile#${{ matrix.flavor.manifest_name }}" --clobber
-            Write-Host "Uploaded ${{ matrix.flavor.manifest_name }} to release $env:TAG_NAME"
-          } else {
-            Write-Host "No latest.json found in updater bundle folder"
+          $repo = "${{ github.repository }}"
+          $tag = "${{ github.ref_name }}"
+          $headers = @{
+            "Authorization" = "Bearer $env:GITHUB_TOKEN"
+            "Accept"        = "application/vnd.github+json"
+            "User-Agent"    = "GitHub-Actions-Tauri-Updater"
           }
+
+          # 1. Obtener la Release actual y sus assets
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/tags/$tag" -Headers $headers
+          $flavorPattern = if ("${{ matrix.flavor.name }}" -eq "legacy") { "*Legacy*setup.exe" } else { "*AVX2*setup.exe" }
+
+          $exeAsset = $release.assets | Where-Object { $_.name -like $flavorPattern -and -not ($_.name -like "*.sig") } | Select-Object -First 1
+          $sigAsset = $release.assets | Where-Object { $_.name -eq "$($exeAsset.name).sig" } | Select-Object -First 1
+
+          if (-not $exeAsset -or -not $sigAsset) {
+            Write-Error "No se encontraron los assets .exe o .sig para ${{ matrix.flavor.name }}"
+            exit 1
+          }
+
+          # 2. Descargar el contenido de la firma .sig
+          $sigResponse = Invoke-WebRequest -Uri $sigAsset.browser_download_url -Headers $headers -UseBasicParsing
+          $signatureText = [System.Text.Encoding]::UTF8.GetString($sigResponse.Content).Trim()
+
+          # 3. Construir el objeto JSON de actualización de Tauri v2
+          $manifest = @{
+            version   = "$($tag.TrimStart('v'))"
+            notes     = "Actualización automática de ELA ${{ matrix.flavor.display_name }} ($tag)"
+            pub_date  = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $signatureText
+                url       = $exeAsset.browser_download_url
+              }
+            }
+          }
+
+          $jsonContent = $manifest | ConvertTo-Json -Depth 5
+          $jsonFileName = "${{ matrix.flavor.manifest_name }}"
+          [System.IO.File]::WriteAllText("$PWD/$jsonFileName", $jsonContent)
+
+          # 4. Eliminar si ya existía previamente el asset con ese nombre
+          $existingAsset = $release.assets | Where-Object { $_.name -eq $jsonFileName }
+          if ($existingAsset) {
+            Write-Host "Borrando versión anterior del asset $jsonFileName..."
+            Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/$repo/releases/assets/$($existingAsset.id)" -Headers $headers
+          }
+
+          # 5. Subir el archivo manifest al Release
+          $uploadUrl = $release.upload_url -replace '\{\?name,label\}', "?name=$jsonFileName"
+          $uploadHeaders = @{
+            "Authorization" = "Bearer $env:GITHUB_TOKEN"
+            "Content-Type"  = "application/json"
+            "User-Agent"    = "GitHub-Actions-Tauri-Updater"
+          }
+          $bytes = [System.Text.Encoding]::UTF8.GetBytes($jsonContent)
+          Invoke-RestMethod -Method Post -Uri $uploadUrl -Headers $uploadHeaders -Body $bytes
+          Write-Host "¡$jsonFileName subido exitosamente a la release $tag!"

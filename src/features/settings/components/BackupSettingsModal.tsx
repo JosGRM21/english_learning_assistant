@@ -13,10 +13,12 @@ import { useBackupRestore } from '../hooks/useBackupRestore';
 import { useSrsStore } from '@/features/srs/store/srsStore';
 import { useHabitsStore } from '@/features/habits/store/habitsStore';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useDatabase } from '@/shared/hooks/useDatabase';
 import { useUpdater } from '@/shared/hooks/useUpdater';
 import { UpdateModal } from '@/shared/ui/UpdateModal';
+import { RestoreService } from '@/infrastructure/backup/RestoreService';
+import { VocabItem } from '@/core/types/vocab';
 
 export interface BackupSettingsModalProps {
   userId?: string;
@@ -25,7 +27,7 @@ export interface BackupSettingsModalProps {
   errors?: Record<string, unknown>[];
   streak?: Record<string, unknown> | null;
   quests?: Record<string, unknown>[];
-  onRestoreBackup?: (restoredData: Record<string, unknown>) => void;
+  onRestoreBackup?: (restoredData: Record<string, unknown>) => void | Promise<void>;
 }
 
 export function BackupSettingsModal({
@@ -37,7 +39,7 @@ export function BackupSettingsModal({
   quests,
   onRestoreBackup,
 }: BackupSettingsModalProps) {
-  const { cardRepo, isReady } = useDatabase();
+  const { db, cardRepo, isReady } = useDatabase();
   const [dbCards, setDbCards] = useState<Record<string, unknown>[] | null>(null);
   const [dbLogs, setDbLogs] = useState<ReviewLog[] | null>(null);
 
@@ -66,7 +68,14 @@ export function BackupSettingsModal({
         const allCards = await repo.getAllCardsWithDetails(finalUserId, 1000);
         const allLogs = await repo.getAllReviewLogs(1000);
         if (isMounted) {
-          setDbCards(allCards.map((c) => ({ ...c.card, vocab: c.vocab })));
+          setDbCards(
+            allCards.map((c) => ({
+              ...c.card,
+              vocab: c.vocab,
+              phrase: c.phrase,
+              contexts: c.allContexts,
+            })),
+          );
           setDbLogs(allLogs);
         }
       } catch (err) {
@@ -79,6 +88,52 @@ export function BackupSettingsModal({
     };
   }, [isReady, cardRepo, finalUserId]);
 
+  const handleRestoreData = useCallback(
+    async (payload: Record<string, unknown>) => {
+      if (!db) {
+        throw new Error('La base de datos SQLite aún no está inicializada.');
+      }
+
+      // 1. Guardar y persistir integralmente en SQLite
+      await RestoreService.restoreBackupToDatabase(db, payload);
+
+      // 2. Sincronizar racha y hábitos si están presentes en la copia
+      if (payload.streak) {
+        useHabitsStore.getState().setStreak(payload.streak as any);
+      }
+      if (Array.isArray(payload.quests) && payload.quests.length > 0) {
+        useHabitsStore.getState().setQuests(payload.quests as any);
+      }
+
+      // 3. Recargar estado desde SQLite para sincronizar la UI y el exportador
+      if (cardRepo) {
+        const allCards = await cardRepo.getAllCardsWithDetails(finalUserId, 1000);
+        const allLogs = await cardRepo.getAllReviewLogs(1000);
+        setDbCards(
+          allCards.map((c) => ({
+            ...c.card,
+            vocab: c.vocab,
+            phrase: c.phrase,
+            contexts: c.allContexts,
+          })),
+        );
+        setDbLogs(allLogs);
+
+        // Sincronizar lista en memoria de useSrsStore
+        const vocabs = allCards
+          .map((c) => c.vocab)
+          .filter((v): v is VocabItem => Boolean(v));
+        useSrsStore.getState().setVocabList(vocabs);
+      }
+
+      // 4. Invocar callback de props si fue proporcionado externamente
+      if (onRestoreBackup) {
+        await onRestoreBackup(payload);
+      }
+    },
+    [db, cardRepo, finalUserId, onRestoreBackup],
+  );
+
   const finalCards = cards ?? dbCards ?? (storeCard ? [storeCard as unknown as Record<string, unknown>] : []);
   const finalLogs = reviewLogs ?? dbLogs ?? storeLogs;
   const finalErrors = errors ?? [];
@@ -89,6 +144,7 @@ export function BackupSettingsModal({
     calibrationReport,
     importStatus,
     importError,
+    isImporting,
     exportStatus,
     exportError,
     handleExport,
@@ -100,7 +156,7 @@ export function BackupSettingsModal({
     errors: finalErrors,
     streak: finalStreak,
     quests: finalQuests,
-    onRestoreBackup,
+    onRestoreBackup: handleRestoreData,
   });
 
   return (
@@ -142,19 +198,25 @@ export function BackupSettingsModal({
             {/* Export button */}
             <button
               onClick={handleExport}
-              className="w-full py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              disabled={isImporting}
+              className="w-full py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-xs shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>Exportar Copia de Seguridad JSON ({finalCards.length} tarjetas)</span>
             </button>
 
             {/* Import file input button */}
-            <label className="w-full py-3.5 px-4 rounded-2xl bg-gray-50 hover:bg-gray-100 dark:bg-[#181D2A] dark:hover:bg-[#202738] border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer">
-              <Upload className="w-4 h-4 text-indigo-500" />
-              <span>Restaurar Copia desde Archivo JSON</span>
+            <label
+              className={`w-full py-3.5 px-4 rounded-2xl bg-gray-50 hover:bg-gray-100 dark:bg-[#181D2A] dark:hover:bg-[#202738] border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer ${
+                isImporting ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''
+              }`}
+            >
+              <Upload className={`w-4 h-4 text-indigo-500 ${isImporting ? 'animate-bounce' : ''}`} />
+              <span>{isImporting ? 'Restaurando copia de seguridad...' : 'Restaurar Copia desde Archivo JSON'}</span>
               <input
                 type="file"
                 accept=".json"
+                disabled={isImporting}
                 onChange={handleFileChange}
                 className="hidden"
               />
