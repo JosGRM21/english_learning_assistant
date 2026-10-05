@@ -47,16 +47,6 @@ export interface RecordEvaluationInput {
   evaluation: WritingEvaluationResponse;
 }
 
-export interface RecordUserWritingErrorInput {
-  userId?: string;
-  taxonomyCode: string;
-  errorType: string;
-  incorrectToken: string;
-  correctToken: string;
-  contextSnippet: string;
-  sourceReferenceId: string;
-}
-
 export interface IWritingRepository {
   createSubmission(input: CreateSubmissionInput): Promise<string>;
   recordRevision(input: RecordRevisionInput): Promise<void>;
@@ -68,5 +58,4 @@ export interface IWritingRepository {
   getSubmissions(userId?: string, limit?: number): Promise<WritingSubmissionEntity[]>;
   getSubmissionById(id: string): Promise<WritingSubmissionEntity | null>;
   deleteSubmission(id: string): Promise<void>;
-  recordWritingError(input: RecordUserWritingErrorInput): Promise<void>;
 }

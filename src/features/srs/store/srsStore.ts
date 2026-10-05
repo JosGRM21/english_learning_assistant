@@ -1,7 +1,16 @@
 import { create } from 'zustand';
 import { VocabItem, VocabContextExample } from '@/core/types/vocab';
 import { SrsCard, ReviewLog } from '@/core/types/srs';
-import { OneClickCardPayload } from '@/core/types/reader';
+
+export interface OneClickCardPayload {
+  word: string;
+  cleanWord?: string;
+  translationEs?: string;
+  ipa?: string;
+  cefrLevel: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+  sentenceEn: string;
+  sentenceEs: string;
+}
 
 export interface SrsState {
   vocabList: VocabItem[];

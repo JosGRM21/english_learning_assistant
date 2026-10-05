@@ -1,44 +1,5 @@
 import { Generated } from 'kysely';
 
-export interface UsersTable {
-  id: string;
-  username: string;
-  target_accent: 'GENERAL_AMERICAN' | 'RECEIVED_PRONUNCIATION';
-  current_cefr_target: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
-  default_ai_model: Generated<'gemini-3.5-flash-lite' | 'gemini-3.6-flash' | 'gemini-3.7-flash' | 'gemini-3.8-flash'>;
-  api_key_rotation_mode: Generated<'FAILOVER_ON_QUOTA' | 'MANUAL_PRIMARY' | 'ROUND_ROBIN'>;
-  backlog_throttling_enabled: Generated<number>;
-  max_daily_review_limit: Generated<number>;
-  created_at: Generated<string>;
-}
-
-export interface AiApiKeysTable {
-  id: string;
-  user_id: string;
-  label: string;
-  api_key_encrypted: string;
-  masked_key: string;
-  is_active: number;
-  is_primary: number;
-  status: 'VALID' | 'INVALID' | 'QUOTA_EXCEEDED' | 'UNTESTED';
-  last_tested_at: string | null;
-  created_at: Generated<string>;
-}
-
-export interface ApiKeyModelQuotasTable {
-  id: string;
-  api_key_id: string;
-  model_id: 'gemini-3.5-flash-lite' | 'gemini-3.6-flash' | 'gemini-3.7-flash' | 'gemini-3.8-flash';
-  requests_today: number;
-  daily_limit: number;
-  rpm_limit: number;
-  last_request_timestamp: string | null;
-  rpm_cooldown_until: string | null;
-  rpd_status: 'AVAILABLE' | 'EXHAUSTED_UNTIL_MIDNIGHT_PT';
-  last_pt_reset_date: string;
-  created_at: Generated<string>;
-}
-
 export interface VocabItemsTable {
   id: string;
   word: string;
@@ -70,65 +31,22 @@ export interface PhraseologicalUnitsTable {
   created_at: Generated<string>;
 }
 
-export interface ConceptualMotionVerbsTable {
+export interface VocabContextExamplesTable {
   id: string;
-  verb_base: string;
-  manner_description_es: string;
-  satellite_particles_json: string;
-  spanish_static_equivalent: string;
-  cefr_level: Generated<string>;
-  example_sentence: string;
-  created_at: Generated<string>;
-}
-
-export interface PolysemicPairsTable {
-  id: string;
-  pair_code: string;
-  title: string;
-  explanation_es: string;
-  contrast_matrix_json: string;
-  created_at: Generated<string>;
-}
-
-export interface GrammarRulesTable {
-  id: string;
-  code: string;
-  title: string;
-  category: string;
-  explanation_es: string;
-  formula_syntax: string | null;
-  contrastive_l1_note: string | null;
+  vocab_id: string | null;
+  phrase_id: string | null;
+  sentence_en: string;
+  sentence_es: string;
+  cloze_target: string;
+  audio_url: string | null;
   cefr_level: string;
-  created_at: Generated<string>;
-}
-
-export interface L1TransferRulesTable {
-  id: string;
-  rule_code: string;
-  domain: 'MORPHOSYNTACTIC' | 'PHONOLOGICAL' | 'LEXICAL' | 'PRAGMATIC';
-  spanish_misconception: string;
-  target_english_rule: string;
-  exercise_template_json: string;
-  severity: Generated<'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'>;
-  created_at: Generated<string>;
-}
-
-export interface PhoneticRulesTable {
-  id: string;
-  rule_type: string;
-  rule_name: string;
-  pattern_regex: string | null;
-  description_es: string;
-  example_sentence: string;
-  example_ipa_breakdown: string;
-  audio_sample_path: string | null;
   created_at: Generated<string>;
 }
 
 export interface SrsCardsTable {
   id: string;
-  user_id: string;
-  target_type: 'VOCAB' | 'PHRASE' | 'GRAMMAR' | 'PHONETICS' | 'L1_TRANSFER';
+  user_id: Generated<string>;
+  target_type: 'VOCAB' | 'PHRASE' | 'GRAMMAR' | 'PHONETICS';
   target_id: string;
   state: 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING';
   stability: number;
@@ -156,24 +74,6 @@ export interface ReviewLogsTable {
   reviewed_at: Generated<string>;
 }
 
-export interface SpeedDrillSessionsTable {
-  id: string;
-  user_id: string;
-  drill_type:
-    | 'CLAUSE_SHIFT'
-    | 'THIRD_PERSON_AUTOMATION'
-    | 'PREPOSITION_REFLEX'
-    | 'AUDITORY_SNAP_HVPT'
-    | 'COLLOCATION_BLITZ'
-    | 'PREPOSITION_RAPID_FIRE'
-    | 'CONNECTED_SPEECH_EAR';
-  total_prompts: number;
-  correct_count: number;
-  procedural_pass_count: Generated<number>;
-  avg_response_time_ms: number;
-  completed_at: Generated<string>;
-}
-
 export interface WritingPromptsTable {
   id: string;
   title: string;
@@ -186,7 +86,7 @@ export interface WritingPromptsTable {
 
 export interface WritingSubmissionsTable {
   id: string;
-  user_id: string;
+  user_id: Generated<string>;
   prompt_id: string | null;
   submission_mode: Generated<'FREE' | 'GUIDED' | 'MICRO_WRITING'>;
   user_text: string;
@@ -221,51 +121,9 @@ export interface WritingEvaluationsTable {
   evaluated_at: Generated<string>;
 }
 
-export interface ErrorTaxonomyTable {
-  id: string;
-  code: string;
-  domain: 'GRAMMAR' | 'LEXICON' | 'PHONETICS' | 'PRAGMATICS';
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  label_es: string;
-  detailed_explanation_es: string;
-}
-
-export interface UserErrorsTable {
-  id: string;
-  user_id: string;
-  error_taxonomy_id: string;
-  source: 'SRS' | 'WRITING_EVALUATION' | 'PHONETICS_DRILL' | 'SPEED_DRILL';
-  source_reference_id: string | null;
-  context_snippet: string | null;
-  incorrect_token: string | null;
-  correct_token: string | null;
-  committed_at: Generated<string>;
-}
-
-export interface WeaknessMetricsTable {
-  id: string;
-  user_id: string;
-  error_taxonomy_id: string;
-  occurrences_last_7_days: number;
-  total_occurrences: number;
-  weakness_score: number;
-  last_detected_at: string;
-}
-
-export interface MicroWorkoutsTable {
-  id: string;
-  user_id: string;
-  weakness_metric_id: string;
-  title: string;
-  exercises_json: string;
-  is_completed: number;
-  completed_at: string | null;
-  created_at: Generated<string>;
-}
-
 export interface UserStreaksTable {
   id: string;
-  user_id: string;
+  user_id: Generated<string>;
   current_streak: number;
   longest_streak: number;
   last_activity_date: string | null;
@@ -274,86 +132,15 @@ export interface UserStreaksTable {
   updated_at: Generated<string>;
 }
 
-export interface StreakFreezeLogsTable {
-  id: string;
-  user_streak_id: string;
-  event_type: 'CONSUMED' | 'EARNED_BONUS' | 'RESET';
-  affected_date: string;
-  reason: string;
-  created_at: Generated<string>;
-}
-
-export interface DailyQuestsTable {
-  id: string;
-  user_id: string;
-  quest_date: string;
-  quest_type:
-    | 'VOCAB_SRS'
-    | 'PHONETICS_LISTEN'
-    | 'MICRO_WORKOUT'
-    | 'SPEED_DRILL'
-    | 'GRADED_READER'
-    | 'WRITING_SUBMISSION';
-  description: string;
-  target_count: number;
-  current_count: number;
-  is_completed: number;
-  completed_at: string | null;
-}
-
-export interface VocabContextExamplesTable {
-  id: string;
-  vocab_id: string | null;
-  phrase_id: string | null;
-  sentence_en: string;
-  sentence_es: string;
-  cloze_target: string;
-  audio_url: string | null;
-  cefr_level: string;
-  created_at: Generated<string>;
-}
-
-export interface ReaderArticlesTable {
-  id: string;
-  user_id: string;
-  title: string;
-  content_text: string;
-  source_url: string | null;
-  cefr_level: string | null;
-  total_words: number;
-  lexical_coverage_ratio: Generated<number>;
-  reading_mode: Generated<'EXTENSIVE' | 'INTENSIVE' | 'OVERLOAD'>;
-  is_simplified: Generated<number>;
-  bottom_up_stage: Generated<'STEP_1_BLIND' | 'STEP_2_TONIC' | 'STEP_3_FULL'>;
-  read_percentage: number;
-  created_at: Generated<string>;
-}
-
 export interface DatabaseSchema {
-  users: UsersTable;
-  ai_api_keys: AiApiKeysTable;
-  api_key_model_quotas: ApiKeyModelQuotasTable;
   vocab_items: VocabItemsTable;
   phraseological_units: PhraseologicalUnitsTable;
-  conceptual_motion_verbs: ConceptualMotionVerbsTable;
-  polysemic_pairs: PolysemicPairsTable;
-  grammar_rules: GrammarRulesTable;
-  l1_transfer_rules: L1TransferRulesTable;
-  phonetic_rules: PhoneticRulesTable;
+  vocab_context_examples: VocabContextExamplesTable;
   srs_cards: SrsCardsTable;
   review_logs: ReviewLogsTable;
-  speed_drill_sessions: SpeedDrillSessionsTable;
   writing_prompts: WritingPromptsTable;
   writing_submissions: WritingSubmissionsTable;
   writing_draft_revisions: WritingDraftRevisionsTable;
   writing_evaluations: WritingEvaluationsTable;
-  error_taxonomy: ErrorTaxonomyTable;
-  user_errors: UserErrorsTable;
-  weakness_metrics: WeaknessMetricsTable;
-  micro_workouts: MicroWorkoutsTable;
   user_streaks: UserStreaksTable;
-  streak_freeze_logs: StreakFreezeLogsTable;
-  daily_quests: DailyQuestsTable;
-  vocab_context_examples: VocabContextExamplesTable;
-  reader_articles: ReaderArticlesTable;
 }

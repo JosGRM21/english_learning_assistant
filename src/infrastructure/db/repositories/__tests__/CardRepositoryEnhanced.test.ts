@@ -13,20 +13,6 @@ describe('CardRepository Enhanced Methods', () => {
     db = await createTestDatabase();
     cardRepo = new CardRepository(db);
 
-    // Insert user
-    await db
-      .insertInto('users')
-      .values({
-        id: 'user_test',
-        username: 'student_test',
-        target_accent: 'GENERAL_AMERICAN',
-        current_cefr_target: 'B1',
-        default_ai_model: 'gemini-3.8-flash',
-        api_key_rotation_mode: 'FAILOVER_ON_QUOTA',
-      })
-      .onConflict((oc) => oc.column('id').doNothing())
-      .execute();
-
     // Insert vocab
     await db
       .insertInto('vocab_items')
@@ -185,7 +171,7 @@ describe('CardRepository Enhanced Methods', () => {
     expect(logs[0].elapsed_ms).toBe(1450);
   });
 
-  it('populates details for PHRASE, GRAMMAR, and PHONETICS cards without dropping them', async () => {
+  it('populates details for PHRASE and VOCAB cards without dropping them', async () => {
     // 1. Insert a phraseological unit
     await db
       .insertInto('phraseological_units')
@@ -201,22 +187,7 @@ describe('CardRepository Enhanced Methods', () => {
       })
       .execute();
 
-    // 2. Insert a grammar rule
-    await db
-      .insertInto('grammar_rules')
-      .values({
-        id: 'gram_1',
-        code: 'MODAL_SHOULD',
-        title: 'Should for Advice',
-        category: 'MODALS',
-        explanation_es: 'Uso de should para consejos o recomendaciones.',
-        formula_syntax: 'Subject + should + verb bare infinitive',
-        cefr_level: 'A2',
-        created_at: new Date().toISOString(),
-      })
-      .execute();
-
-    // 3. Create SRS cards for PHRASE and GRAMMAR
+    // 2. Create SRS cards for PHRASE and VOCAB
     await cardRepo.createCard({
       id: 'card_phrase',
       userId: 'user_test',
@@ -232,10 +203,10 @@ describe('CardRepository Enhanced Methods', () => {
     });
 
     await cardRepo.createCard({
-      id: 'card_grammar',
+      id: 'card_vocab_1',
       userId: 'user_test',
-      targetType: 'GRAMMAR',
-      targetId: 'gram_1',
+      targetType: 'VOCAB',
+      targetId: 'voc_1',
       state: 'NEW',
       stability: 0,
       difficulty: 5.0,
@@ -254,10 +225,10 @@ describe('CardRepository Enhanced Methods', () => {
     expect(phraseCard?.vocab?.word).toBe('bear in mind');
     expect(phraseCard?.allContexts.length).toBe(1);
 
-    const grammarCard = allCards.find((c) => c.card.id === 'card_grammar');
-    expect(grammarCard).toBeDefined();
-    expect(grammarCard?.vocab?.word).toBe('Should for Advice');
-    expect(grammarCard?.vocab?.translationEs).toBe('Uso de should para consejos o recomendaciones.');
+    const vocabCard = allCards.find((c) => c.card.id === 'card_vocab_1');
+    expect(vocabCard).toBeDefined();
+    expect(vocabCard?.vocab?.word).toBe('resilient');
+    expect(vocabCard?.vocab?.translationEs).toBe('resiliente');
   });
 
   it('prevents duplicate card creation for the same targetId and targetType', async () => {

@@ -12,19 +12,6 @@ describe('WritingRepository Integration Tests', () => {
   beforeEach(async () => {
     db = await createTestDatabase();
     repo = new WritingRepository(db);
-
-    await db
-      .insertInto('users')
-      .values({
-        id: 'user_local',
-        username: 'local_tester',
-        target_accent: 'GENERAL_AMERICAN',
-        current_cefr_target: 'B1',
-        default_ai_model: 'gemini-3.8-flash',
-        api_key_rotation_mode: 'FAILOVER_ON_QUOTA',
-      })
-      .onConflict((oc) => oc.column('id').doNothing())
-      .execute();
   });
 
   afterEach(async () => {
@@ -110,46 +97,6 @@ describe('WritingRepository Integration Tests', () => {
     expect(list.length).toBeGreaterThanOrEqual(1);
     expect(list[0].id).toBe(subId);
     expect(list[0].evaluation?.successful_repairs).toHaveLength(1);
-  });
-
-  it('records writing errors into user_errors and updates weakness_metrics', async () => {
-    const subId = await repo.createSubmission({
-      userId: 'user_local',
-      userText: 'It depend of money',
-      wordCount: 4,
-    });
-
-    await repo.recordWritingError({
-      userId: 'user_local',
-      taxonomyCode: 'L1_PREP_DEPEND_ON',
-      errorType: 'PREPOSITION',
-      incorrectToken: 'depend of',
-      correctToken: 'depend on',
-      contextSnippet: 'It depend of money',
-      sourceReferenceId: subId,
-    });
-
-    // Verify user_errors entry
-    const userErrors = await db
-      .selectFrom('user_errors')
-      .selectAll()
-      .where('source', '=', 'WRITING_EVALUATION')
-      .execute();
-
-    expect(userErrors).toHaveLength(1);
-    expect(userErrors[0].incorrect_token).toBe('depend of');
-    expect(userErrors[0].correct_token).toBe('depend on');
-
-    // Verify weakness_metrics entry
-    const metrics = await db
-      .selectFrom('weakness_metrics')
-      .selectAll()
-      .where('user_id', '=', 'user_local')
-      .execute();
-
-    expect(metrics).toHaveLength(1);
-    expect(metrics[0].total_occurrences).toBe(1);
-    expect(metrics[0].weakness_score).toBeGreaterThan(0);
   });
 
   it('updates an existing submission without throwing UNIQUE constraint violation', async () => {

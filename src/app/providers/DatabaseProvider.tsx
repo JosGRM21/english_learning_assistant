@@ -4,7 +4,7 @@ import { DatabaseSchema } from '@/core/types/database';
 import {
   createTestDatabase,
   createTauriDatabase,
-  initializeDatabase,
+  initializeTauriDatabase,
   isTauri,
 } from '@/infrastructure/db/database';
 import { VocabRepository } from '@/infrastructure/db/repositories/VocabRepository';
@@ -45,35 +45,11 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
         if (isTauri()) {
           database = createTauriDatabase('sqlite:ela.db');
-          await initializeDatabase(database);
+          await initializeTauriDatabase(database);
         } else {
           // In-browser / Vite environment with WASM SQLite
           database = await createTestDatabase();
         }
-
-        // Ensure default users exist for foreign key integrity in all environments
-        await database
-          .insertInto('users')
-          .values([
-            {
-              id: 'user_local',
-              username: 'local_student',
-              target_accent: 'GENERAL_AMERICAN',
-              current_cefr_target: 'B1',
-              default_ai_model: 'gemini-3.8-flash',
-              api_key_rotation_mode: 'FAILOVER_ON_QUOTA',
-            },
-            {
-              id: 'default_user',
-              username: 'default_student',
-              target_accent: 'GENERAL_AMERICAN',
-              current_cefr_target: 'B1',
-              default_ai_model: 'gemini-3.8-flash',
-              api_key_rotation_mode: 'FAILOVER_ON_QUOTA',
-            },
-          ])
-          .onConflict((oc) => oc.column('id').doNothing())
-          .execute();
 
         if (!isCancelled) {
           setDb(database);

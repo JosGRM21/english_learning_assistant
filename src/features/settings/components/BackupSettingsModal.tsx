@@ -11,7 +11,6 @@ import { ReviewLog } from '@/core/types/srs';
 import { useBackupRestore } from '../hooks/useBackupRestore';
 import { useSrsStore } from '@/features/srs/store/srsStore';
 import { useHabitsStore } from '@/features/habits/store/habitsStore';
-import { useDiagnosticsStore } from '@/features/diagnostics/store/diagnosticsStore';
 
 import { useState, useEffect } from 'react';
 import { useDatabase } from '@/shared/hooks/useDatabase';
@@ -43,7 +42,6 @@ export function BackupSettingsModal({
   const storeLogs = useSrsStore((s) => s.reviewLogs);
   const storeStreak = useHabitsStore((s) => s.streak);
   const storeQuests = useHabitsStore((s) => s.quests);
-  const storeWeaknesses = useDiagnosticsStore((s) => s.weaknesses);
 
   const finalUserId = userId ?? 'user_local';
 
@@ -71,7 +69,7 @@ export function BackupSettingsModal({
 
   const finalCards = cards ?? dbCards ?? (storeCard ? [storeCard as unknown as Record<string, unknown>] : []);
   const finalLogs = reviewLogs ?? dbLogs ?? storeLogs;
-  const finalErrors = errors ?? (storeWeaknesses as unknown as Record<string, unknown>[]);
+  const finalErrors = errors ?? [];
   const finalStreak = streak !== undefined ? streak : (storeStreak as unknown as Record<string, unknown>);
   const finalQuests = quests ?? (storeQuests as unknown as Record<string, unknown>[]);
 

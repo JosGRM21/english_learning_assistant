@@ -6,13 +6,13 @@ export const UserBackupSchema = z.object({
   userId: z.string(),
   cardsCount: z.number(),
   reviewsCount: z.number(),
-  errorsCount: z.number(),
+  errorsCount: z.number().default(0),
   payload: z.object({
     cards: z.array(z.record(z.string(), z.any())),
     reviews: z.array(z.record(z.string(), z.any())),
-    errors: z.array(z.record(z.string(), z.any())),
+    errors: z.array(z.record(z.string(), z.any())).default([]),
     streak: z.record(z.string(), z.any()).nullable(),
-    quests: z.array(z.record(z.string(), z.any())),
+    quests: z.array(z.record(z.string(), z.any())).default([]),
   }),
 });
 
@@ -26,23 +26,26 @@ export class BackupManager {
     userId: string;
     cards: Record<string, unknown>[];
     reviews: Record<string, unknown>[];
-    errors: Record<string, unknown>[];
+    errors?: Record<string, unknown>[];
     streak: Record<string, unknown> | null;
-    quests: Record<string, unknown>[];
+    quests?: Record<string, unknown>[];
   }): UserBackup {
+    const errorsList = data.errors ?? [];
+    const questsList = data.quests ?? [];
+
     const backup: UserBackup = {
       version: '1.0.0',
       exportedAt: new Date().toISOString(),
       userId: data.userId,
       cardsCount: data.cards.length,
       reviewsCount: data.reviews.length,
-      errorsCount: data.errors.length,
+      errorsCount: errorsList.length,
       payload: {
         cards: data.cards,
         reviews: data.reviews,
-        errors: data.errors,
+        errors: errorsList,
         streak: data.streak,
-        quests: data.quests,
+        quests: questsList,
       },
     };
 

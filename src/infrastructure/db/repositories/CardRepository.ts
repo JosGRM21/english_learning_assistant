@@ -77,20 +77,6 @@ export class CardRepository implements ICardRepository {
 
     const createdAt = new Date().toISOString();
 
-    // Ensure the referenced user exists to guarantee foreign key integrity
-    await this.db
-      .insertInto('users')
-      .values({
-        id: card.userId,
-        username: card.userId,
-        target_accent: 'GENERAL_AMERICAN',
-        current_cefr_target: 'B1',
-        default_ai_model: 'gemini-3.8-flash',
-        api_key_rotation_mode: 'FAILOVER_ON_QUOTA',
-      })
-      .onConflict((oc) => oc.column('id').doNothing())
-      .execute();
-
     await this.db
       .insertInto('srs_cards')
       .values({
@@ -313,69 +299,6 @@ export class CardRepository implements ICardRepository {
             currentContext: contexts[0],
           });
         }
-      } else if (card.targetType === 'GRAMMAR') {
-        const grammarRow = await this.db
-          .selectFrom('grammar_rules')
-          .selectAll()
-          .where('id', '=', card.targetId)
-          .executeTakeFirst();
-
-        results.push({
-          card,
-          vocab: grammarRow
-            ? {
-                id: grammarRow.id,
-                word: grammarRow.title,
-                grammaticalDimension: 'FUNCTION',
-                partOfSpeech: 'CONJUNCTION',
-                definitionEn: grammarRow.formula_syntax || grammarRow.title,
-                translationEs: grammarRow.explanation_es,
-                ipaGeneralAmerican: '',
-                cefrLevel: grammarRow.cefr_level as CefrLevel,
-                isFalseFriend: false,
-                createdAt: grammarRow.created_at,
-              }
-            : undefined,
-          allContexts: [],
-        });
-      } else if (card.targetType === 'PHONETICS') {
-        const phoneticRow = await this.db
-          .selectFrom('phonetic_rules')
-          .selectAll()
-          .where('id', '=', card.targetId)
-          .executeTakeFirst();
-
-        const contexts: VocabContextExample[] = [];
-        if (phoneticRow?.example_sentence) {
-          contexts.push({
-            id: `ctx_phon_${phoneticRow.id}`,
-            sentenceEn: phoneticRow.example_sentence,
-            sentenceEs: phoneticRow.description_es,
-            clozeTarget: phoneticRow.rule_name,
-            cefrLevel: 'B1',
-            createdAt: phoneticRow.created_at,
-          });
-        }
-
-        results.push({
-          card,
-          vocab: phoneticRow
-            ? {
-                id: phoneticRow.id,
-                word: phoneticRow.rule_name,
-                grammaticalDimension: 'CONTENT',
-                partOfSpeech: 'NOUN',
-                definitionEn: phoneticRow.example_sentence,
-                translationEs: phoneticRow.description_es,
-                ipaGeneralAmerican: phoneticRow.example_ipa_breakdown,
-                cefrLevel: 'B1',
-                isFalseFriend: false,
-                createdAt: phoneticRow.created_at,
-              }
-            : undefined,
-          allContexts: contexts,
-          currentContext: contexts[0],
-        });
       } else {
         // Fallback for any other custom target type
         results.push({

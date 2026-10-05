@@ -189,21 +189,6 @@ export function useWritingSession() {
           evaluation: response,
         });
 
-        // Record L1 transfer errors into diagnostics (user_errors & weakness_metrics)
-        for (const corr of response.corrections) {
-          if (corr.is_l1_spanish_transfer) {
-            await writingRepo.recordWritingError({
-              userId: 'user_local',
-              taxonomyCode: corr.taxonomy_code,
-              errorType: corr.error_type,
-              incorrectToken: corr.error_span,
-              correctToken: corr.native_reformulation,
-              contextSnippet: draft2,
-              sourceReferenceId: subId,
-            });
-          }
-        }
-
         // Refresh submissions history in background
         refreshHistory();
       }

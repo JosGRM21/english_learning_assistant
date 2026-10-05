@@ -6,7 +6,6 @@ import {
   CreateSubmissionInput,
   RecordRevisionInput,
   RecordEvaluationInput,
-  RecordUserWritingErrorInput,
 } from '../../../core/repositories/IWritingRepository';
 import {
   SocraticFeedbackResponse,
@@ -324,103 +323,5 @@ export class WritingRepository implements IWritingRepository {
       .deleteFrom('writing_submissions')
       .where('id', '=', id)
       .execute();
-  }
-
-  async recordWritingError(input: RecordUserWritingErrorInput): Promise<void> {
-    const userId = input.userId ?? 'user_local';
-    const taxonCode = input.taxonomyCode || 'L1_TRANSFER_GENERIC';
-
-    // 1. Ensure error taxonomy row exists
-    let taxonomyRow = await this.db
-      .selectFrom('error_taxonomy')
-      .selectAll()
-      .where('code', '=', taxonCode)
-      .executeTakeFirst();
-
-    if (!taxonomyRow) {
-      const taxonId = `tax_${taxonCode.toLowerCase()}`;
-      const domain: 'GRAMMAR' | 'LEXICON' | 'PHONETICS' | 'PRAGMATICS' =
-        input.errorType === 'LEXICON' || input.errorType === 'FALSE_FRIEND'
-          ? 'LEXICON'
-          : 'GRAMMAR';
-
-      await this.db
-        .insertInto('error_taxonomy')
-        .values({
-          id: taxonId,
-          code: taxonCode,
-          domain,
-          severity: 'HIGH',
-          label_es: taxonCode.replace(/_/g, ' '),
-          detailed_explanation_es: `Interferencia detectada en redacción: ${input.incorrectToken} -> ${input.correctToken}`,
-        })
-        .onConflict((oc) => oc.column('id').doNothing())
-        .execute();
-
-      taxonomyRow = await this.db
-        .selectFrom('error_taxonomy')
-        .selectAll()
-        .where('code', '=', taxonCode)
-        .executeTakeFirst();
-    }
-
-    if (!taxonomyRow) return;
-
-    // 2. Insert into user_errors
-    const userErrorId = `err_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    await this.db
-      .insertInto('user_errors')
-      .values({
-        id: userErrorId,
-        user_id: userId,
-        error_taxonomy_id: taxonomyRow.id,
-        source: 'WRITING_EVALUATION',
-        source_reference_id: input.sourceReferenceId,
-        context_snippet: input.contextSnippet,
-        incorrect_token: input.incorrectToken,
-        correct_token: input.correctToken,
-      })
-      .execute();
-
-    // 3. Upsert into weakness_metrics
-    const existingMetric = await this.db
-      .selectFrom('weakness_metrics')
-      .selectAll()
-      .where('user_id', '=', userId)
-      .where('error_taxonomy_id', '=', taxonomyRow.id)
-      .executeTakeFirst();
-
-    const nowIso = new Date().toISOString();
-
-    if (existingMetric) {
-      const newTotal = existingMetric.total_occurrences + 1;
-      const new7Days = existingMetric.occurrences_last_7_days + 1;
-      const newScore = Math.min(10, Math.round((new7Days * 1.8 + (newTotal - new7Days) * 0.45) * 2.0 * 10) / 10);
-
-      await this.db
-        .updateTable('weakness_metrics')
-        .set({
-          occurrences_last_7_days: new7Days,
-          total_occurrences: newTotal,
-          weakness_score: newScore,
-          last_detected_at: nowIso,
-        })
-        .where('id', '=', existingMetric.id)
-        .execute();
-    } else {
-      const metricId = `wm_${userId}_${taxonCode}`;
-      await this.db
-        .insertInto('weakness_metrics')
-        .values({
-          id: metricId,
-          user_id: userId,
-          error_taxonomy_id: taxonomyRow.id,
-          occurrences_last_7_days: 1,
-          total_occurrences: 1,
-          weakness_score: 3.6,
-          last_detected_at: nowIso,
-        })
-        .execute();
-    }
   }
 }

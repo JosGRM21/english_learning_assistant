@@ -123,21 +123,8 @@ describe('Database Integration & Repositories', () => {
   it('creates, reviews, and updates an SRS card with FSRS scheduling', async () => {
     await insertTestFixtures(db);
 
-    // 1. Create a user first
+    // 1. Create an SRS card for 'depend'
     const userId = 'user_test_01';
-    await db
-      .insertInto('users')
-      .values({
-        id: userId,
-        username: 'test_student',
-        target_accent: 'GENERAL_AMERICAN',
-        current_cefr_target: 'B1',
-        default_ai_model: 'gemini-3.8-flash',
-        api_key_rotation_mode: 'FAILOVER_ON_QUOTA',
-      })
-      .execute();
-
-    // 2. Create an SRS card for 'depend'
     const newCardData: Omit<SrsCard, 'createdAt'> = {
       id: 'card_test_01',
       userId,
@@ -195,16 +182,6 @@ describe('Database Integration & Repositories', () => {
     await insertTestFixtures(db);
 
     const userId = 'user_test_02';
-    await db
-      .insertInto('users')
-      .values({
-        id: userId,
-        username: 'test_student_2',
-        target_accent: 'GENERAL_AMERICAN',
-        current_cefr_target: 'B2',
-      })
-      .execute();
-
     // Create due card scheduled in the past
     await cardRepo.createCard({
       id: 'card_test_02',

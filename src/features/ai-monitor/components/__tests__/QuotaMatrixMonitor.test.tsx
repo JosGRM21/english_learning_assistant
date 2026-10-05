@@ -68,6 +68,15 @@ describe('QuotaMatrixMonitor UX Component', () => {
       },
     ];
 
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(new Date());
+    const todayPt = `${parts.find((p) => p.type === 'year')?.value}-${parts.find((p) => p.type === 'month')?.value}-${parts.find((p) => p.type === 'day')?.value}`;
+
     const previousQuotas = [
       {
         apiKeyId: 'key_test_1',
@@ -78,7 +87,7 @@ describe('QuotaMatrixMonitor UX Component', () => {
         lastRequestTimestamp: new Date().toISOString(),
         rpmCooldownUntil: null,
         rpdStatus: 'AVAILABLE',
-        lastPtResetDate: '2026-10-01',
+        lastPtResetDate: todayPt,
       },
     ];
 
