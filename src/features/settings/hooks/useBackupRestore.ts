@@ -28,30 +28,75 @@ export function useBackupRestore({
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const calibrationReport = useMemo(() => {
     return calibrator.calibrate(reviewLogs, 0.9);
   }, [calibrator, reviewLogs]);
 
-  const handleExport = useCallback(() => {
-    const backup = backupManager.createBackup({
-      userId,
-      cards,
-      reviews: reviewLogs as unknown as Record<string, unknown>[],
-      errors,
-      streak,
-      quests,
-    });
+  const handleExport = useCallback(async () => {
+    setExportError(null);
+    setExportStatus(null);
 
-    const json = backupManager.serialize(backup);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ela_backup_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const defaultFilename = `ela_backup_${new Date().toISOString().split('T')[0]}.json`;
+
+    try {
+      const backup = backupManager.createBackup({
+        userId,
+        cards,
+        reviews: reviewLogs as unknown as Record<string, unknown>[],
+        errors,
+        streak,
+        quests,
+      });
+
+      const json = backupManager.serialize(backup);
+
+      // Si estamos en entorno Tauri (escritorio), invocar la ventana nativa para seleccionar dónde guardar
+      if (typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window || (window as unknown as { isTauri?: boolean }).isTauri)) {
+        try {
+          const { save } = await import('@tauri-apps/plugin-dialog');
+          const filePath = await save({
+            title: 'Guardar copia de seguridad',
+            defaultPath: defaultFilename,
+            filters: [
+              {
+                name: 'JSON Backup',
+                extensions: ['json'],
+              },
+            ],
+          });
+
+          // Si el usuario canceló la ventana de guardado
+          if (!filePath) {
+            return;
+          }
+
+          const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+          await writeTextFile(filePath, json);
+          setExportStatus(`Copia de seguridad guardada con éxito en: ${filePath}`);
+          return;
+        } catch (tauriErr) {
+          console.warn('Fallo al exportar vía diálogo nativo Tauri, aplicando fallback de navegador:', tauriErr);
+        }
+      }
+
+      // Fallback web estándar (Blob + enlace de descarga)
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = defaultFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportStatus('Copia de seguridad descargada con éxito.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setExportError(`Error al generar o guardar la copia de seguridad: ${msg}`);
+    }
   }, [backupManager, userId, cards, reviewLogs, errors, streak, quests]);
 
   const handleFileChange = useCallback(
@@ -89,6 +134,8 @@ export function useBackupRestore({
     calibrationReport,
     importStatus,
     importError,
+    exportStatus,
+    exportError,
     handleExport,
     handleFileChange,
   };
