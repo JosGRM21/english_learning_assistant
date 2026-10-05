@@ -48,6 +48,7 @@ jobs:
         run: npm ci
 
       - name: Build Tauri App (${{ matrix.flavor.display_name }})
+        id: tauri_build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -66,17 +67,20 @@ jobs:
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ steps.tauri_build.outputs.releaseId }}
+          APP_VERSION: ${{ steps.tauri_build.outputs.appVersion }}
         run: |
           $repo = "${{ github.repository }}"
-          $tag = "${{ github.ref_name }}"
           $headers = @{
             "Authorization" = "Bearer $env:GITHUB_TOKEN"
             "Accept"        = "application/vnd.github+json"
             "User-Agent"    = "GitHub-Actions-Tauri-Updater"
           }
 
-          # 1. Obtener la Release actual y sus assets
-          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/tags/$tag" -Headers $headers
+          # 1. Obtener la Release actual por ID seguro
+          $releaseId = "$env:RELEASE_ID"
+          Write-Host "Obteniendo release con ID: $releaseId"
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/$releaseId" -Headers $headers
           $flavorPattern = if ("${{ matrix.flavor.name }}" -eq "legacy") { "*Legacy*setup.exe" } else { "*AVX2*setup.exe" }
 
           $exeAsset = $release.assets | Where-Object { $_.name -like $flavorPattern -and -not ($_.name -like "*.sig") } | Select-Object -First 1
@@ -92,9 +96,10 @@ jobs:
           $signatureText = [System.Text.Encoding]::UTF8.GetString($sigResponse.Content).Trim()
 
           # 3. Construir el objeto JSON de actualización de Tauri v2
+          $versionNumber = if ($env:APP_VERSION) { $env:APP_VERSION } else { "$($release.tag_name)".TrimStart('v') }
           $manifest = @{
-            version   = "$($tag.TrimStart('v'))"
-            notes     = "Actualización automática de ELA ${{ matrix.flavor.display_name }} ($tag)"
+            version   = "$versionNumber"
+            notes     = "Actualización automática de ELA ${{ matrix.flavor.display_name }} (v$versionNumber)"
             pub_date  = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
             platforms = @{
               "windows-x86_64" = @{
@@ -124,4 +129,4 @@ jobs:
           }
           $bytes = [System.Text.Encoding]::UTF8.GetBytes($jsonContent)
           Invoke-RestMethod -Method Post -Uri $uploadUrl -Headers $uploadHeaders -Body $bytes
-          Write-Host "¡$jsonFileName subido exitosamente a la release $tag!"
+          Write-Host "¡$jsonFileName subido exitosamente a la release $($release.tag_name)!"
