@@ -1,9 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { QuotaMatrixMonitor } from '../QuotaMatrixMonitor';
-import { AiProvider, STORAGE_KEYS_KEY, STORAGE_QUOTA_STATES_KEY, STORAGE_REQUEST_LOGS_KEY } from '@/app/providers/AiProvider';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { AiModelsView } from '../AiModelsView';
+import {
+  AiProvider,
+  STORAGE_KEYS_KEY,
+  STORAGE_QUOTA_STATES_KEY,
+  STORAGE_REQUEST_LOGS_KEY,
+} from '@/app/providers/AiProvider';
 
-describe('QuotaMatrixMonitor UX Component', () => {
+describe('AiModelsView / QuotaMatrixMonitor UI Component', () => {
   const sampleKey = [
     {
       id: 'key_test_1',
@@ -20,42 +25,56 @@ describe('QuotaMatrixMonitor UX Component', () => {
     localStorage.setItem(STORAGE_KEYS_KEY, JSON.stringify(sampleKey));
   });
 
-  it('renders model limits in selector and header correctly', () => {
+  it('renders modern page header and model selector with humanized limits', () => {
     render(
       <AiProvider>
-        <QuotaMatrixMonitor />
-      </AiProvider>
+        <AiModelsView />
+      </AiProvider>,
     );
 
-    // Header info with limits
-    expect(screen.getByText(/500 RPD \/ 15 RPM/i)).toBeDefined();
-    expect(screen.getByText(/20 RPD \/ 5 RPM/i)).toBeDefined();
-    expect(screen.getByText(/560 peticiones\/día/i)).toBeDefined();
+    // Header title and description
+    expect(screen.getByText('Modelos de IA')).toBeDefined();
+    expect(
+      screen.getByText('Selecciona tu modelo y gestiona las claves de acceso a Google Gemini.'),
+    ).toBeDefined();
 
-    // Model cards with limits
+    // Reset countdown pill
+    expect(screen.getByText('Reinicio de cuotas')).toBeDefined();
+
+    // Model selector cards with human-readable limits
     expect(screen.getByText('Gemini 3.8 Flash')).toBeDefined();
     expect(screen.getByText('Gemini 3.5 Flash Lite')).toBeDefined();
-    expect(screen.getAllByText('5 RPM • 20 RPD').length).toBe(3); // 3.8, 3.7, 3.6
-    expect(screen.getByText('15 RPM • 500 RPD')).toBeDefined(); // 3.5 Flash Lite
+    expect(screen.getAllByText('20 req/día · 5 req/min').length).toBe(3); // 3.8, 3.7, 3.6
+    expect(screen.getByText('500 req/día · 15 req/min')).toBeDefined(); // 3.5 Flash Lite
   });
 
-  it('renders per-model breakdown and total daily quota for configured API keys', () => {
+  it('renders configured API key summary with collapsible model breakdown', () => {
     render(
       <AiProvider>
-        <QuotaMatrixMonitor />
-      </AiProvider>
+        <AiModelsView />
+      </AiProvider>,
     );
 
     expect(screen.getByText('Main Studio Key')).toBeDefined();
-    expect(screen.getByText('Desglose y Límites por Modelo')).toBeDefined();
+    expect(screen.getByText('Claves de API')).toBeDefined();
 
-    // Check that breakdown displays limits for 3.8, 3.7, 3.6 and 3.5 Flash Lite
-    expect(screen.getAllByText(/\/ 20 RPD/i).length).toBe(3);
-    expect(screen.getByText(/\/ 500 RPD/i)).toBeDefined();
-    expect(screen.getByText(/0 \/ 560/i)).toBeDefined();
+    // Initially, breakdown is collapsed
+    expect(screen.queryByText('Uso por modelo')).toBeNull();
+
+    // Click "Ver desglose por modelo" to expand
+    const expandButton = screen.getByText('Ver desglose por modelo');
+    fireEvent.click(expandButton);
+
+    // Now the breakdown is visible
+    expect(screen.getByText('Uso por modelo')).toBeDefined();
+    expect(screen.getAllByText(/\/ 20 req/i).length).toBe(3);
+    expect(screen.getByText(/\/ 500 req/i)).toBeDefined();
+
+    // Total quota summary
+    expect(screen.getByText(/0 de 560/i)).toBeDefined();
   });
 
-  it('loads and renders persisted request logs from previous sessions on startup', () => {
+  it('loads and preserves persisted quota states from previous sessions and does not render request logs', () => {
     const previousLogs = [
       {
         id: 'req_1',
@@ -96,15 +115,27 @@ describe('QuotaMatrixMonitor UX Component', () => {
 
     render(
       <AiProvider>
-        <QuotaMatrixMonitor />
-      </AiProvider>
+        <AiModelsView />
+      </AiProvider>,
     );
 
-    // Request logs must be visible and loaded on startup
-    expect(screen.getByText('Taller de Redacción (Fase 1: Pistas Socráticas)')).toBeDefined();
-    expect(screen.getByText('200 OK')).toBeDefined();
+    // Request logs UI must NOT be rendered
+    expect(screen.queryByText(/Registro de Peticiones a la API/i)).toBeNull();
 
-    // Request count must be preserved (4 / 560 peticiones)
-    expect(screen.getByText(/4 \/ 560/i)).toBeDefined();
+    // Request count must be preserved (4 de 560 usadas hoy)
+    expect(screen.getByText(/4 de 560/i)).toBeDefined();
+  });
+
+  it('renders onboarding empty state when no API keys are present', () => {
+    localStorage.setItem(STORAGE_KEYS_KEY, JSON.stringify([]));
+
+    render(
+      <AiProvider>
+        <AiModelsView />
+      </AiProvider>,
+    );
+
+    expect(screen.getByText('Conecta con Google Gemini')).toBeDefined();
+    expect(screen.getByText('Obtener clave gratuita')).toBeDefined();
   });
 });

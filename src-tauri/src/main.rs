@@ -3,6 +3,11 @@
 
 use std::sync::Arc;
 use sha2::{Digest, Sha256};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager,
+};
 
 mod tts;
 
@@ -34,6 +39,58 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            let open_i = MenuItem::with_id(app, "open", "Abrir Asistente (ELA)", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "Salir de ELA", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open_i, &quit_i])?;
+
+            let mut tray_builder = TrayIconBuilder::new()
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
+                    }
+                });
+
+            if let Some(icon) = app.default_window_icon() {
+                tray_builder = tray_builder.icon(icon.clone());
+            }
+
+            let _ = tray_builder.build(app)?;
+
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Minimize to tray on close so reminder ticker continues in the background
+                let _ = window.hide();
+                api.prevent_close();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             tts::kokoro_is_ready,
             tts::kokoro_init,
@@ -44,3 +101,4 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

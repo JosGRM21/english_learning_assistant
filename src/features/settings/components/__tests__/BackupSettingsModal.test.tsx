@@ -40,6 +40,8 @@ describe('BackupSettingsModal Integration', () => {
     );
 
     expect(screen.getByText(/Exportar Copia de Seguridad JSON \(0 tarjetas\)/i)).toBeDefined();
+    expect(screen.queryByText(/Buscar actualizaciones/i)).toBeNull();
+    expect(screen.queryByText(/Actualizaciones de la Aplicación/i)).toBeNull();
 
     const sampleBackup = {
       version: '1.0.0',

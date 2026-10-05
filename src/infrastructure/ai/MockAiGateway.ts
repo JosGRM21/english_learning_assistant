@@ -229,6 +229,71 @@ export class MockAiGateway implements IAiGateway {
 
     const normalized = word.trim().toLowerCase();
 
+    // Typo / Spelling correction mocks
+    if (normalized === 'acomodation') {
+      return VocabEnrichmentResponseSchema.parse({
+        word: 'accommodation',
+        translationEs: 'alojamiento, hospedaje',
+        definitionEn: 'A room or building in which someone may live, stay, or reside.',
+        ipaGeneralAmerican: '/əˌkɑː.məˈdeɪ.ʃən/',
+        cefrLevel: 'B1',
+        partOfSpeech: 'NOUN',
+        grammaticalDimension: 'CONTENT',
+        domainCategory: 'Viajes & Hospedaje',
+        exampleSentenceEn: 'The hotel provides comfortable accommodation for business travellers.',
+        exampleSentenceEs: 'El hotel ofrece un alojamiento confortable para viajeros de negocios.',
+        isFalseFriend: false,
+        falseFriendNote: null,
+        morphologicalFamily: ['accommodate', 'accommodating'],
+        structuredFamily: {
+          nouns: ['accommodation'],
+          verbs: ['accommodate'],
+          adjectives: ['accommodating'],
+          adverbs: [],
+        },
+        spellingCorrection: {
+          hasCorrection: true,
+          originalInput: 'acomodation',
+          correctedWord: 'accommodation',
+          explanationEs: "Doble 'c' y doble 'm' en la grafía estándar en inglés.",
+        },
+        isValidEnglishWord: true,
+        senses: [],
+      });
+    }
+
+    if (normalized === 'definitly') {
+      return VocabEnrichmentResponseSchema.parse({
+        word: 'definitely',
+        translationEs: 'definitivamente, sin duda',
+        definitionEn: 'Without any doubt; certainly and clearly.',
+        ipaGeneralAmerican: '/ˈdɛf.ə.nət.li/',
+        cefrLevel: 'B1',
+        partOfSpeech: 'ADVERB',
+        grammaticalDimension: 'CONTENT',
+        domainCategory: 'Comunicación Diaria',
+        exampleSentenceEn: 'I will definitely join you for the project presentation tomorrow.',
+        exampleSentenceEs: 'Definitivamente me uniré a ti para la presentación del proyecto mañana.',
+        isFalseFriend: false,
+        falseFriendNote: null,
+        morphologicalFamily: ['define', 'definite', 'definition'],
+        structuredFamily: {
+          nouns: ['definition'],
+          verbs: ['define'],
+          adjectives: ['definite'],
+          adverbs: ['definitely'],
+        },
+        spellingCorrection: {
+          hasCorrection: true,
+          originalInput: 'definitly',
+          correctedWord: 'definitely',
+          explanationEs: "Se escribe con 'i' (-ite-), no con 'a'.",
+        },
+        isValidEnglishWord: true,
+        senses: [],
+      });
+    }
+
     const mockEntries: Record<string, VocabEnrichmentResponse> = {
       resilient: {
         word: 'resilient',
@@ -238,11 +303,116 @@ export class MockAiGateway implements IAiGateway {
         cefrLevel: 'B2',
         partOfSpeech: 'ADJECTIVE',
         grammaticalDimension: 'CONTENT',
+        domainCategory: 'Psicología & Personalidad',
         exampleSentenceEn: 'She remained resilient in the face of numerous professional challenges.',
         exampleSentenceEs: 'Ella se mantuvo resiliente frente a numerosos desafíos profesionales.',
         isFalseFriend: false,
         falseFriendNote: null,
         morphologicalFamily: ['resilience', 'resiliently'],
+        structuredFamily: {
+          nouns: ['resilience'],
+          verbs: [],
+          adjectives: ['resilient'],
+          adverbs: ['resiliently'],
+        },
+        senses: [],
+        isValidEnglishWord: true,
+      },
+      run: {
+        word: 'run',
+        translationEs: 'correr, desplazarse rápidamente a pie',
+        definitionEn: 'To move along rapidly on foot in a continuous motion.',
+        ipaGeneralAmerican: '/rʌn/',
+        cefrLevel: 'A1',
+        partOfSpeech: 'VERB',
+        grammaticalDimension: 'CONTENT',
+        domainCategory: 'Deporte & Movimiento Físico',
+        exampleSentenceEn: 'I try to run five kilometers in the park every morning.',
+        exampleSentenceEs: 'Intento correr cinco kilómetros en el parque cada mañana.',
+        isFalseFriend: false,
+        falseFriendNote: null,
+        morphologicalFamily: ['runner', 'running'],
+        structuredFamily: {
+          nouns: ['runner', 'running'],
+          verbs: ['run'],
+          adjectives: [],
+          adverbs: [],
+        },
+        verbTenses: {
+          infinitive: 'run',
+          pastSimple: 'ran',
+          pastParticiple: 'run',
+          thirdPersonPresent: 'runs',
+          gerund: 'running',
+          isIrregular: true,
+          edPhoneticEnding: null,
+        },
+        senses: [
+          {
+            id: 'sns_run_business',
+            domainCategory: 'Empresas & Negocios',
+            translationEs: 'administrar, dirigir, gestionar',
+            definitionEn: 'To be in charge of; manage or organize a company, business, or project.',
+            partOfSpeech: 'VERB',
+            exampleSentenceEn: 'She runs a successful international software consultancy.',
+            exampleSentenceEs: 'Ella dirige una exitosa consultora de software internacional.',
+            cefrLevel: 'B2',
+          },
+          {
+            id: 'sns_run_transport',
+            domainCategory: 'Transporte & Horarios',
+            translationEs: 'operar, circular con regularidad',
+            definitionEn: 'To operate or travel along a scheduled route at set times.',
+            partOfSpeech: 'VERB',
+            exampleSentenceEn: 'The direct train to the capital runs every twenty minutes.',
+            exampleSentenceEs: 'El tren directo a la capital circula cada veinte minutos.',
+            cefrLevel: 'B1',
+          },
+        ],
+        isValidEnglishWord: true,
+      },
+      break: {
+        word: 'break',
+        translationEs: 'romper, quebrar, fracturar',
+        definitionEn: 'To separate into pieces as a result of a blow, shock, or strain.',
+        ipaGeneralAmerican: '/breɪk/',
+        cefrLevel: 'A2',
+        partOfSpeech: 'VERB',
+        grammaticalDimension: 'CONTENT',
+        domainCategory: 'Sentido Físico',
+        exampleSentenceEn: 'Be careful not to break the delicate glass vase.',
+        exampleSentenceEs: 'Ten cuidado de no romper el delicado jarrón de cristal.',
+        isFalseFriend: false,
+        falseFriendNote: null,
+        morphologicalFamily: ['breakage', 'breakable', 'unbreakable'],
+        structuredFamily: {
+          nouns: ['breakage', 'break'],
+          verbs: ['break'],
+          adjectives: ['breakable', 'unbreakable'],
+          adverbs: [],
+        },
+        verbTenses: {
+          infinitive: 'break',
+          pastSimple: 'broke',
+          pastParticiple: 'broken',
+          thirdPersonPresent: 'breaks',
+          gerund: 'breaking',
+          isIrregular: true,
+          edPhoneticEnding: null,
+        },
+        senses: [
+          {
+            id: 'sns_break_pause',
+            domainCategory: 'Trabajo & Descanso',
+            translationEs: 'pausa, descanso, receso',
+            definitionEn: 'A pause or short interval during work, study, or an activity.',
+            partOfSpeech: 'NOUN',
+            exampleSentenceEn: 'Let us take a brief ten-minute coffee break before resuming.',
+            exampleSentenceEs: 'Hagamos una breve pausa de diez minutos para el café antes de reanudar.',
+            cefrLevel: 'A2',
+          },
+        ],
+        isValidEnglishWord: true,
       },
       actually: {
         word: 'actually',
@@ -252,11 +422,20 @@ export class MockAiGateway implements IAiGateway {
         cefrLevel: 'B1',
         partOfSpeech: 'ADVERB',
         grammaticalDimension: 'CONTENT',
+        domainCategory: 'Discurso & Conversación',
         exampleSentenceEn: 'I thought the test was tomorrow, but it is actually today.',
         exampleSentenceEs: 'Pensé que el examen era mañana, pero en realidad es hoy.',
         isFalseFriend: true,
         falseFriendNote: "No significa 'actualmente' (en este momento), sino 'en realidad' o 'de hecho'. Para 'actualmente', usa 'currently' o 'at present'.",
         morphologicalFamily: ['actual', 'actuality'],
+        structuredFamily: {
+          nouns: ['actuality'],
+          verbs: [],
+          adjectives: ['actual'],
+          adverbs: ['actually'],
+        },
+        senses: [],
+        isValidEnglishWord: true,
       },
       breakthrough: {
         word: 'breakthrough',
@@ -266,11 +445,20 @@ export class MockAiGateway implements IAiGateway {
         cefrLevel: 'B2',
         partOfSpeech: 'NOUN',
         grammaticalDimension: 'CONTENT',
+        domainCategory: 'Ciencia & Innovación',
         exampleSentenceEn: 'Scientists made a major breakthrough in renewable energy storage.',
         exampleSentenceEs: 'Los científicos lograron un avance crucial en el almacenamiento de energía renovable.',
         isFalseFriend: false,
         falseFriendNote: null,
         morphologicalFamily: ['break through'],
+        structuredFamily: {
+          nouns: ['breakthrough'],
+          verbs: ['break through'],
+          adjectives: [],
+          adverbs: [],
+        },
+        senses: [],
+        isValidEnglishWord: true,
       },
       seldom: {
         word: 'seldom',
@@ -280,11 +468,20 @@ export class MockAiGateway implements IAiGateway {
         cefrLevel: 'B2',
         partOfSpeech: 'ADVERB',
         grammaticalDimension: 'CONTENT',
+        domainCategory: 'Frecuencia & Tiempo',
         exampleSentenceEn: 'They seldom go out to restaurants during the week.',
         exampleSentenceEs: 'Ellos rara vez van a restaurantes entre semana.',
         isFalseFriend: false,
         falseFriendNote: null,
         morphologicalFamily: [],
+        structuredFamily: {
+          nouns: [],
+          verbs: [],
+          adjectives: [],
+          adverbs: ['seldom'],
+        },
+        senses: [],
+        isValidEnglishWord: true,
       },
       'look forward to': {
         word: 'look forward to',
@@ -294,11 +491,29 @@ export class MockAiGateway implements IAiGateway {
         cefrLevel: 'B1',
         partOfSpeech: 'VERB',
         grammaticalDimension: 'CHUNK',
+        domainCategory: 'Emociones & Planes',
         exampleSentenceEn: 'I look forward to hearing from you soon.',
         exampleSentenceEs: 'Espero con entusiasmo saber de ti pronto.',
         isFalseFriend: false,
         falseFriendNote: null,
         morphologicalFamily: [],
+        structuredFamily: {
+          nouns: [],
+          verbs: ['look forward to'],
+          adjectives: [],
+          adverbs: [],
+        },
+        verbTenses: {
+          infinitive: 'look forward to',
+          pastSimple: 'looked forward to',
+          pastParticiple: 'looked forward to',
+          thirdPersonPresent: 'looks forward to',
+          gerund: 'looking forward to',
+          isIrregular: false,
+          edPhoneticEnding: '/t/',
+        },
+        senses: [],
+        isValidEnglishWord: true,
       },
       embarrassed: {
         word: 'embarrassed',
@@ -308,11 +523,20 @@ export class MockAiGateway implements IAiGateway {
         cefrLevel: 'B1',
         partOfSpeech: 'ADJECTIVE',
         grammaticalDimension: 'CONTENT',
+        domainCategory: 'Emociones & Estado Mental',
         exampleSentenceEn: 'He was embarrassed when he forgot his colleague’s name.',
         exampleSentenceEs: 'Él se sintió avergonzado cuando olvidó el nombre de su colega.',
         isFalseFriend: true,
         falseFriendNote: "No significa 'embarazada' (que en inglés es 'pregnant'), sino 'avergonzado/a' o 'apenado/a'.",
         morphologicalFamily: ['embarrass', 'embarrassment', 'embarrassing'],
+        structuredFamily: {
+          nouns: ['embarrassment'],
+          verbs: ['embarrass'],
+          adjectives: ['embarrassed', 'embarrassing'],
+          adverbs: ['embarrassingly'],
+        },
+        senses: [],
+        isValidEnglishWord: true,
       },
     };
 
@@ -325,10 +549,22 @@ export class MockAiGateway implements IAiGateway {
     const isMultiWord = cleanWord.includes(' ');
     const isAdverb = cleanWord.endsWith('ly');
     const isAdjective = cleanWord.endsWith('ful') || cleanWord.endsWith('able') || cleanWord.endsWith('ive') || cleanWord.endsWith('ous');
-    const isVerb = cleanWord.startsWith('to ') || isMultiWord;
+    const isVerb = cleanWord.startsWith('to ') || isMultiWord || cleanWord.endsWith('ize') || cleanWord.endsWith('ise');
 
     const detectedPos = isVerb ? 'VERB' : isAdverb ? 'ADVERB' : isAdjective ? 'ADJECTIVE' : 'NOUN';
     const dimension = isMultiWord ? 'CHUNK' : 'CONTENT';
+
+    const fallbackVerbTenses = isVerb
+      ? {
+          infinitive: cleanWord.replace(/^to\s+/i, ''),
+          pastSimple: `${cleanWord.replace(/^to\s+/i, '')}ed`,
+          pastParticiple: `${cleanWord.replace(/^to\s+/i, '')}ed`,
+          thirdPersonPresent: `${cleanWord.replace(/^to\s+/i, '')}s`,
+          gerund: `${cleanWord.replace(/^to\s+/i, '')}ing`,
+          isIrregular: false,
+          edPhoneticEnding: '/d/' as const,
+        }
+      : null;
 
     const fallback: VocabEnrichmentResponse = {
       word: cleanWord,
@@ -338,11 +574,21 @@ export class MockAiGateway implements IAiGateway {
       cefrLevel: 'B1',
       partOfSpeech: detectedPos,
       grammaticalDimension: dimension,
+      domainCategory: 'Uso General',
       exampleSentenceEn: `Learning how to use "${cleanWord}" correctly enhances fluency.`,
       exampleSentenceEs: `Aprender a usar "${cleanWord}" correctamente mejora la fluidez.`,
       isFalseFriend: false,
       falseFriendNote: null,
       morphologicalFamily: [],
+      structuredFamily: {
+        nouns: detectedPos === 'NOUN' ? [cleanWord] : [],
+        verbs: detectedPos === 'VERB' ? [cleanWord] : [],
+        adjectives: detectedPos === 'ADJECTIVE' ? [cleanWord] : [],
+        adverbs: detectedPos === 'ADVERB' ? [cleanWord] : [],
+      },
+      verbTenses: fallbackVerbTenses,
+      senses: [],
+      isValidEnglishWord: true,
     };
 
     return VocabEnrichmentResponseSchema.parse(fallback);

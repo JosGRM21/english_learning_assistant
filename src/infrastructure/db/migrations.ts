@@ -37,6 +37,89 @@ export async function runMigrations(db: Kysely<DatabaseSchema>): Promise<void> {
     console.warn('[runMigrations] Cleanup error:', err);
   }
 
+  // Ensure notification tables exist
+  await executeSqlBatch(
+    db,
+    `
+    CREATE TABLE IF NOT EXISTS notification_settings (
+        user_id TEXT PRIMARY KEY DEFAULT 'user_local',
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+        schedule_mode TEXT NOT NULL DEFAULT 'AUTO' CHECK(schedule_mode IN ('AUTO', 'MANUAL')),
+        manual_time TEXT NOT NULL DEFAULT '20:00',
+        detected_time TEXT DEFAULT '19:30',
+        srs_enabled INTEGER NOT NULL DEFAULT 1 CHECK(srs_enabled IN (0, 1)),
+        srs_schedule_mode TEXT NOT NULL DEFAULT 'AUTO' CHECK(srs_schedule_mode IN ('AUTO', 'MANUAL')),
+        srs_manual_time TEXT NOT NULL DEFAULT '19:00',
+        srs_detected_time TEXT DEFAULT '19:00',
+        writing_enabled INTEGER NOT NULL DEFAULT 1 CHECK(writing_enabled IN (0, 1)),
+        writing_schedule_mode TEXT NOT NULL DEFAULT 'AUTO' CHECK(writing_schedule_mode IN ('AUTO', 'MANUAL')),
+        writing_manual_time TEXT NOT NULL DEFAULT '21:00',
+        writing_detected_time TEXT DEFAULT '21:00',
+        streak_saver_enabled INTEGER NOT NULL DEFAULT 1 CHECK(streak_saver_enabled IN (0, 1)),
+        srs_batch_enabled INTEGER NOT NULL DEFAULT 1 CHECK(srs_batch_enabled IN (0, 1)),
+        srs_batch_threshold INTEGER NOT NULL DEFAULT 10,
+        quiet_hours_start TEXT NOT NULL DEFAULT '23:30',
+        quiet_hours_end TEXT NOT NULL DEFAULT '08:00',
+        minimize_to_tray INTEGER NOT NULL DEFAULT 1 CHECK(minimize_to_tray IN (0, 1)),
+        updated_at TEXT NOT NULL DEFAULT (DATETIME('now'))
+    );
+
+    INSERT OR IGNORE INTO notification_settings (user_id) VALUES ('user_local');
+
+    CREATE TABLE IF NOT EXISTS notification_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL DEFAULT 'user_local',
+        notification_type TEXT NOT NULL CHECK(notification_type IN ('PRACTICE_REMINDER', 'PRACTICE_REMINDER_SRS', 'PRACTICE_REMINDER_WRITING', 'STREAK_SAVER_1', 'STREAK_SAVER_2', 'SRS_BATCH', 'TEST')),
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        sent_at TEXT NOT NULL DEFAULT (DATETIME('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_notif_logs_type_time ON notification_logs(notification_type, sent_at);
+    `,
+  );
+
+  // Migrate any existing notification_settings table to add per-activity columns
+  const activityCols = [
+    "ALTER TABLE notification_settings ADD COLUMN srs_enabled INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE notification_settings ADD COLUMN srs_schedule_mode TEXT NOT NULL DEFAULT 'AUTO'",
+    "ALTER TABLE notification_settings ADD COLUMN srs_manual_time TEXT NOT NULL DEFAULT '19:00'",
+    "ALTER TABLE notification_settings ADD COLUMN srs_detected_time TEXT DEFAULT '19:00'",
+    "ALTER TABLE notification_settings ADD COLUMN writing_enabled INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE notification_settings ADD COLUMN writing_schedule_mode TEXT NOT NULL DEFAULT 'AUTO'",
+    "ALTER TABLE notification_settings ADD COLUMN writing_manual_time TEXT NOT NULL DEFAULT '21:00'",
+    "ALTER TABLE notification_settings ADD COLUMN writing_detected_time TEXT DEFAULT '21:00'",
+  ];
+  for (const alter of activityCols) {
+    try {
+      await sql.raw(alter).execute(db);
+    } catch {
+      // Column already exists, safe to ignore
+    }
+  }
+
+  // Ensure new columns in vocab_items exist
+  try {
+    const tableInfo = await sql<{ name: string }>`PRAGMA table_info(vocab_items)`.execute(db);
+    const existingCols = new Set(tableInfo.rows.map((r) => r.name));
+
+    if (!existingCols.has('verb_tenses_json')) {
+      await sql.raw(`ALTER TABLE vocab_items ADD COLUMN verb_tenses_json TEXT`).execute(db);
+    }
+    if (!existingCols.has('structured_family_json')) {
+      await sql.raw(`ALTER TABLE vocab_items ADD COLUMN structured_family_json TEXT`).execute(db);
+    }
+    if (!existingCols.has('domain_category')) {
+      await sql.raw(`ALTER TABLE vocab_items ADD COLUMN domain_category TEXT`).execute(db);
+    }
+    if (!existingCols.has('alternate_senses_json')) {
+      await sql.raw(`ALTER TABLE vocab_items ADD COLUMN alternate_senses_json TEXT`).execute(db);
+    }
+  } catch (err) {
+    console.warn('[runMigrations] vocab_items column alteration error:', err);
+  }
+
   // Ensure PRAGMA user_version is updated
-  await sql.raw(`PRAGMA user_version = 1`).execute(db);
+  await sql.raw(`PRAGMA user_version = 2`).execute(db);
 }
+

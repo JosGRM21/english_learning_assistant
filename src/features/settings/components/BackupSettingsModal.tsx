@@ -6,7 +6,6 @@ import {
   Database,
   Cpu,
   ShieldCheck,
-  RefreshCw,
 } from 'lucide-react';
 import { ReviewLog } from '@/core/types/srs';
 import { useBackupRestore } from '../hooks/useBackupRestore';
@@ -15,8 +14,6 @@ import { useHabitsStore } from '@/features/habits/store/habitsStore';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useDatabase } from '@/shared/hooks/useDatabase';
-import { useUpdater } from '@/shared/hooks/useUpdater';
-import { UpdateModal } from '@/shared/ui/UpdateModal';
 import { RestoreService } from '@/infrastructure/backup/RestoreService';
 import { VocabItem } from '@/core/types/vocab';
 
@@ -48,16 +45,6 @@ export function BackupSettingsModal({
   const storeStreak = useHabitsStore((s) => s.streak);
   const storeQuests = useHabitsStore((s) => s.quests);
   const finalUserId = userId ?? 'user_local';
-
-  const {
-    status,
-    updateInfo,
-    errorMessage,
-    downloadProgress,
-    checkForUpdates,
-    downloadAndInstallUpdate,
-    dismissModal,
-  } = useUpdater();
 
   useEffect(() => {
     if (!isReady || !cardRepo) return;
@@ -252,49 +239,7 @@ export function BackupSettingsModal({
             </div>
           )}
 
-          {/* Software Updates Section */}
-          <div className="pt-4 border-t border-gray-100 dark:border-gray-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-gray-900 dark:text-white font-bold text-xs">
-                <RefreshCw className={`w-4 h-4 text-indigo-500 ${status === 'checking' ? 'animate-spin' : ''}`} />
-                <span>Actualizaciones de la Aplicación</span>
-              </div>
-              <span className="text-[10px] text-gray-400 font-mono">Tauri v2</span>
-            </div>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-              Verifica si hay nuevas versiones publicadas en GitHub Releases para instalar mejoras y correcciones.
-            </p>
-
-            <button
-              onClick={() => checkForUpdates(true)}
-              disabled={status === 'checking'}
-              className="w-full py-3 px-4 rounded-2xl bg-gray-50 hover:bg-gray-100 dark:bg-[#181D2A] dark:hover:bg-[#202738] border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 text-indigo-500 ${status === 'checking' ? 'animate-spin' : ''}`} />
-              <span>
-                {status === 'checking' ? 'Buscando actualizaciones...' : 'Buscar actualizaciones ahora'}
-              </span>
-            </button>
-
-            {status === 'up-to-date' && (
-              <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>¡Tienes la versión más reciente instalada!</span>
-              </div>
-            )}
-          </div>
         </div>
-
-        {/* Update Modal if an update is found or downloading */}
-        <UpdateModal
-          isOpen={status === 'available' || status === 'downloading' || status === 'downloaded' || (status === 'error' && !!errorMessage)}
-          status={status}
-          updateInfo={updateInfo}
-          downloadProgress={downloadProgress}
-          errorMessage={errorMessage}
-          onConfirmUpdate={downloadAndInstallUpdate}
-          onClose={dismissModal}
-        />
 
         {/* Right Column: FSRS Calibrator Report */}
         <div className="bg-white dark:bg-[#131722] rounded-3xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">

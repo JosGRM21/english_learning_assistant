@@ -2,8 +2,9 @@ import { AppTab } from '@/shared/constants/app-tabs';
 import { VocabCatalogView } from '@/features/vocab/components/VocabCatalogView';
 import { SrsReviewSession } from '@/features/srs/components/SrsReviewSession';
 import { SocraticWritingStudio } from '@/features/writing/components/SocraticWritingStudio';
-import { QuotaMatrixMonitor } from '@/features/ai-monitor/components/QuotaMatrixMonitor';
-import { BackupSettingsModal } from '@/features/settings/components/BackupSettingsModal';
+import { AiModelsView } from '@/features/ai-monitor/components/AiModelsView';
+import { SettingsView } from '@/features/settings/components/SettingsView';
+import { AboutView } from '@/features/about/components/AboutView';
 
 export interface AppRouterProps {
   activeTab: AppTab;
@@ -19,10 +20,13 @@ export function AppRouter({ activeTab, onNavigateTab }: AppRouterProps) {
     case 'writing':
       return <SocraticWritingStudio />;
     case 'quota_matrix':
-      return <QuotaMatrixMonitor />;
+      return <AiModelsView />;
     case 'settings':
-      return <BackupSettingsModal />;
+      return <SettingsView />;
+    case 'about':
+      return <AboutView />;
     default:
       return <VocabCatalogView />;
   }
 }
+

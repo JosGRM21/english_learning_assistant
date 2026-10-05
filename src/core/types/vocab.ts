@@ -44,6 +44,41 @@ export type PhrasalVerbType =
   | 'TYPE_3_INSEPARABLE'
   | 'TYPE_4_THREE_PART';
 
+export interface VerbTenses {
+  infinitive: string;
+  pastSimple: string;
+  pastParticiple: string;
+  thirdPersonPresent: string;
+  gerund: string;
+  isIrregular: boolean;
+  edPhoneticEnding?: '/t/' | '/d/' | '/ɪd/' | null;
+}
+
+export interface StructuredWordFamily {
+  nouns?: string[];
+  verbs?: string[];
+  adjectives?: string[];
+  adverbs?: string[];
+}
+
+export interface VocabSense {
+  id: string;
+  domainCategory: string; // Automatic domain category assigned by AI (e.g. "Finanzas", "Tecnología", "Uso Coloquial", "Sentido Literal")
+  translationEs: string;
+  definitionEn: string;
+  partOfSpeech: PartOfSpeech;
+  exampleSentenceEn: string;
+  exampleSentenceEs: string;
+  cefrLevel: CefrLevel;
+}
+
+export interface SpellingCorrectionInfo {
+  hasCorrection: boolean;
+  originalInput: string;
+  correctedWord: string;
+  explanationEs?: string;
+}
+
 export interface VocabItem {
   id: string;
   word: string;
@@ -58,6 +93,10 @@ export interface VocabItem {
   isFalseFriend: boolean;
   falseFriendNote?: string | null;
   morphologicalFamilyJson?: string[] | null;
+  verbTensesJson?: VerbTenses | null;
+  structuredFamilyJson?: StructuredWordFamily | null;
+  domainCategory?: string | null;
+  alternateSensesJson?: VocabSense[] | null;
   createdAt: string;
 }
 

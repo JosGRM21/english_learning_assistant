@@ -238,7 +238,7 @@ Eres un lexicógrafo y lingüista experto en el idioma inglés y en lingüístic
 Tu tarea es analizar la palabra, frase o término en inglés proporcionado y generar una ficha léxica completa en formato JSON.
 
 ### Reglas Estrictas:
-1. word: la palabra o locución/phrasal verb en inglés (limpia, en forma base o infinitivo si aplica).
+1. word: la palabra o locución/phrasal verb en inglés (limpia, en forma base o infinitivo si aplica, sin errores ortográficos).
 2. translationEs: la traducción más precisa, habitual y natural al español (estándar/neutro).
 3. definitionEn: definición clara, concisa y pedagógica en inglés sencillo (estilo Cambridge / Oxford Learner's Dictionary).
 4. ipaGeneralAmerican: transcripción fonética precisa en el Alfabeto Fonético Internacional (IPA) para inglés estadounidense (General American), ej. "/rɪˈzɪljənt/".
@@ -249,11 +249,41 @@ Tu tarea es analizar la palabra, frase o término en inglés proporcionado y gen
    - 'CONTENT': sustantivos, verbos léxicos, adjetivos, adverbios.
    - 'FUNCTION': preposiciones, conjunciones, pronombres, determinantes.
    - 'CHUNK': phrasal verbs, modismos, colocaciones o frases hechas.
-8. exampleSentenceEn: una oración de ejemplo natural, idiomática y contemporánea donde se use la palabra en contexto real.
+8. exampleSentenceEn: una oración de ejemplo natural, idiomática y contemporánea donde se use la palabra en su significado principal en contexto real.
 9. exampleSentenceEs: la traducción precisa al español de dicha oración de ejemplo.
 10. isFalseFriend: true si la palabra es un falso cognado / falso amigo para hispanohablantes (ej. 'actually', 'realize', 'sensible', 'embarrassed', 'fabric', 'library', 'constipated'), false de lo contrario.
 11. falseFriendNote: si es falso amigo, una breve explicación en español aclarando la confusión frecuente y qué significa realmente en español. Si no es falso amigo, null.
-12. morphologicalFamily: array de palabras derivadas o de la misma raíz morfológica (ej. ['resilience', 'resiliently']).
+12. domainCategory: OBLIGATORIO. Categoría automática del dominio de uso del significado principal (ej: "Uso General", "Finanzas & Negocios", "Informática & Tecnología", "Físico / Espacial", "Coloquial / Slang", "Medicina & Salud", "Arte & Literatura", etc.).
+13. spellingCorrection: Evalúa si la entrada del usuario contiene un error ortográfico o tipográfico (ej. 'acomodation' -> 'accommodation', 'definitly' -> 'definitely').
+    - hasCorrection: boolean (true si hubo corrección ortográfica, false si fue escrita correctamente).
+    - originalInput: el texto exacto ingresado por el usuario.
+    - correctedWord: la palabra correcta en inglés.
+    - explanationEs: breve explicación en español del error ortográfico corregido (ej. "Doble 'c' y doble 'm'").
+14. isValidEnglishWord: boolean (true si es una palabra o expresión legítima en inglés, false si es una palabra inventada o sin sentido reconocible).
+15. verbTenses: OBLIGATORIO SI partOfSpeech === 'VERB', de lo contrario null.
+    Objeto con:
+    - infinitive: forma base en infinitivo (ej. "break")
+    - pastSimple: forma de pasado simple V2 (ej. "broke")
+    - pastParticiple: forma de participio pasado V3 (ej. "broken")
+    - thirdPersonPresent: tercera persona singular en presente (ej. "breaks")
+    - gerund: gerundio o presente continuo -ing (ej. "breaking")
+    - isIrregular: boolean (true si es irregular, false si es regular con -ed)
+    - edPhoneticEnding: si es regular, la regla fonética de la terminación '-ed': ESTRICTAMENTE uno de ['/t/', '/d/', '/ɪd/']. Si es irregular, null.
+16. structuredFamily: desglose de la familia morfológica clasificada por categorías:
+    - nouns: array de sustantivos derivados
+    - verbs: array de verbos derivados
+    - adjectives: array de adjetivos derivados
+    - adverbs: array de adverbios derivados
+17. morphologicalFamily: array plano de strings con todas las palabras derivadas para compatibilidad retrospectiva.
+18. senses: Si la palabra tiene otros significados comúnmente utilizados (polisemia o uso contextual diferente, ej. 'run' = correr vs dirigir un negocio; 'bank' = banco financiero vs orilla de río), provee hasta 3 acepciones adicionales en este array de objetos:
+    - id: identificador breve tipo "sns_1", "sns_2"
+    - domainCategory: categoría automática asignada por ti (ej. "Finanzas", "Informática", "Sentido Físico", "Coloquial")
+    - translationEs: traducción precisa de ese sentido
+    - definitionEn: definición concisa de ese sentido
+    - partOfSpeech: categoría gramatical de esa acepción
+    - exampleSentenceEn: oración de ejemplo AUTÉNTICA y ESPECÍFICA para esta acepción
+    - exampleSentenceEs: traducción de la oración de ejemplo
+    - cefrLevel: nivel CEFR de esta acepción ('A1'|'A2'|'B1'|'B2'|'C1'|'C2')
 
 Devuelve ESTRICTAMENTE un JSON válido con estas propiedades.
 `;

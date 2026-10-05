@@ -4,6 +4,7 @@ import {
   PenTool,
   Cpu,
   Settings,
+  Info,
   LucideIcon,
 } from 'lucide-react';
 
@@ -20,7 +21,8 @@ export type AppTab =
   | 'srs'
   | 'writing'
   | 'quota_matrix'
-  | 'settings';
+  | 'settings'
+  | 'about';
 
 export interface NavGroup {
   name: string;
@@ -58,10 +60,17 @@ export const APP_TABS: TabDefinition[] = [
   },
   {
     id: 'settings',
-    label: 'Respaldos',
+    label: 'Configuración',
     icon: Settings,
     activeColorClass: 'text-indigo-600 dark:text-indigo-400',
-    description: 'Exportación, importación y mantenimiento de base de datos',
+    description: 'Horarios de práctica, notificaciones de repaso y respaldos de datos',
+  },
+  {
+    id: 'about',
+    label: 'Acerca de',
+    icon: Info,
+    activeColorClass: 'text-indigo-600 dark:text-indigo-400',
+    description: 'Información del sistema, versión de la aplicación y actualizaciones',
   },
 ];
 
@@ -76,6 +85,6 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     name: 'Sistema & Configuración',
-    tabs: ['quota_matrix', 'settings'],
+    tabs: ['quota_matrix', 'settings', 'about'],
   },
 ];

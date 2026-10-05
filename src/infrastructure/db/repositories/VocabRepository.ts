@@ -1,7 +1,16 @@
-import { Kysely, Selectable } from 'kysely';
+import { Kysely, Selectable, sql } from 'kysely';
 import { DatabaseSchema, VocabItemsTable, VocabContextExamplesTable } from '../../../core/types/database';
 import { IVocabRepository } from '../../../core/repositories/IVocabRepository';
-import { VocabItem, VocabContextExample, CefrLevel, GrammaticalDimension, PartOfSpeech } from '../../../core/types/vocab';
+import {
+  VocabItem,
+  VocabContextExample,
+  CefrLevel,
+  GrammaticalDimension,
+  PartOfSpeech,
+  VerbTenses,
+  StructuredWordFamily,
+  VocabSense,
+} from '../../../core/types/vocab';
 
 export class VocabRepository implements IVocabRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
@@ -13,6 +22,33 @@ export class VocabRepository implements IVocabRepository {
         morphologicalFamily = JSON.parse(row.morphological_family_json);
       } catch {
         morphologicalFamily = [];
+      }
+    }
+
+    let verbTenses: VerbTenses | null = null;
+    if (row.verb_tenses_json) {
+      try {
+        verbTenses = JSON.parse(row.verb_tenses_json);
+      } catch {
+        verbTenses = null;
+      }
+    }
+
+    let structuredFamily: StructuredWordFamily | null = null;
+    if (row.structured_family_json) {
+      try {
+        structuredFamily = JSON.parse(row.structured_family_json);
+      } catch {
+        structuredFamily = null;
+      }
+    }
+
+    let alternateSenses: VocabSense[] | null = null;
+    if (row.alternate_senses_json) {
+      try {
+        alternateSenses = JSON.parse(row.alternate_senses_json);
+      } catch {
+        alternateSenses = null;
       }
     }
 
@@ -30,6 +66,10 @@ export class VocabRepository implements IVocabRepository {
       isFalseFriend: Boolean(row.is_false_friend),
       falseFriendNote: row.false_friend_note,
       morphologicalFamilyJson: morphologicalFamily,
+      verbTensesJson: verbTenses,
+      structuredFamilyJson: structuredFamily,
+      domainCategory: row.domain_category ?? null,
+      alternateSensesJson: alternateSenses,
       createdAt: row.created_at,
     };
   }
@@ -88,6 +128,18 @@ export class VocabRepository implements IVocabRepository {
     return rows.map((row) => this.toDomainContext(row));
   }
 
+  async findExistingByWord(word: string): Promise<VocabItem[]> {
+    const clean = word.trim().toLowerCase();
+    if (!clean) return [];
+    const rows = await this.db
+      .selectFrom('vocab_items')
+      .selectAll()
+      .where(sql`lower(word)`, '=', clean)
+      .execute();
+
+    return rows.map((row) => this.toDomainVocab(row));
+  }
+
   async getAllVocabs(limit = 100): Promise<VocabItem[]> {
     const rows = await this.db
       .selectFrom('vocab_items')
@@ -103,6 +155,9 @@ export class VocabRepository implements IVocabRepository {
     const id = vocab.id ?? `voc_custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const createdAt = new Date().toISOString();
     const morphJson = vocab.morphologicalFamilyJson ? JSON.stringify(vocab.morphologicalFamilyJson) : JSON.stringify([]);
+    const verbTensesJson = vocab.verbTensesJson ? JSON.stringify(vocab.verbTensesJson) : null;
+    const structuredFamilyJson = vocab.structuredFamilyJson ? JSON.stringify(vocab.structuredFamilyJson) : null;
+    const alternateSensesJson = vocab.alternateSensesJson ? JSON.stringify(vocab.alternateSensesJson) : null;
 
     await this.db
       .insertInto('vocab_items')
@@ -120,6 +175,10 @@ export class VocabRepository implements IVocabRepository {
         is_false_friend: vocab.isFalseFriend ? 1 : 0,
         false_friend_note: vocab.falseFriendNote?.trim() || null,
         morphological_family_json: morphJson,
+        verb_tenses_json: verbTensesJson,
+        structured_family_json: structuredFamilyJson,
+        domain_category: vocab.domainCategory ?? null,
+        alternate_senses_json: alternateSensesJson,
       })
       .execute();
 
@@ -137,6 +196,10 @@ export class VocabRepository implements IVocabRepository {
       isFalseFriend: vocab.isFalseFriend,
       falseFriendNote: vocab.falseFriendNote?.trim() || null,
       morphologicalFamilyJson: vocab.morphologicalFamilyJson ?? [],
+      verbTensesJson: vocab.verbTensesJson ?? null,
+      structuredFamilyJson: vocab.structuredFamilyJson ?? null,
+      domainCategory: vocab.domainCategory ?? null,
+      alternateSensesJson: vocab.alternateSensesJson ?? null,
       createdAt,
     };
   }
@@ -191,8 +254,18 @@ export class VocabRepository implements IVocabRepository {
     if (updates.cefrLevel !== undefined) updateValues.cefr_level = updates.cefrLevel;
     if (updates.isFalseFriend !== undefined) updateValues.is_false_friend = updates.isFalseFriend ? 1 : 0;
     if (updates.falseFriendNote !== undefined) updateValues.false_friend_note = updates.falseFriendNote?.trim() || null;
+    if (updates.domainCategory !== undefined) updateValues.domain_category = updates.domainCategory;
     if (updates.morphologicalFamilyJson !== undefined) {
       updateValues.morphological_family_json = JSON.stringify(updates.morphologicalFamilyJson);
+    }
+    if (updates.verbTensesJson !== undefined) {
+      updateValues.verb_tenses_json = updates.verbTensesJson ? JSON.stringify(updates.verbTensesJson) : null;
+    }
+    if (updates.structuredFamilyJson !== undefined) {
+      updateValues.structured_family_json = updates.structuredFamilyJson ? JSON.stringify(updates.structuredFamilyJson) : null;
+    }
+    if (updates.alternateSensesJson !== undefined) {
+      updateValues.alternate_senses_json = updates.alternateSensesJson ? JSON.stringify(updates.alternateSensesJson) : null;
     }
 
     if (Object.keys(updateValues).length > 0) {

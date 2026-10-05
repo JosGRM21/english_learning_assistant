@@ -7,6 +7,9 @@ import {
   CefrLevel,
   GrammaticalDimension,
   PartOfSpeech,
+  VerbTenses,
+  StructuredWordFamily,
+  VocabSense,
 } from '@/core/types/vocab';
 
 export interface NewVocabPayload {
@@ -19,8 +22,13 @@ export interface NewVocabPayload {
   ipaGeneralAmerican?: string;
   ipaReceivedPronunciation?: string;
   subcategory?: string;
+  domainCategory?: string;
   isFalseFriend: boolean;
   falseFriendNote?: string;
+  morphologicalFamily?: string[];
+  verbTenses?: VerbTenses | null;
+  structuredFamily?: StructuredWordFamily | null;
+  alternateSenses?: VocabSense[] | null;
   exampleSentenceEn?: string;
   exampleSentenceEs?: string;
   createSrsCard?: boolean;
@@ -85,9 +93,13 @@ export function useVocabList() {
         ipaGeneralAmerican: payload.ipaGeneralAmerican ?? '',
         ipaReceivedPronunciation: payload.ipaReceivedPronunciation,
         subcategory: payload.subcategory,
+        domainCategory: payload.domainCategory,
         isFalseFriend: payload.isFalseFriend,
         falseFriendNote: payload.falseFriendNote,
-        morphologicalFamilyJson: [],
+        morphologicalFamilyJson: payload.morphologicalFamily ?? [],
+        verbTensesJson: payload.verbTenses ?? null,
+        structuredFamilyJson: payload.structuredFamily ?? null,
+        alternateSensesJson: payload.alternateSenses ?? null,
       });
 
       let createdExample: VocabContextExample | null = null;
@@ -136,6 +148,27 @@ export function useVocabList() {
       return created;
     },
     [vocabRepo, cardRepo],
+  );
+
+  const checkDuplicateWord = useCallback(
+    (inputWord: string): VocabItem[] => {
+      const clean = inputWord.trim().toLowerCase();
+      if (!clean) return [];
+      return words.filter((w) => w.word.toLowerCase().trim() === clean);
+    },
+    [words],
+  );
+
+  const addMultipleWords = useCallback(
+    async (payloads: NewVocabPayload[]): Promise<VocabItem[]> => {
+      const results: VocabItem[] = [];
+      for (const p of payloads) {
+        const item = await addWord(p);
+        if (item) results.push(item);
+      }
+      return results;
+    },
+    [addWord],
   );
 
   const updateWord = useCallback(
@@ -279,6 +312,8 @@ export function useVocabList() {
     setSortBy,
     resetFilters,
     addWord,
+    addMultipleWords,
+    checkDuplicateWord,
     updateWord,
     deleteWord,
     refresh: loadVocabData,

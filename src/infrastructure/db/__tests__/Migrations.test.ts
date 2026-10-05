@@ -38,7 +38,7 @@ describe('Database Migrations Engine', () => {
     expect(rows.rows[1].id).toBe('row2');
   });
 
-  it('cleans up legacy temporary tables and sets user_version to 1', async () => {
+  it('cleans up legacy temporary tables and sets user_version to 2', async () => {
     // 1. Create a dummy legacy table that should be cleaned up
     await sql.raw(`CREATE TABLE users_new (id TEXT PRIMARY KEY)`).execute(db);
 
@@ -49,17 +49,22 @@ describe('Database Migrations Engine', () => {
     // Run migrations
     await runMigrations(db);
 
-    // Version should now be 1
-    const v1 = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
-    expect(v1.rows[0]?.user_version).toBe(1);
+    // Version should now be 2
+    const v2 = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
+    expect(v2.rows[0]?.user_version).toBe(2);
 
     // Legacy table should be dropped
     const checkLegacy = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='users_new'`.execute(db);
     expect(checkLegacy.rows).toHaveLength(0);
 
+    // Notification tables should exist
+    const checkNotifSettings = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='notification_settings'`.execute(db);
+    expect(checkNotifSettings.rows).toHaveLength(1);
+
     // Running migrations again is idempotent
     await runMigrations(db);
-    const v1Idempotent = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
-    expect(v1Idempotent.rows[0]?.user_version).toBe(1);
+    const v2Idempotent = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
+    expect(v2Idempotent.rows[0]?.user_version).toBe(2);
   });
 });
+

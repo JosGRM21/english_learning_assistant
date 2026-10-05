@@ -5,11 +5,12 @@ import {
   Volume1,
   AlertTriangle,
   BookOpen,
-  Sparkles,
   Brain,
   Trash2,
   Edit3,
   Check,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import {
   Drawer,
@@ -32,6 +33,8 @@ import {
 import { SrsCard } from '@/core/types/srs';
 import { useAudio } from '@/shared/hooks/useAudio';
 import { useDatabase } from '@/shared/hooks/useDatabase';
+import { VerbTensesCard } from './VerbTensesCard';
+import { StructuredFamilyCard } from './StructuredFamilyCard';
 
 export interface VocabDetailDrawerProps {
   vocab: VocabItem | null;
@@ -40,6 +43,9 @@ export interface VocabDetailDrawerProps {
   examples?: VocabContextExample[];
   onDeleteWord?: (id: string) => Promise<boolean>;
   onUpdateWord?: (id: string, updates: Partial<VocabItem>) => Promise<VocabItem | null>;
+  onNavigateWord?: (direction: 'prev' | 'next') => void;
+  hasPrev?: boolean;
+  hasNext?: boolean;
 }
 
 export function VocabDetailDrawer({
@@ -49,6 +55,9 @@ export function VocabDetailDrawer({
   examples = [],
   onDeleteWord,
   onUpdateWord,
+  onNavigateWord,
+  hasPrev = false,
+  hasNext = false,
 }: VocabDetailDrawerProps) {
   const { audioService } = useAudio();
   const { cardRepo } = useDatabase();
@@ -109,10 +118,19 @@ export function VocabDetailDrawer({
     }
   }, [vocab]);
 
-  // Keyboard navigation: Escape to close
+  // Keyboard navigation: Escape to close, Left/Right arrows to navigate
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (!isOpen) return;
+
+      const target = e.target as HTMLElement;
+      const isInput =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable;
+
+      if (e.key === 'Escape') {
         if (showDeleteConfirm) {
           setShowDeleteConfirm(false);
         } else if (isEditing) {
@@ -120,11 +138,19 @@ export function VocabDetailDrawer({
         } else {
           onClose();
         }
+      } else if (!isInput && !isEditing) {
+        if (e.key === 'ArrowLeft' && hasPrev && onNavigateWord) {
+          e.preventDefault();
+          onNavigateWord('prev');
+        } else if (e.key === 'ArrowRight' && hasNext && onNavigateWord) {
+          e.preventDefault();
+          onNavigateWord('next');
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, showDeleteConfirm, isEditing, onClose]);
+  }, [isOpen, showDeleteConfirm, isEditing, onClose, hasPrev, hasNext, onNavigateWord]);
 
   if (!currentVocab) return null;
 
@@ -220,25 +246,51 @@ export function VocabDetailDrawer({
         >
           <DrawerDialog
             aria-label={`Inspector Léxico: ${currentVocab.word}`}
-            className="relative pointer-events-auto p-0 m-0 w-full max-w-lg sm:w-full sm:max-w-lg bg-white dark:bg-[#0E111A] h-full shadow-2xl border-l border-y-0 border-r-0 border-gray-200/80 dark:border-white/[0.08] flex flex-col overflow-hidden outline-none rounded-none"
+            className="relative pointer-events-auto p-0 m-0 w-full max-w-lg sm:max-w-xl lg:max-w-2xl bg-white dark:bg-[#0E111A] h-full shadow-2xl border-l border-y-0 border-r-0 border-gray-200/80 dark:border-white/[0.08] flex flex-col overflow-hidden outline-none rounded-none transition-all duration-300"
           >
             {/* Drawer Header */}
-            <DrawerHeader className="p-5 px-6 border-b border-gray-100 dark:border-white/[0.06] flex flex-row items-center justify-between shrink-0 bg-gray-50/50 dark:bg-[#121622]/50 gap-0 mb-0">
-              <div className="flex items-center gap-2">
-                <span className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+            <DrawerHeader className="p-4 px-6 border-b border-gray-100 dark:border-white/[0.06] flex flex-row items-center justify-between shrink-0 bg-gray-50/50 dark:bg-[#121622]/50 gap-0 mb-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shrink-0">
                   <BookOpen className="w-4 h-4" />
                 </span>
-                <div>
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-600 dark:text-indigo-400">
-                    Inspector Léxico
-                  </span>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-600 dark:text-indigo-400">
+                      Inspector Léxico
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium truncate">
                     Desglose fonético, semántico y retención
                   </p>
                 </div>
               </div>
 
+              {/* Header Actions: Sequential Navigation & Edit & Close */}
               <div className="flex items-center gap-1">
+                {onNavigateWord && (
+                  <div className="flex items-center gap-0.5 mr-1 border-r border-gray-200 dark:border-white/[0.08] pr-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onNavigateWord('prev')}
+                      disabled={!hasPrev}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-25 disabled:pointer-events-none transition-colors cursor-pointer"
+                      title="Palabra anterior (tecla ←)"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigateWord('next')}
+                      disabled={!hasNext}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-25 disabled:pointer-events-none transition-colors cursor-pointer"
+                      title="Palabra siguiente (tecla →)"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={() => setIsEditing(!isEditing)}
@@ -265,46 +317,62 @@ export function VocabDetailDrawer({
             {/* Scrollable Content */}
             <DrawerBody className="!mt-0 m-0 flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 text-inherit leading-normal">
               {/* Main Word Section */}
-              <div className="space-y-3 pb-2 border-b border-gray-100 dark:border-white/[0.06]">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight font-sans">
-                      {currentVocab.word}
-                    </h1>
+              <div className="space-y-3 pb-3 border-b border-gray-100 dark:border-white/[0.06]">
+                {/* Horizontal Categories Bar */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-md font-mono text-xs font-bold border shrink-0 ${getCefrBadgeStyle(
+                      currentVocab.cefrLevel,
+                    )}`}
+                  >
+                    {currentVocab.cefrLevel}
+                  </span>
 
-                    {/* Phonetics row */}
-                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                      {currentVocab.ipaGeneralAmerican && (
-                        <span
-                          className="font-phonetic text-base font-semibold text-indigo-600 dark:text-indigo-400 tracking-wide"
-                          title="General American IPA"
-                        >
-                          /{currentVocab.ipaGeneralAmerican}/
-                        </span>
-                      )}
-                      {currentVocab.ipaReceivedPronunciation && (
-                        <span
-                          className="font-phonetic text-xs text-purple-600 dark:text-purple-400 tracking-wide"
-                          title="Received Pronunciation (UK) IPA"
-                        >
-                          UK: /{currentVocab.ipaReceivedPronunciation}/
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  <span className="px-2.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300 font-medium shrink-0">
+                    {PART_OF_SPEECH_LABELS_ES[currentVocab.partOfSpeech] ?? currentVocab.partOfSpeech}
+                  </span>
 
-                  {/* Badges */}
-                  <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <span
-                      className={`px-2.5 py-1 rounded-lg font-mono text-xs font-bold border ${getCefrBadgeStyle(
-                        currentVocab.cefrLevel,
-                      )}`}
-                    >
-                      {currentVocab.cefrLevel}
+                  {currentVocab.domainCategory && (
+                    <span className="px-2.5 py-0.5 rounded-md font-sans text-xs font-bold bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 shrink-0">
+                      {currentVocab.domainCategory}
                     </span>
-                    <span className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-[10px] text-gray-600 dark:text-gray-400 font-medium">
-                      {PART_OF_SPEECH_LABELS_ES[currentVocab.partOfSpeech] ?? currentVocab.partOfSpeech}
+                  )}
+
+                  <span className="px-2.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800/80 text-xs text-gray-600 dark:text-gray-400 font-medium shrink-0">
+                    {GRAMMATICAL_DIMENSION_LABELS_ES[currentVocab.grammaticalDimension] ?? currentVocab.grammaticalDimension}
+                  </span>
+
+                  {currentVocab.subcategory && (
+                    <span className="px-2.5 py-0.5 rounded-md bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-medium border border-indigo-100 dark:border-indigo-900/40 shrink-0">
+                      {currentVocab.subcategory}
                     </span>
+                  )}
+                </div>
+
+                {/* Word & Phonetics */}
+                <div>
+                  <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight font-sans">
+                    {currentVocab.word}
+                  </h1>
+
+                  {/* Phonetics row */}
+                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                    {currentVocab.ipaGeneralAmerican && (
+                      <span
+                        className="font-phonetic text-base font-semibold text-indigo-600 dark:text-indigo-400 tracking-wide"
+                        title="General American IPA"
+                      >
+                        /{currentVocab.ipaGeneralAmerican}/
+                      </span>
+                    )}
+                    {currentVocab.ipaReceivedPronunciation && (
+                      <span
+                        className="font-phonetic text-xs text-purple-600 dark:text-purple-400 tracking-wide"
+                        title="Received Pronunciation (UK) IPA"
+                      >
+                        UK: /{currentVocab.ipaReceivedPronunciation}/
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -326,7 +394,7 @@ export function VocabDetailDrawer({
                     type="button"
                     onClick={() => handleSpeak('slow')}
                     disabled={isPlayingSlow}
-                    className={`py-2 px-3 rounded-xl border border-gray-200/80 dark:border-white/[0.08] bg-gray-50/80 dark:bg-[#161B28] hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:border-purple-300 dark:hover:border-purple-700/60 transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs font-semibold ${
+                    className={`py-2 px-3 rounded-xl border border-gray-200/80 dark:border-white/[0.08] bg-gray-50/80 dark:bg-[#161B28] hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:border-purple-300 dark:border-purple-700/60 transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs font-semibold ${
                       isPlayingSlow ? 'text-purple-600 dark:text-purple-400 ring-2 ring-purple-500/30' : 'text-gray-600 dark:text-gray-300'
                     }`}
                     title="Escuchar a velocidad lenta (0.75x) para entrenamiento auditivo"
@@ -448,18 +516,6 @@ export function VocabDetailDrawer({
                       </p>
                     </div>
                   )}
-
-                  {/* Dimension and subcategory */}
-                  <div className="flex items-center gap-2 flex-wrap text-xs">
-                    <span className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-800/80 text-gray-600 dark:text-gray-300 font-medium">
-                      {GRAMMATICAL_DIMENSION_LABELS_ES[currentVocab.grammaticalDimension] ?? currentVocab.grammaticalDimension}
-                    </span>
-                    {currentVocab.subcategory && (
-                      <span className="px-2.5 py-1 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-medium">
-                        {currentVocab.subcategory}
-                      </span>
-                    )}
-                  </div>
                 </div>
               )}
 
@@ -529,25 +585,18 @@ export function VocabDetailDrawer({
                 )}
               </div>
 
-              {/* Morphological Word Family */}
-              {currentVocab.morphologicalFamilyJson && currentVocab.morphologicalFamilyJson.length > 0 && (
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
-                    <Sparkles className="w-3.5 h-3.5 text-purple-500" />
-                    <span>Familia Morfológica</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {currentVocab.morphologicalFamilyJson.map((item, idx) => (
-                      <span
-                        key={idx}
-                        className="text-xs px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-mono border border-purple-200/50 dark:border-purple-900/40"
-                      >
-                        {item}
-                      </span>
-                    ))}
-                  </div>
+              {/* Verb Tenses (for verbs) */}
+              {currentVocab.partOfSpeech === 'VERB' && currentVocab.verbTensesJson && (
+                <div className="pt-1">
+                  <VerbTensesCard tenses={currentVocab.verbTensesJson} />
                 </div>
               )}
+
+              {/* Morphological Word Family */}
+              <StructuredFamilyCard
+                family={currentVocab.structuredFamilyJson}
+                legacyFamily={currentVocab.morphologicalFamilyJson}
+              />
 
               {/* SRS Retention Status Box */}
               <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#121622] border border-gray-200/80 dark:border-white/[0.08] space-y-3">

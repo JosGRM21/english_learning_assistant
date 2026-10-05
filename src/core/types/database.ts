@@ -14,6 +14,10 @@ export interface VocabItemsTable {
   is_false_friend: number;
   false_friend_note: string | null;
   morphological_family_json: string | null;
+  verb_tenses_json?: string | null;
+  structured_family_json?: string | null;
+  domain_category?: string | null;
+  alternate_senses_json?: string | null;
   created_at: Generated<string>;
 }
 
@@ -132,6 +136,46 @@ export interface UserStreaksTable {
   updated_at: Generated<string>;
 }
 
+export interface NotificationSettingsTable {
+  user_id: string;
+  enabled: number;
+  schedule_mode: 'AUTO' | 'MANUAL';
+  manual_time: string;
+  detected_time: string | null;
+  // Per-activity settings:
+  srs_enabled: number;
+  srs_schedule_mode: 'AUTO' | 'MANUAL';
+  srs_manual_time: string;
+  srs_detected_time: string | null;
+  writing_enabled: number;
+  writing_schedule_mode: 'AUTO' | 'MANUAL';
+  writing_manual_time: string;
+  writing_detected_time: string | null;
+  streak_saver_enabled: number;
+  srs_batch_enabled: number;
+  srs_batch_threshold: number;
+  quiet_hours_start: string;
+  quiet_hours_end: string;
+  minimize_to_tray: number;
+  updated_at: Generated<string>;
+}
+
+export interface NotificationLogsTable {
+  id: string;
+  user_id: Generated<string>;
+  notification_type:
+    | 'PRACTICE_REMINDER'
+    | 'PRACTICE_REMINDER_SRS'
+    | 'PRACTICE_REMINDER_WRITING'
+    | 'STREAK_SAVER_1'
+    | 'STREAK_SAVER_2'
+    | 'SRS_BATCH'
+    | 'TEST';
+  title: string;
+  body: string;
+  sent_at: Generated<string>;
+}
+
 export interface DatabaseSchema {
   vocab_items: VocabItemsTable;
   phraseological_units: PhraseologicalUnitsTable;
@@ -143,4 +187,7 @@ export interface DatabaseSchema {
   writing_draft_revisions: WritingDraftRevisionsTable;
   writing_evaluations: WritingEvaluationsTable;
   user_streaks: UserStreaksTable;
+  notification_settings: NotificationSettingsTable;
+  notification_logs: NotificationLogsTable;
 }
+

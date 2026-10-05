@@ -7,6 +7,7 @@ export interface IVocabRepository {
   getAllVocabs(limit?: number): Promise<VocabItem[]>;
   createVocab(vocab: Omit<VocabItem, 'id' | 'createdAt'> & { id?: string }): Promise<VocabItem>;
   addContextExample(example: Omit<VocabContextExample, 'id' | 'createdAt'> & { id?: string }): Promise<VocabContextExample>;
+  findExistingByWord(word: string): Promise<VocabItem[]>;
   updateVocab(vocabId: string, updates: Partial<Omit<VocabItem, 'id' | 'createdAt'>>): Promise<VocabItem>;
   deleteVocab(vocabId: string): Promise<boolean>;
 }

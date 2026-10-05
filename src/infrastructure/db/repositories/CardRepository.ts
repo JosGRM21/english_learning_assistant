@@ -2,7 +2,7 @@ import { Kysely, Selectable } from 'kysely';
 import { DatabaseSchema, SrsCardsTable } from '../../../core/types/database';
 import { ICardRepository, DeckStatistics } from '../../../core/repositories/ICardRepository';
 import { SrsCard, ReviewLog, CardWithTarget, CardState, TargetType, FsrsGrade } from '../../../core/types/srs';
-import { CefrLevel, GrammaticalDimension, PartOfSpeech, ChunkType, PhrasalVerbType, VocabContextExample } from '../../../core/types/vocab';
+import { CefrLevel, GrammaticalDimension, PartOfSpeech, ChunkType, PhrasalVerbType, VocabContextExample, VerbTenses, StructuredWordFamily, VocabSense } from '../../../core/types/vocab';
 
 export class CardRepository implements ICardRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
@@ -189,6 +189,19 @@ export class CardRepository implements ICardRepository {
                   vocabRow.morphological_family_json,
                   [],
                 ),
+                verbTensesJson: this.parseJsonSafe<VerbTenses | null>(
+                  vocabRow.verb_tenses_json,
+                  null,
+                ),
+                structuredFamilyJson: this.parseJsonSafe<StructuredWordFamily | null>(
+                  vocabRow.structured_family_json,
+                  null,
+                ),
+                domainCategory: vocabRow.domain_category ?? null,
+                alternateSensesJson: this.parseJsonSafe<VocabSense[] | null>(
+                  vocabRow.alternate_senses_json,
+                  null,
+                ),
                 createdAt: vocabRow.created_at,
               }
             : undefined,
@@ -291,6 +304,19 @@ export class CardRepository implements ICardRepository {
                   morphologicalFamilyJson: this.parseJsonSafe<string[]>(
                     vocabRow.morphological_family_json,
                     [],
+                  ),
+                  verbTensesJson: this.parseJsonSafe<VerbTenses | null>(
+                    vocabRow.verb_tenses_json,
+                    null,
+                  ),
+                  structuredFamilyJson: this.parseJsonSafe<StructuredWordFamily | null>(
+                    vocabRow.structured_family_json,
+                    null,
+                  ),
+                  domainCategory: vocabRow.domain_category ?? null,
+                  alternateSensesJson: this.parseJsonSafe<VocabSense[] | null>(
+                    vocabRow.alternate_senses_json,
+                    null,
                   ),
                   createdAt: vocabRow.created_at,
                 }

@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Key, X, Eye, EyeOff, ShieldCheck, AlertCircle, Plus } from 'lucide-react';
-import { Button } from '@heroui/react';
 
 export interface AddApiKeyModalProps {
   isOpen: boolean;
@@ -15,18 +14,30 @@ export function AddApiKeyModal({ isOpen, onClose, onAddKey }: AddApiKeyModalProp
   const [showSecret, setShowSecret] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanSecret = secretKey.trim();
     if (!cleanSecret) {
-      setErrorMsg('Por favor ingresa una API Key válida de Google Gemini.');
+      setErrorMsg('Por favor ingresa una clave válida de Google Gemini.');
       return;
     }
 
     if (cleanSecret.length < 10) {
-      setErrorMsg('La API Key ingresada parece ser demasiado corta.');
+      setErrorMsg('La clave de API ingresada parece ser demasiado corta.');
       return;
     }
 
@@ -41,7 +52,10 @@ export function AddApiKeyModal({ isOpen, onClose, onAddKey }: AddApiKeyModalProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto custom-scrollbar">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto custom-scrollbar"
+      onClick={onClose}
+    >
       <div
         className="w-full max-w-lg bg-white dark:bg-[#131722] rounded-3xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -54,14 +68,15 @@ export function AddApiKeyModal({ isOpen, onClose, onAddKey }: AddApiKeyModalProp
             </span>
             <div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                Agregar API Key de Google Gemini
+                Nueva clave de API
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Límites por modelo: 20 RPD (3.8, 3.7, 3.6) y 500 RPD (3.5 Flash Lite) — Hasta 560 peticiones/día por clave.
+                Conecta tu clave de Google AI Studio para habilitar los modelos Gemini.
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-2 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
           >
@@ -81,13 +96,13 @@ export function AddApiKeyModal({ isOpen, onClose, onAddKey }: AddApiKeyModalProp
           {/* Label Input */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-              Etiqueta o Nombre Descriptivo
+              Nombre descriptivo
             </label>
             <input
               type="text"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. Mi Clave Personal (Google AI Studio)"
+              placeholder="e.g. Mi clave personal"
               className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-[#181D2A] border border-gray-200 dark:border-gray-700/80 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 transition-all"
             />
           </div>
@@ -95,7 +110,7 @@ export function AddApiKeyModal({ isOpen, onClose, onAddKey }: AddApiKeyModalProp
           {/* API Key Secret Input */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-              API Key Secreta <span className="text-rose-500">*</span>
+              Clave de API <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
               <input
@@ -116,28 +131,33 @@ export function AddApiKeyModal({ isOpen, onClose, onAddKey }: AddApiKeyModalProp
             </div>
             <p className="text-[11px] text-gray-400 mt-1">
               Obtén tu clave gratuita en{' '}
-              <span className="text-indigo-600 dark:text-indigo-400 font-mono">
+              <a
+                href="https://aistudio.google.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-600 dark:text-indigo-400 hover:underline font-mono"
+              >
                 aistudio.google.com
-              </span>
-              . Se almacena localmente de forma segura en tu cliente.
+              </a>
+              . Se almacena localmente de forma segura en tu equipo.
             </p>
           </div>
 
           {/* Primary Key Checkbox */}
-          <label className="flex items-center gap-2 p-3 rounded-2xl bg-gray-50 dark:bg-[#181D2A] border border-gray-200 dark:border-gray-700/80 cursor-pointer">
+          <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-gray-50 dark:bg-[#181D2A] border border-gray-200 dark:border-gray-700/80 cursor-pointer">
             <input
               type="checkbox"
               checked={isPrimary}
               onChange={(e) => setIsPrimary(e.target.checked)}
-              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              className="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
             />
             <div className="text-xs">
               <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                Establecer como clave primaria (prioridad 1)
+                Establecer como clave principal
               </span>
-              <span className="text-gray-500 dark:text-gray-400 text-[11px]">
-                Esta clave será intentada en primer lugar antes de activar el failover.
+              <span className="text-gray-500 dark:text-gray-400 text-[11px] block mt-0.5">
+                Esta clave se utilizará en primer lugar para todas las peticiones.
               </span>
             </div>
           </label>
@@ -151,13 +171,13 @@ export function AddApiKeyModal({ isOpen, onClose, onAddKey }: AddApiKeyModalProp
             >
               Cancelar
             </button>
-            <Button
+            <button
               type="submit"
               className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md shadow-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Guardar API Key</span>
-            </Button>
+              <span>Guardar clave</span>
+            </button>
           </div>
         </form>
       </div>

@@ -17,9 +17,13 @@ export class AudioService implements IAudioService {
   private currentSource: AudioBufferSourceNode | null = null;
   private audioBufferCache: Map<string, AudioBuffer> = new Map();
   private currentAbortController: AbortController | null = null;
+  private backendInitPromise: Promise<boolean> | null = null;
   private static readonly MAX_CACHE_ENTRIES = 60;
 
   constructor() {
+    if (this.isTauri()) {
+      this.initBackend().catch(() => {});
+    }
     // Proactively warm up Kokoro-ONNX in the background
     KokoroEngine.warmup();
   }
@@ -66,12 +70,16 @@ export class AudioService implements IAudioService {
    */
   public async initBackend(): Promise<boolean> {
     if (!this.isTauri()) return false;
-    try {
-      return await invoke<boolean>('kokoro_init');
-    } catch (e) {
-      console.warn('Failed to initialize Kokoro backend:', e);
-      return false;
-    }
+    if (this.backendInitPromise) return this.backendInitPromise;
+    this.backendInitPromise = (async () => {
+      try {
+        return await invoke<boolean>('kokoro_init');
+      } catch (e) {
+        console.warn('Failed to initialize Kokoro backend:', e);
+        return false;
+      }
+    })();
+    return this.backendInitPromise;
   }
 
   /**
@@ -97,7 +105,10 @@ export class AudioService implements IAudioService {
    * Returns the active TTS synthesis engine being utilized.
    */
   public async getActiveEngine(): Promise<'native-avx2' | 'webgpu' | 'wasm' | 'webspeech'> {
-    const isNativeReady = await this.isBackendAvailable();
+    let isNativeReady = await this.isBackendAvailable();
+    if (!isNativeReady && this.isTauri()) {
+      isNativeReady = await this.initBackend();
+    }
     if (isNativeReady) return 'native-avx2';
     if (KokoroEngine.isReady()) {
       return KokoroEngine.getActiveDevice();
@@ -163,7 +174,10 @@ export class AudioService implements IAudioService {
 
     // 1. Primary for AVX2 build: Native Kokoro in Rust backend
     try {
-      const isNativeReady = await this.isBackendAvailable();
+      let isNativeReady = await this.isBackendAvailable();
+      if (!isNativeReady && this.isTauri()) {
+        isNativeReady = await this.initBackend();
+      }
       if (isNativeReady) {
         const rawWavBytes = await invoke<number[]>('kokoro_synthesize', {
           text: trimmed,

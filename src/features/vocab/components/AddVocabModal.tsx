@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X,
   Sparkles,
@@ -8,27 +8,45 @@ import {
   AlertTriangle,
   SlidersHorizontal,
   BookOpen,
+  Info,
+  Layers,
+  ArrowRight,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
-import { Button } from '@heroui/react';
 import {
   CefrLevel,
   GrammaticalDimension,
   PartOfSpeech,
   PART_OF_SPEECH_LABELS_ES,
+  VerbTenses,
+  StructuredWordFamily,
+  VocabSense,
+  SpellingCorrectionInfo,
+  VocabItem,
 } from '@/core/types/vocab';
 import { NewVocabPayload } from '../hooks/useVocabList';
 import { useAiGateway } from '@/shared/hooks/useAiGateway';
+import { StructuredFamilyCard } from './StructuredFamilyCard';
 
 export interface AddVocabModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddWord: (payload: NewVocabPayload) => Promise<unknown>;
+  onAddMultipleWords?: (payloads: NewVocabPayload[]) => Promise<unknown>;
+  existingWords?: VocabItem[];
 }
 
-export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps) {
+export function AddVocabModal({
+  isOpen,
+  onClose,
+  onAddWord,
+  onAddMultipleWords,
+  existingWords = [],
+}: AddVocabModalProps) {
   const { aiGateway, orchestrator } = useAiGateway();
   const isAiConnected = Boolean(
-    orchestrator.getApiKeys().some((k) => k?.isActive && (k?.secretKey?.trim()?.length ?? 0) > 0),
+    orchestrator.getApiKeys().some((k) => k?.isActive && ((k?.secretKey?.trim()?.length ?? 0) > 0 || (k?.maskedKey?.trim()?.length ?? 0) > 0)),
   );
 
   const [word, setWord] = useState('');
@@ -38,16 +56,36 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
   const [cefrLevel, setCefrLevel] = useState<CefrLevel>('B1');
   const [partOfSpeech, setPartOfSpeech] = useState<PartOfSpeech>('NOUN');
   const [grammaticalDimension, setGrammaticalDimension] = useState<GrammaticalDimension>('CONTENT');
+  const [domainCategory, setDomainCategory] = useState('Uso General');
   const [exampleSentenceEn, setExampleSentenceEn] = useState('');
   const [exampleSentenceEs, setExampleSentenceEs] = useState('');
   const [isFalseFriend, setIsFalseFriend] = useState(false);
   const [falseFriendNote, setFalseFriendNote] = useState('');
+
+  // Rich lexical data
+  const [verbTenses, setVerbTenses] = useState<VerbTenses | null>(null);
+  const [structuredFamily, setStructuredFamily] = useState<StructuredWordFamily | null>(null);
+  const [morphologicalFamily, setMorphologicalFamily] = useState<string[]>([]);
+  const [senses, setSenses] = useState<VocabSense[]>([]);
+  const [selectedSenseIds, setSelectedSenseIds] = useState<string[]>([]);
+  const [includePrimarySense, setIncludePrimarySense] = useState(true);
+
+  // Spelling correction
+  const [spellingCorrection, setSpellingCorrection] = useState<SpellingCorrectionInfo | null>(null);
+  const [userOriginalWord, setUserOriginalWord] = useState<string>('');
 
   const [isEnriching, setIsEnriching] = useState(false);
   const [hasEnriched, setHasEnriched] = useState(false);
   const [activeTab, setActiveTab] = useState<'preview' | 'manual'>('preview');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Duplicate detection in existing words
+  const duplicateMatches = useMemo(() => {
+    const clean = (word || '').trim().toLowerCase();
+    if (!clean) return [];
+    return existingWords.filter((w) => (w?.word || '').trim().toLowerCase() === clean);
+  }, [word, existingWords]);
 
   const resetForm = () => {
     setWord('');
@@ -57,10 +95,19 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
     setCefrLevel('B1');
     setPartOfSpeech('NOUN');
     setGrammaticalDimension('CONTENT');
+    setDomainCategory('Uso General');
     setExampleSentenceEn('');
     setExampleSentenceEs('');
     setIsFalseFriend(false);
     setFalseFriendNote('');
+    setVerbTenses(null);
+    setStructuredFamily(null);
+    setMorphologicalFamily([]);
+    setSenses([]);
+    setSelectedSenseIds([]);
+    setIncludePrimarySense(true);
+    setSpellingCorrection(null);
+    setUserOriginalWord('');
     setHasEnriched(false);
     setActiveTab('preview');
     setErrorMsg(null);
@@ -87,26 +134,96 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
 
     setIsEnriching(true);
     setErrorMsg(null);
+    setUserOriginalWord(targetWord);
 
     try {
       const data = await aiGateway.lookupVocabWord(targetWord);
-      setWord(data.word);
+      setWord(data.word || targetWord);
       setTranslationEs(data.translationEs);
       setDefinitionEn(data.definitionEn);
       setIpaGeneralAmerican(data.ipaGeneralAmerican);
       setCefrLevel(data.cefrLevel);
       setPartOfSpeech(data.partOfSpeech);
       setGrammaticalDimension(data.grammaticalDimension);
+      setDomainCategory(data.domainCategory || 'Uso General');
       setExampleSentenceEn(data.exampleSentenceEn);
       setExampleSentenceEs(data.exampleSentenceEs);
       setIsFalseFriend(data.isFalseFriend);
       setFalseFriendNote(data.falseFriendNote || '');
+      setVerbTenses(data.verbTenses ?? null);
+      setStructuredFamily(data.structuredFamily ?? null);
+      setMorphologicalFamily(data.morphologicalFamily || []);
+
+      if (data.senses && data.senses.length > 0) {
+        setSenses(data.senses);
+        // By default, select all alternate senses too so user has full control
+        setSelectedSenseIds(data.senses.map((s) => s.id));
+      } else {
+        setSenses([]);
+        setSelectedSenseIds([]);
+      }
+      setIncludePrimarySense(true);
+
+      if (data.spellingCorrection && data.spellingCorrection.hasCorrection) {
+        setSpellingCorrection(data.spellingCorrection);
+      } else {
+        setSpellingCorrection(null);
+      }
+
       setHasEnriched(true);
       setActiveTab('preview');
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Error al consultar a la IA');
     } finally {
       setIsEnriching(false);
+    }
+  };
+
+  const handleRevertSpelling = () => {
+    if (userOriginalWord) {
+      setWord(userOriginalWord);
+      setSpellingCorrection(null);
+    }
+  };
+
+  const toggleSenseSelection = (senseId: string) => {
+    setSelectedSenseIds((prev) =>
+      prev.includes(senseId) ? prev.filter((id) => id !== senseId) : [...prev, senseId],
+    );
+  };
+
+  const CEFR_ORDER: Record<CefrLevel, number> = {
+    A1: 1,
+    A2: 2,
+    B1: 3,
+    B2: 4,
+    C1: 5,
+    C2: 6,
+  };
+
+  const handleSelectByMaxCefr = (maxLevel: CefrLevel) => {
+    const maxRank = CEFR_ORDER[maxLevel];
+    const primaryRank = CEFR_ORDER[cefrLevel] || 3;
+    setIncludePrimarySense(primaryRank <= maxRank);
+
+    const matchingIds = senses
+      .filter((s) => (CEFR_ORDER[s.cefrLevel] || 3) <= maxRank)
+      .map((s) => s.id);
+    setSelectedSenseIds(matchingIds);
+  };
+
+  const handleSelectOnlyPrimary = () => {
+    setIncludePrimarySense(true);
+    setSelectedSenseIds([]);
+  };
+
+  const handleSelectAllSenses = () => {
+    if (selectedSenseIds.length === senses.length && includePrimarySense) {
+      // Unselect alternates, keep primary
+      setSelectedSenseIds([]);
+    } else {
+      setIncludePrimarySense(true);
+      setSelectedSenseIds(senses.map((s) => s.id));
     }
   };
 
@@ -125,16 +242,21 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
     let curCefr = cefrLevel;
     let curPos = partOfSpeech;
     let curDim = grammaticalDimension;
+    let curDomain = domainCategory;
     let curExEn = exampleSentenceEn.trim();
     let curExEs = exampleSentenceEs.trim();
     let curIsFalseFriend = isFalseFriend;
     let curFalseNote = falseFriendNote.trim();
+    let curVerbTenses = verbTenses;
+    let curStructuredFamily = structuredFamily;
+    let curMorph = morphologicalFamily;
+    let curSenses = senses;
 
     // If no translation yet, auto-enrich with AI
     if (!curTranslation) {
       if (!isAiConnected) {
         setErrorMsg(
-          'Para autocompletar la palabra con IA debes registrar tu clave en "Modelos de IA". O puedes completar los campos manualmente.',
+          'Para autocompletar la palabra con IA debes registrar tu clave en "Modelos de IA". O puedes completar los campos manualmente en "Ajustes Manuales".',
         );
         setActiveTab('manual');
         return;
@@ -150,10 +272,15 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
         curCefr = data.cefrLevel;
         curPos = data.partOfSpeech;
         curDim = data.grammaticalDimension;
+        curDomain = data.domainCategory || 'Uso General';
         curExEn = data.exampleSentenceEn;
         curExEs = data.exampleSentenceEs;
         curIsFalseFriend = data.isFalseFriend;
         curFalseNote = data.falseFriendNote || '';
+        curVerbTenses = data.verbTenses ?? null;
+        curStructuredFamily = data.structuredFamily ?? null;
+        curMorph = data.morphologicalFamily || [];
+        curSenses = data.senses || [];
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : 'Error al consultar a la IA');
         setIsEnriching(false);
@@ -169,20 +296,69 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
       if (!curDefinition) {
         curDefinition = curTranslation || curWord;
       }
-      await onAddWord({
-        word: curWord,
-        translationEs: curTranslation,
-        definitionEn: curDefinition,
-        ipaGeneralAmerican: curIpa || undefined,
-        cefrLevel: curCefr,
-        partOfSpeech: curPos,
-        grammaticalDimension: curDim,
-        exampleSentenceEn: curExEn || undefined,
-        exampleSentenceEs: curExEs || undefined,
-        isFalseFriend: curIsFalseFriend,
-        falseFriendNote: curIsFalseFriend ? curFalseNote : undefined,
-        createSrsCard: true,
-      });
+
+      // Check if user selected multiple senses to save
+      const selectedAlternateSenses = curSenses.filter((s) => selectedSenseIds.includes(s.id));
+
+      const payloadsToCreate: NewVocabPayload[] = [];
+
+      // 1. Primary sense
+      if (includePrimarySense) {
+        payloadsToCreate.push({
+          word: curWord,
+          translationEs: curTranslation,
+          definitionEn: curDefinition,
+          ipaGeneralAmerican: curIpa || undefined,
+          cefrLevel: curCefr,
+          partOfSpeech: curPos,
+          grammaticalDimension: curDim,
+          domainCategory: curDomain,
+          exampleSentenceEn: curExEn || undefined,
+          exampleSentenceEs: curExEs || undefined,
+          isFalseFriend: curIsFalseFriend,
+          falseFriendNote: curIsFalseFriend ? curFalseNote : undefined,
+          verbTenses: curVerbTenses,
+          structuredFamily: curStructuredFamily,
+          morphologicalFamily: curMorph,
+          createSrsCard: true,
+        });
+      }
+
+      // 2. Each selected alternate sense becomes its own atomic contextual card
+      for (const sense of selectedAlternateSenses) {
+        payloadsToCreate.push({
+          word: curWord,
+          translationEs: sense.translationEs,
+          definitionEn: sense.definitionEn,
+          ipaGeneralAmerican: curIpa || undefined,
+          cefrLevel: sense.cefrLevel,
+          partOfSpeech: sense.partOfSpeech,
+          grammaticalDimension: curDim,
+          domainCategory: sense.domainCategory,
+          exampleSentenceEn: sense.exampleSentenceEn,
+          exampleSentenceEs: sense.exampleSentenceEs,
+          isFalseFriend: curIsFalseFriend,
+          falseFriendNote: curIsFalseFriend ? curFalseNote : undefined,
+          verbTenses: curVerbTenses,
+          structuredFamily: curStructuredFamily,
+          morphologicalFamily: curMorph,
+          createSrsCard: true,
+        });
+      }
+
+      if (payloadsToCreate.length === 0) {
+        setErrorMsg('Debes seleccionar al menos una acepción para guardar.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (payloadsToCreate.length > 1 && onAddMultipleWords) {
+        await onAddMultipleWords(payloadsToCreate);
+      } else {
+        for (const p of payloadsToCreate) {
+          await onAddWord(p);
+        }
+      }
 
       handleClose();
     } catch (err) {
@@ -202,7 +378,7 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
     handleCloseRef.current = handleClose;
   });
 
-  // Keyboard navigation: Escape to close, Ctrl+Enter to submit (fresh closure guaranteed)
+  // Keyboard navigation: Escape to close, Ctrl+Enter to submit
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -236,10 +412,12 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
 
   if (!isOpen) return null;
 
+  const totalSelectedCount = (includePrimarySense ? 1 : 0) + selectedSenseIds.length;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
-        className="w-full max-w-xl bg-white dark:bg-[#121622] rounded-3xl border border-gray-200/80 dark:border-white/[0.08] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-2xl bg-white dark:bg-[#121622] rounded-3xl border border-gray-200/80 dark:border-white/[0.08] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -253,7 +431,7 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                 Agregar Término al Catálogo
               </h2>
               <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                Escribe en inglés y la IA extraerá fonética, traducción, nivel y ejemplos.
+                Escribe en inglés y la IA extraerá automáticamente acepciones, fonética, tiempos verbales y ejemplos.
               </p>
             </div>
           </div>
@@ -294,16 +472,16 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                     handleEnrichWord();
                   }
                 }}
-                placeholder="ej: resilient, breakthrough, look forward to"
+                placeholder="ej: resilient, run, break, accommodation"
                 required
                 disabled={isEnriching || isSubmitting}
                 className="flex-1 px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700/70 text-sm font-semibold text-gray-900 dark:text-white placeholder-gray-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 transition-all font-sans"
               />
-              <Button
+              <button
                 type="button"
-                onPress={() => handleEnrichWord()}
-                isDisabled={!word.trim() || isEnriching || isSubmitting}
-                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                onClick={() => handleEnrichWord()}
+                disabled={!word.trim() || isEnriching || isSubmitting}
+                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
               >
                 {isEnriching ? (
                   <>
@@ -316,30 +494,113 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                     <span>Consultar IA</span>
                   </>
                 )}
-              </Button>
+              </button>
             </div>
           </div>
 
-          {/* Loading Animation Box */}
-          {isEnriching && (
-            <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/50 flex items-center gap-3 animate-pulse">
-              <div className="p-2.5 rounded-xl bg-indigo-600 text-white">
-                <Sparkles className="w-4 h-4 animate-spin" />
-              </div>
-              <div className="text-xs">
-                <p className="font-bold text-indigo-900 dark:text-indigo-200">
-                  Extrayendo análisis lingüístico con IA...
-                </p>
-                <p className="text-[11px] text-indigo-600 dark:text-indigo-400">
-                  Calculando fonética IPA General American, nivel pedagógico CEFR y oraciones contextuales.
+          {/* Real-time Duplicate Detection Banner */}
+          {duplicateMatches.length > 0 && (
+            <div className="p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-300/80 dark:border-amber-700/60 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5 animate-in fade-in duration-200">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold">Coincidencia en Catálogo:</span>
+                  <span>Ya tienes <strong>&ldquo;{duplicateMatches[0].word}&rdquo;</strong> registrado</span>
+                  <span className="px-1.5 py-0.2 rounded bg-amber-200/60 dark:bg-amber-900/60 text-[10px] font-mono">
+                    {duplicateMatches[0].domainCategory || 'General'}: {duplicateMatches[0].translationEs}
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                  Puedes registrar un <strong>nuevo significado contextual</strong> (ej. acepción en otro dominio o categoría gramatical) o actualizar la tarjeta existente.
                 </p>
               </div>
             </div>
           )}
 
+          {/* Spelling Correction Banner ("Did you mean?") */}
+          {spellingCorrection && spellingCorrection.hasCorrection && (
+            <div className="p-3.5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 text-xs space-y-2 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded-md bg-indigo-600 text-white">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </span>
+                  <div>
+                    <span className="font-bold text-indigo-950 dark:text-indigo-200">
+                      Sugerencia Ortográfica Detectada:
+                    </span>{' '}
+                    <span className="text-gray-600 dark:text-gray-300">
+                      Has escrito <code className="px-1.5 py-0.5 rounded bg-white dark:bg-[#121622] font-mono text-rose-600 line-through">{spellingCorrection.originalInput}</code>
+                    </span>
+                    <ArrowRight className="inline-block w-3 h-3 mx-1 text-indigo-500" />
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                      {spellingCorrection.correctedWord}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRevertSpelling}
+                  className="text-[11px] text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-300 underline cursor-pointer"
+                >
+                  Conservar grafía original
+                </button>
+              </div>
+
+              {spellingCorrection.explanationEs && (
+                <p className="text-[11px] text-indigo-700 dark:text-indigo-300 pl-7">
+                  {spellingCorrection.explanationEs}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Loading Animation Box */}
+          {isEnriching && (
+            <div className="p-5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/50 flex items-center gap-3.5 animate-pulse">
+              <div className="p-2.5 rounded-xl bg-indigo-600 text-white">
+                <Sparkles className="w-4 h-4 animate-spin" />
+              </div>
+              <div className="text-xs">
+                <p className="font-bold text-indigo-900 dark:text-indigo-200">
+                  Analizando término con IA lexicográfica...
+                </p>
+                <p className="text-[11px] text-indigo-600 dark:text-indigo-400">
+                  Categorizando dominios semánticos, conjugaciones verbales, fonética IPA y oraciones contextuales.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* PREVIEW EMPTY STATE: When user has not clicked Consultar IA yet */}
+          {!hasEnriched && !isEnriching && activeTab === 'preview' && (
+            <div className="p-8 rounded-3xl border border-dashed border-gray-200 dark:border-white/[0.08] bg-gray-50/40 dark:bg-[#151928]/40 text-center space-y-2">
+              <div className="mx-auto w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <Info className="w-5 h-5" />
+              </div>
+              <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200">
+                La vista previa se generará tras consultar a la IA
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md mx-auto leading-relaxed">
+                Escribe una palabra o expresión en el campo superior y presiona <strong>&ldquo;Consultar IA&rdquo;</strong> (o <kbd className="font-mono bg-gray-200 dark:bg-gray-800 px-1 py-0.5 rounded text-[10px]">Enter</kbd>). La IA extraerá automáticamente todas sus acepciones, categoría gramatical, tiempos verbales y pronunciación.
+              </p>
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('manual')}
+                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-semibold cursor-pointer inline-flex items-center gap-1"
+                >
+                  <SlidersHorizontal className="w-3 h-3" />
+                  <span>¿Prefieres rellenar los datos manualmente? Haz clic aquí</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Enriched Content or Manual Configuration */}
-          {(hasEnriched || word.trim().length > 0) && !isEnriching && (
-            <div className="space-y-3 pt-1">
+          {(hasEnriched || activeTab === 'manual') && !isEnriching && (
+            <div className="space-y-4 pt-1">
               {/* Tab selector */}
               <div className="flex items-center gap-2 border-b border-gray-100 dark:border-white/[0.06] pb-2">
                 <button
@@ -351,7 +612,7 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                       : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   }`}
                 >
-                  Vista Previa {hasEnriched && '✓'}
+                  Vista Previa Enriquecida {hasEnriched && '✓'}
                 </button>
                 <button
                   type="button"
@@ -368,82 +629,309 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
               </div>
 
               {activeTab === 'preview' ? (
-                <div className="p-4 rounded-2xl bg-gray-50/80 dark:bg-[#161B28]/80 border border-gray-200/80 dark:border-white/[0.08] space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-gray-200/60 dark:border-white/[0.06]">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xl font-bold text-gray-900 dark:text-white font-sans">
-                        {word}
-                      </span>
-                      {ipaGeneralAmerican && (
-                        <span
-                          className="font-phonetic text-xs font-semibold text-indigo-600 dark:text-indigo-400"
-                          style={{ fontFamily: 'var(--font-phonetic)' }}
-                        >
-                          /{ipaGeneralAmerican}/
-                        </span>
-                      )}
-                    </div>
+                <div className="space-y-4">
+                  {/* Single Word Card (rendered ONLY when there is a single definition, no alternate senses) */}
+                  {senses.length === 0 && (
+                    <div className="p-4 rounded-2xl bg-gray-50/80 dark:bg-[#161B28]/80 border border-gray-200/80 dark:border-white/[0.08] space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-gray-200/60 dark:border-white/[0.06]">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-bold text-gray-900 dark:text-white font-sans">
+                            {word}
+                          </span>
+                          {ipaGeneralAmerican && (
+                            <span
+                              className="font-phonetic text-sm font-semibold text-indigo-600 dark:text-indigo-400"
+                              style={{ fontFamily: 'var(--font-phonetic)' }}
+                            >
+                              /{ipaGeneralAmerican}/
+                            </span>
+                          )}
+                        </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-md border ${getCefrBadgeStyle(
-                          cefrLevel,
-                        )}`}
-                      >
-                        {cefrLevel}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-gray-200/70 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium">
-                        {PART_OF_SPEECH_LABELS_ES[partOfSpeech] ?? partOfSpeech}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Translation */}
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1">
-                      Traducción al Español:
-                    </label>
-                    <input
-                      type="text"
-                      value={translationEs}
-                      onChange={(e) => setTranslationEs(e.target.value)}
-                      placeholder="Traducción al español..."
-                      className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-[#121622] border border-gray-200/80 dark:border-white/[0.08] text-xs font-semibold text-gray-900 dark:text-white focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-
-                  {/* Context sentence */}
-                  {exampleSentenceEn && (
-                    <div className="p-3 rounded-xl bg-white/80 dark:bg-[#121622]/80 border border-gray-200/60 dark:border-white/[0.06] text-xs space-y-1">
-                      <div className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
-                        <BookOpen className="w-3 h-3" />
-                        <span>Ejemplo Sugerido:</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* Automatic Domain Category Badge assigned by AI */}
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                            {domainCategory}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-md border ${getCefrBadgeStyle(
+                              cefrLevel,
+                            )}`}
+                          >
+                            {cefrLevel}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-gray-200/70 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium">
+                            {PART_OF_SPEECH_LABELS_ES[partOfSpeech] ?? partOfSpeech}
+                          </span>
+                        </div>
                       </div>
-                      <p className="font-editorial italic text-gray-800 dark:text-gray-200 text-xs">
-                        &ldquo;{exampleSentenceEn}&rdquo;
-                      </p>
-                      {exampleSentenceEs && (
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                          {exampleSentenceEs}
+
+                      {/* Translation */}
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1">
+                          Traducción al Español:
+                        </label>
+                        <input
+                          type="text"
+                          value={translationEs}
+                          onChange={(e) => setTranslationEs(e.target.value)}
+                          placeholder="Traducción al español..."
+                          className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-[#121622] border border-gray-200/80 dark:border-white/[0.08] text-xs font-semibold text-gray-900 dark:text-white focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      {/* English Definition */}
+                      {definitionEn && (
+                        <p className="text-xs text-gray-600 dark:text-gray-300 font-sans">
+                          {definitionEn}
                         </p>
                       )}
+
+                      {/* Context sentence for primary sense */}
+                      {exampleSentenceEn && (
+                        <div className="p-3 rounded-xl bg-white/80 dark:bg-[#121622]/80 border border-gray-200/60 dark:border-white/[0.06] text-xs space-y-1">
+                          <div className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+                            <BookOpen className="w-3 h-3" />
+                            <span>Ejemplo en Contexto Real:</span>
+                          </div>
+                          <p className="font-editorial italic text-gray-800 dark:text-gray-200 text-xs">
+                            &ldquo;{exampleSentenceEn}&rdquo;
+                          </p>
+                          {exampleSentenceEs && (
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                              {exampleSentenceEs}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* False friend notice if applicable */}
+                      {isFalseFriend && (
+                        <div className="p-2.5 rounded-xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700/50 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <strong className="font-semibold block text-[11px]">Falso Amigo:</strong>
+                            <span className="text-[11px]">
+                              {falseFriendNote || 'Presta atención a su significado real.'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* False friend notice if applicable */}
-                  {isFalseFriend && (
-                    <div className="p-2.5 rounded-xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700/50 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  {/* False friend notice when multiple senses are present */}
+                  {senses.length > 0 && isFalseFriend && (
+                    <div className="p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700/50 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                       <div>
-                        <strong className="font-semibold block text-[11px]">Falso Amigo:</strong>
-                        <span className="text-[11px]">
-                          {falseFriendNote || 'Presta atención a su significado real.'}
+                        <strong className="font-semibold block text-xs">Alerta de Falso Amigo:</strong>
+                        <span className="text-xs">
+                          {falseFriendNote || 'Presta atención al significado real en cada contexto.'}
                         </span>
                       </div>
                     </div>
                   )}
+
+                  {/* Multiple Senses Selection Section (Automatic domain categories from AI) */}
+                  {senses.length > 0 && (
+                    <div className="p-4 rounded-2xl bg-indigo-50/40 dark:bg-[#141825] border border-indigo-100 dark:border-indigo-900/40 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-indigo-100/60 dark:border-white/[0.06]">
+                        <div className="flex items-center gap-2.5">
+                          <span className="p-1.5 rounded-xl bg-indigo-600 text-white shrink-0">
+                            <Layers className="w-4 h-4" />
+                          </span>
+                          <div>
+                            <div className="flex items-baseline gap-2">
+                              <h4 className="text-base font-bold tracking-tight text-gray-900 dark:text-white font-sans">
+                                {word}
+                              </h4>
+                              {ipaGeneralAmerican && (
+                                <span className="font-phonetic text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                                  /{ipaGeneralAmerican}/
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
+                              Acepciones y Significados Detectados ({senses.length + 1}) — Selecciona las que deseas registrar según tu nivel
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleSelectAllSenses}
+                          className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-semibold cursor-pointer shrink-0"
+                        >
+                          {selectedSenseIds.length === senses.length && includePrimarySense
+                            ? 'Solo significado principal'
+                            : 'Seleccionar todas'}
+                        </button>
+                      </div>
+
+                      {/* CEFR Level Quick-Select Filter Bar */}
+                      <div className="flex items-center gap-1.5 flex-wrap pt-0.5 text-xs">
+                        <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mr-0.5">
+                          Selección por nivel:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleSelectAllSenses}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-colors cursor-pointer ${
+                            selectedSenseIds.length === senses.length && includePrimarySense
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-white dark:bg-[#10131D] text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          Todas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectByMaxCefr('A2')}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60 transition-colors cursor-pointer"
+                        >
+                          Hasta A2
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectByMaxCefr('B1')}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 transition-colors cursor-pointer"
+                        >
+                          Hasta B1
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectByMaxCefr('B2')}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/60 transition-colors cursor-pointer"
+                        >
+                          Hasta B2
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSelectOnlyPrimary}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 transition-colors cursor-pointer"
+                        >
+                          Solo Principal
+                        </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        {/* Primary sense checkbox item */}
+                        <div
+                          onClick={() => setIncludePrimarySense(!includePrimarySense)}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 ${
+                            includePrimarySense
+                              ? 'bg-white dark:bg-[#10131D] border-indigo-300 dark:border-indigo-700 shadow-xs'
+                              : 'bg-gray-50/60 dark:bg-[#10131D]/40 border-gray-200 dark:border-gray-800 opacity-60'
+                          }`}
+                        >
+                          <div className="mt-0.5 text-indigo-600 dark:text-indigo-400">
+                            {includePrimarySense ? (
+                              <CheckSquare className="w-4 h-4" />
+                            ) : (
+                              <Square className="w-4 h-4" />
+                            )}
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-gray-900 dark:text-white">
+                                1. {translationEs} (Principal)
+                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span
+                                  className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border ${getCefrBadgeStyle(
+                                    cefrLevel,
+                                  )}`}
+                                >
+                                  {cefrLevel}
+                                </span>
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                  {domainCategory}
+                                </span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium">
+                                  {PART_OF_SPEECH_LABELS_ES[partOfSpeech] ?? partOfSpeech}
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-gray-600 dark:text-gray-400">
+                              {definitionEn}
+                            </p>
+                            {exampleSentenceEn && (
+                              <p className="text-[11px] font-editorial italic text-gray-700 dark:text-gray-300">
+                                &ldquo;{exampleSentenceEn}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Alternate Senses */}
+                        {senses.map((sense, idx) => {
+                          const isSelected = selectedSenseIds.includes(sense.id);
+                          return (
+                            <div
+                              key={sense.id}
+                              onClick={() => toggleSenseSelection(sense.id)}
+                              className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 ${
+                                isSelected
+                              ? 'bg-white dark:bg-[#10131D] border-indigo-300 dark:border-indigo-700 shadow-xs'
+                              : 'bg-gray-50/60 dark:bg-[#10131D]/40 border-gray-200 dark:border-gray-800 opacity-60'
+                              }`}
+                            >
+                              <div className="mt-0.5 text-indigo-600 dark:text-indigo-400">
+                                {isSelected ? (
+                                  <CheckSquare className="w-4 h-4" />
+                                ) : (
+                                  <Square className="w-4 h-4" />
+                                )}
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span className="text-xs font-bold text-gray-900 dark:text-white">
+                                    {idx + 2}. {sense.translationEs}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span
+                                      className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border ${getCefrBadgeStyle(
+                                        sense.cefrLevel || 'B1',
+                                      )}`}
+                                    >
+                                      {sense.cefrLevel || 'B1'}
+                                    </span>
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                      {sense.domainCategory}
+                                    </span>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium">
+                                      {PART_OF_SPEECH_LABELS_ES[sense.partOfSpeech] ?? sense.partOfSpeech}
+                                    </span>
+                                  </div>
+                                </div>
+                                <p className="text-[11px] text-gray-600 dark:text-gray-400">
+                                  {sense.definitionEn}
+                                </p>
+                                <p className="text-[11px] font-editorial italic text-gray-700 dark:text-gray-300">
+                                  &ldquo;{sense.exampleSentenceEn}&rdquo;
+                                </p>
+                                {sense.exampleSentenceEs && (
+                                  <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                                    {sense.exampleSentenceEs}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Morphological Word Family Card */}
+                  <StructuredFamilyCard
+                    family={structuredFamily}
+                    legacyFamily={morphologicalFamily}
+                  />
                 </div>
               ) : (
+                /* MANUAL SETTINGS TAB */
                 <div className="space-y-3 pt-1">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -536,6 +1024,20 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                     </div>
                   </div>
 
+                  {/* Domain Category Input */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                      Categoría Semántica / Dominio
+                    </label>
+                    <input
+                      type="text"
+                      value={domainCategory}
+                      onChange={(e) => setDomainCategory(e.target.value)}
+                      placeholder="ej: Finanzas, Informática, Uso General"
+                      className="w-full px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white"
+                    />
+                  </div>
+
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300">
                       Oración de Ejemplo (Inglés y Español)
@@ -596,10 +1098,10 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
               >
                 Cancelar
               </button>
-              <Button
+              <button
                 type="submit"
-                isDisabled={isSubmitting || isEnriching || !word.trim()}
-                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                disabled={isSubmitting || isEnriching || !word.trim()}
+                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
@@ -609,7 +1111,11 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                 ) : hasEnriched ? (
                   <>
                     <Check className="w-3.5 h-3.5" />
-                    <span>Guardar Término</span>
+                    <span>
+                      {totalSelectedCount > 1
+                        ? `Guardar ${totalSelectedCount} Acepciones`
+                        : 'Guardar Término'}
+                    </span>
                   </>
                 ) : (
                   <>
@@ -617,7 +1123,7 @@ export function AddVocabModal({ isOpen, onClose, onAddWord }: AddVocabModalProps
                     <span>Autocompletar y Guardar</span>
                   </>
                 )}
-              </Button>
+              </button>
             </div>
           </div>
         </form>

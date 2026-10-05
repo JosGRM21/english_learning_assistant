@@ -24,6 +24,7 @@ import { VocabItem } from '@/core/types/vocab';
 export function VocabCatalogView() {
   const {
     words,
+    allWords,
     totalCount,
     filteredCount,
     falseFriendsCount,
@@ -43,6 +44,7 @@ export function VocabCatalogView() {
     setSortBy,
     resetFilters,
     addWord,
+    addMultipleWords,
     updateWord,
     deleteWord,
   } = useVocabList();
@@ -50,6 +52,23 @@ export function VocabCatalogView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedWordForDrawer, setSelectedWordForDrawer] = useState<VocabItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Sequential drawer navigation among filtered words
+  const currentDrawerIndex = useMemo(() => {
+    if (!selectedWordForDrawer) return -1;
+    return words.findIndex((w) => w.id === selectedWordForDrawer.id);
+  }, [selectedWordForDrawer, words]);
+
+  const hasPrevWord = currentDrawerIndex > 0;
+  const hasNextWord = currentDrawerIndex >= 0 && currentDrawerIndex < words.length - 1;
+
+  const handleNavigateWord = (direction: 'prev' | 'next') => {
+    if (currentDrawerIndex < 0) return;
+    const targetIndex = direction === 'prev' ? currentDrawerIndex - 1 : currentDrawerIndex + 1;
+    if (targetIndex >= 0 && targetIndex < words.length) {
+      setSelectedWordForDrawer(words[targetIndex]);
+    }
+  };
 
   // Search input ref & Ctrl+K shortcut
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +126,14 @@ export function VocabCatalogView() {
     showToast(`¡Término "${payload.word}" agregado al catálogo con éxito!`);
     if (created) {
       setSelectedWordForDrawer(created);
+    }
+  };
+
+  const handleAddMultipleWords = async (payloads: NewVocabPayload[]) => {
+    const createdList = await addMultipleWords(payloads);
+    if (createdList.length > 0) {
+      showToast(`¡Se agregaron ${createdList.length} acepciones al catálogo con éxito!`);
+      setSelectedWordForDrawer(createdList[0]);
     }
   };
 
@@ -425,6 +452,8 @@ export function VocabCatalogView() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onAddWord={handleAddWord}
+        onAddMultipleWords={handleAddMultipleWords}
+        existingWords={allWords}
       />
 
       {/* Side Sheet Detail Drawer (Lexical Inspector) */}
@@ -435,6 +464,9 @@ export function VocabCatalogView() {
         examples={selectedWordForDrawer ? examplesMap[selectedWordForDrawer.id] : []}
         onDeleteWord={handleDeleteWord}
         onUpdateWord={handleUpdateWord}
+        onNavigateWord={handleNavigateWord}
+        hasPrev={hasPrevWord}
+        hasNext={hasNextWord}
       />
     </div>
   );

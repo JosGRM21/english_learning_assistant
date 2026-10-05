@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS vocab_items (
     is_false_friend INTEGER NOT NULL DEFAULT 0 CHECK(is_false_friend IN (0, 1)),
     false_friend_note TEXT,
     morphological_family_json TEXT,
+    verb_tenses_json TEXT,
+    structured_family_json TEXT,
+    domain_category TEXT,
+    alternate_senses_json TEXT,
     created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
 );
 
@@ -171,7 +175,44 @@ CREATE TABLE IF NOT EXISTS user_streaks (
 INSERT OR IGNORE INTO user_streaks (id, user_id, current_streak, longest_streak, available_freezes)
 VALUES ('streak_local', 'user_local', 0, 0, 1);
 
-PRAGMA user_version = 1;
+-- 7. Configuración y Registro de Notificaciones de Estudio
+CREATE TABLE IF NOT EXISTS notification_settings (
+    user_id TEXT PRIMARY KEY DEFAULT 'user_local',
+    enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+    schedule_mode TEXT NOT NULL DEFAULT 'AUTO' CHECK(schedule_mode IN ('AUTO', 'MANUAL')),
+    manual_time TEXT NOT NULL DEFAULT '20:00',
+    detected_time TEXT DEFAULT '19:30',
+    srs_enabled INTEGER NOT NULL DEFAULT 1 CHECK(srs_enabled IN (0, 1)),
+    srs_schedule_mode TEXT NOT NULL DEFAULT 'AUTO' CHECK(srs_schedule_mode IN ('AUTO', 'MANUAL')),
+    srs_manual_time TEXT NOT NULL DEFAULT '19:00',
+    srs_detected_time TEXT DEFAULT '19:00',
+    writing_enabled INTEGER NOT NULL DEFAULT 1 CHECK(writing_enabled IN (0, 1)),
+    writing_schedule_mode TEXT NOT NULL DEFAULT 'AUTO' CHECK(writing_schedule_mode IN ('AUTO', 'MANUAL')),
+    writing_manual_time TEXT NOT NULL DEFAULT '21:00',
+    writing_detected_time TEXT DEFAULT '21:00',
+    streak_saver_enabled INTEGER NOT NULL DEFAULT 1 CHECK(streak_saver_enabled IN (0, 1)),
+    srs_batch_enabled INTEGER NOT NULL DEFAULT 1 CHECK(srs_batch_enabled IN (0, 1)),
+    srs_batch_threshold INTEGER NOT NULL DEFAULT 10,
+    quiet_hours_start TEXT NOT NULL DEFAULT '23:30',
+    quiet_hours_end TEXT NOT NULL DEFAULT '08:00',
+    minimize_to_tray INTEGER NOT NULL DEFAULT 1 CHECK(minimize_to_tray IN (0, 1)),
+    updated_at TEXT NOT NULL DEFAULT (DATETIME('now'))
+);
+
+INSERT OR IGNORE INTO notification_settings (user_id) VALUES ('user_local');
+
+CREATE TABLE IF NOT EXISTS notification_logs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'user_local',
+    notification_type TEXT NOT NULL CHECK(notification_type IN ('PRACTICE_REMINDER', 'PRACTICE_REMINDER_SRS', 'PRACTICE_REMINDER_WRITING', 'STREAK_SAVER_1', 'STREAK_SAVER_2', 'SRS_BATCH', 'TEST')),
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    sent_at TEXT NOT NULL DEFAULT (DATETIME('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_notif_logs_type_time ON notification_logs(notification_type, sent_at);
+
+PRAGMA user_version = 2;
 `;
 
 export const CLEANUP_OBSOLETE_TABLES_SQL = `

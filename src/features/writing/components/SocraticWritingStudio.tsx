@@ -3,7 +3,6 @@ import {
   PenTool,
   AlertCircle,
   History,
-  BookOpen,
   Sparkles,
   RotateCcw,
 } from 'lucide-react';
@@ -117,17 +116,6 @@ export function SocraticWritingStudio(_props: SocraticWritingStudioProps) {
                 )}
               </button>
             </div>
-
-            {/* Prompts Catalog Trigger */}
-            <button
-              type="button"
-              onClick={() => setIsPromptModalOpen(true)}
-              className="px-3.5 py-2 rounded-2xl text-xs font-semibold bg-white dark:bg-[#181D2A] hover:bg-gray-50 dark:hover:bg-[#202738] text-gray-700 dark:text-gray-200 border border-gray-200/80 dark:border-gray-800 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs group"
-              title="Abrir banco de prompts situacionales"
-            >
-              <BookOpen className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
-              <span>Prompts</span>
-            </button>
 
             {/* Reset Writing Session (Visible when past stage 1 in Studio) */}
             {activeTab === 'STUDIO' && currentStage > 1 && (

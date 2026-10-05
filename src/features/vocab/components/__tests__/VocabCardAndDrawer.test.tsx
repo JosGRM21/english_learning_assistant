@@ -118,13 +118,83 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
       fireEvent.click(screen.getByText('resilient'));
       expect(onSelectMock).toHaveBeenCalledWith(mockVocab);
     });
+
+    it('renders clean header with dedicated word row and does not render bottom acepciones or familia chips', () => {
+      const mockVerbVocab: VocabItem = {
+        ...mockVocab,
+        id: 'voc_verb_1',
+        word: 'run',
+        partOfSpeech: 'VERB',
+        verbTensesJson: {
+          infinitive: 'run',
+          pastSimple: 'ran',
+          pastParticiple: 'run',
+          thirdPersonPresent: 'runs',
+          gerund: 'running',
+          isIrregular: true,
+        },
+        morphologicalFamilyJson: ['runner', 'running'],
+        alternateSensesJson: [
+          {
+            id: 'sns_1',
+            translationEs: 'administrar un negocio',
+            definitionEn: 'To manage or operate a business',
+            partOfSpeech: 'VERB',
+            domainCategory: 'Negocios',
+            exampleSentenceEn: 'She runs a company.',
+            exampleSentenceEs: 'Ella dirige una empresa.',
+            cefrLevel: 'B2',
+          },
+        ],
+      };
+
+      render(<VocabCard vocab={mockVerbVocab} />);
+
+      // Word and Irregular verb badge in top meta row must be present
+      expect(screen.getByText('run')).toBeDefined();
+      expect(screen.getByText('Verbo Irreg.')).toBeDefined();
+
+      // Bottom clutter chips must NOT be rendered
+      expect(screen.queryByText(/\+1 acepciones/i)).toBeNull();
+      expect(screen.queryByText(/Familia léxica/i)).toBeNull();
+
+      // Heavy 5-column verb dock must NOT be in the card body
+      expect(screen.queryByText(/3ª Persona Sing\./i)).toBeNull();
+      expect(screen.queryByText(/Past Participle/i)).toBeNull();
+    });
+
+    it('plays context example audio when clicking the example audio button', async () => {
+      render(<VocabCard vocab={mockVocab} examples={[mockExample]} />);
+
+      const speakExBtn = screen.getByTitle(/Escuchar oración/i);
+      fireEvent.click(speakExBtn);
+
+      expect(mockAudioService.speak).toHaveBeenCalledWith(mockExample.sentenceEn, 0.95);
+    });
   });
 
   describe('VocabDetailDrawer', () => {
-    it('renders full lexical details including morphological family and context sentences', async () => {
+    it('renders full lexical details including horizontal categories, morphological family, and context sentences without bundling other senses', async () => {
+      const vocabWithSenses: VocabItem = {
+        ...mockVocab,
+        domainCategory: 'Psicología',
+        alternateSensesJson: [
+          {
+            id: 'sns_alt_1',
+            translationEs: 'capacidad de recuperación',
+            definitionEn: 'The capacity to recover quickly.',
+            partOfSpeech: 'NOUN',
+            domainCategory: 'Psicología',
+            exampleSentenceEn: 'Psychological resilience is key.',
+            exampleSentenceEs: 'La resiliencia psicológica es clave.',
+            cefrLevel: 'C1',
+          },
+        ],
+      };
+
       render(
         <VocabDetailDrawer
-          vocab={mockVocab}
+          vocab={vocabWithSenses}
           isOpen={true}
           onClose={vi.fn()}
           examples={[mockExample]}
@@ -134,11 +204,48 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
       expect(screen.getByText('Inspector Léxico')).toBeDefined();
       expect(screen.getByText('resilience')).toBeDefined();
       expect(screen.getByText('resiliently')).toBeDefined();
+      expect(screen.getByText('Psicología')).toBeDefined();
+
+      // The drawer must focus strictly on its own word and NOT bundle other senses
+      expect(screen.queryByText(/Otras Acepciones y Contextos/i)).toBeNull();
+      expect(screen.queryByText(/capacidad de recuperación/i)).toBeNull();
 
       await waitFor(() => {
         expect(screen.getByText('Estado de Retención FSRS')).toBeDefined();
         expect(screen.getByText('4.5d')).toBeDefined();
       });
+    });
+
+    it('navigates to previous and next word via buttons and keyboard arrows', () => {
+      const onNavigateMock = vi.fn();
+
+      render(
+        <VocabDetailDrawer
+          vocab={mockVocab}
+          isOpen={true}
+          onClose={vi.fn()}
+          onNavigateWord={onNavigateMock}
+          hasPrev={true}
+          hasNext={true}
+        />
+      );
+
+      // Previous button click
+      const prevBtn = screen.getByTitle(/Palabra anterior/i);
+      fireEvent.click(prevBtn);
+      expect(onNavigateMock).toHaveBeenCalledWith('prev');
+
+      // Next button click
+      const nextBtn = screen.getByTitle(/Palabra siguiente/i);
+      fireEvent.click(nextBtn);
+      expect(onNavigateMock).toHaveBeenCalledWith('next');
+
+      // Keyboard arrow navigation
+      fireEvent.keyDown(window, { key: 'ArrowLeft' });
+      expect(onNavigateMock).toHaveBeenCalledWith('prev');
+
+      fireEvent.keyDown(window, { key: 'ArrowRight' });
+      expect(onNavigateMock).toHaveBeenCalledWith('next');
     });
 
     it('plays slow 0.75x audio when clicking the slow audio button', async () => {

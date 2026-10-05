@@ -80,8 +80,12 @@ export class KokoroEngine {
         try {
           const { env } = await import('@huggingface/transformers');
           if (env?.backends?.onnx?.wasm) {
+            const hasSharedArrayBuffer =
+              typeof window !== 'undefined' &&
+              typeof SharedArrayBuffer !== 'undefined' &&
+              Boolean(window.crossOriginIsolated);
             const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 2 : 2;
-            const threads = Math.max(1, Math.min(4, cores));
+            const threads = hasSharedArrayBuffer ? Math.max(1, Math.min(4, cores)) : 1;
             (env.backends.onnx.wasm as any).numThreads = threads;
             (env.backends.onnx.wasm as any).simd = true;
           }

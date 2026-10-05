@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { BookOpen, Search, X } from 'lucide-react';
 import { CardWithTarget } from '@/core/types/srs';
+import { PART_OF_SPEECH_LABELS_ES } from '@/core/types/vocab';
 
 export interface SrsDeckDrawerProps {
   isOpen: boolean;
@@ -34,10 +35,13 @@ export function SrsDeckDrawer({
       // Filter by search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const wordMatch = item.vocab?.word.toLowerCase().includes(q);
-        const transMatch = item.vocab?.translationEs.toLowerCase().includes(q);
-        const defMatch = item.vocab?.definitionEn.toLowerCase().includes(q);
-        if (!wordMatch && !transMatch && !defMatch) return false;
+        const wordMatch = item.vocab?.word?.toLowerCase().includes(q);
+        const transMatch = item.vocab?.translationEs?.toLowerCase().includes(q);
+        const defMatch = item.vocab?.definitionEn?.toLowerCase().includes(q);
+        const domainMatch = item.vocab?.domainCategory?.toLowerCase().includes(q);
+        const posLabel = item.vocab?.partOfSpeech ? (PART_OF_SPEECH_LABELS_ES[item.vocab.partOfSpeech] ?? item.vocab.partOfSpeech) : '';
+        const posMatch = posLabel.toLowerCase().includes(q);
+        if (!wordMatch && !transMatch && !defMatch && !domainMatch && !posMatch) return false;
       }
 
       return true;
@@ -178,20 +182,37 @@ export function SrsDeckDrawer({
                         : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
                     }`}
                   >
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-1 flex-1 pr-2 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold text-xs text-gray-900 dark:text-white">
                           {item.vocab?.word || 'Palabra'}
                         </span>
+                        {item.vocab?.partOfSpeech && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                            {PART_OF_SPEECH_LABELS_ES[item.vocab.partOfSpeech] ?? item.vocab.partOfSpeech}
+                          </span>
+                        )}
+                        {item.vocab?.domainCategory && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded font-semibold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/50 dark:border-purple-800/50">
+                            {item.vocab.domainCategory}
+                          </span>
+                        )}
                         {item.vocab?.cefrLevel && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                          <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/40 dark:border-indigo-800/40">
                             {item.vocab.cefrLevel}
                           </span>
                         )}
                         {getStateBadge(item.card.state, item.card.scheduledFor)}
                       </div>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                        {item.vocab?.translationEs}
+                      <p className="text-[11px] text-gray-600 dark:text-gray-300 flex items-baseline gap-1.5 flex-wrap">
+                        <strong className="font-semibold text-gray-900 dark:text-gray-100">
+                          {item.vocab?.translationEs}
+                        </strong>
+                        {item.vocab?.definitionEn && (
+                          <span className="text-gray-400 dark:text-gray-500 font-normal line-clamp-1">
+                            — {item.vocab.definitionEn}
+                          </span>
+                        )}
                       </p>
                     </div>
 

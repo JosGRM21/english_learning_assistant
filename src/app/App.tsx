@@ -6,6 +6,24 @@ import { AppTab } from '@/shared/constants/app-tabs';
 import { useUpdater } from '@/shared/hooks/useUpdater';
 import { UpdateModal } from '@/shared/ui/UpdateModal';
 
+import { useNotificationScheduler } from '@/features/habits/hooks/useNotificationScheduler';
+
+function AppContent({
+  activeTab,
+  setActiveTab,
+}: {
+  activeTab: AppTab;
+  setActiveTab: (t: AppTab) => void;
+}) {
+  useNotificationScheduler();
+
+  return (
+    <AppLayout activeTab={activeTab} onNavigateTab={setActiveTab}>
+      <AppRouter activeTab={activeTab} onNavigateTab={setActiveTab} />
+    </AppLayout>
+  );
+}
+
 export function App() {
   // Inicializado en 'vocab' temporalmente mientras 'dashboard' y otras secciones se encuentran en desarrollo
   const [activeTab, setActiveTab] = useState<AppTab>('vocab');
@@ -31,9 +49,7 @@ export function App() {
 
   return (
     <AppProviders>
-      <AppLayout activeTab={activeTab} onNavigateTab={setActiveTab}>
-        <AppRouter activeTab={activeTab} onNavigateTab={setActiveTab} />
-      </AppLayout>
+      <AppContent activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Modal global al iniciar o detectar nueva versión */}
       <UpdateModal
@@ -48,5 +64,6 @@ export function App() {
     </AppProviders>
   );
 }
+
 
 export default App;

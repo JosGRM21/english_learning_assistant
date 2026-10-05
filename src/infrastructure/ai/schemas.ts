@@ -175,6 +175,58 @@ export type WritingEvaluationResponse = z.infer<typeof WritingEvaluationResponse
 export type CorrectionItem = z.infer<typeof CorrectionItemSchema>;
 export type MicroChallenge = z.infer<typeof MicroChallengeSchema>;
 
+export const SpellingCorrectionSchema = z.object({
+  hasCorrection: z.boolean().default(false),
+  originalInput: z.string().default(''),
+  correctedWord: z.string().default(''),
+  explanationEs: z.string().optional(),
+});
+
+export const VerbTensesSchema = z.object({
+  infinitive: z.string(),
+  pastSimple: z.string(),
+  pastParticiple: z.string(),
+  thirdPersonPresent: z.string(),
+  gerund: z.string(),
+  isIrregular: z.boolean().default(false),
+  edPhoneticEnding: z.preprocess((val) => {
+    if (typeof val !== 'string') return null;
+    const v = val.trim();
+    if (v.includes('/t/') || v === 't') return '/t/';
+    if (v.includes('/d/') || v === 'd') return '/d/';
+    if (v.includes('/ɪd/') || v.includes('/id/') || v === 'id' || v === 'ɪd') return '/ɪd/';
+    return null;
+  }, z.enum(['/t/', '/d/', '/ɪd/']).nullable().optional()),
+});
+
+export const StructuredFamilySchema = z.object({
+  nouns: z.array(z.string()).default([]),
+  verbs: z.array(z.string()).default([]),
+  adjectives: z.array(z.string()).default([]),
+  adverbs: z.array(z.string()).default([]),
+});
+
+export const VocabSenseSchema = z.object({
+  id: z.string().default(() => `sns_${Math.random().toString(36).slice(2, 7)}`),
+  domainCategory: z.string().default('Uso General'),
+  translationEs: z.string(),
+  definitionEn: z.string(),
+  partOfSpeech: z.enum([
+    'NOUN',
+    'VERB',
+    'ADJECTIVE',
+    'ADVERB',
+    'PREPOSITION',
+    'CONJUNCTION',
+    'ARTICLE_DETERMINER',
+    'PRONOUN',
+    'INTERJECTION',
+  ]).default('NOUN'),
+  exampleSentenceEn: z.string(),
+  exampleSentenceEs: z.string(),
+  cefrLevel: z.enum(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']).default('B1'),
+});
+
 export const VocabEnrichmentResponseSchema = z.object({
   word: z.string(),
   translationEs: z.string(),
@@ -198,7 +250,17 @@ export const VocabEnrichmentResponseSchema = z.object({
   isFalseFriend: z.boolean(),
   falseFriendNote: z.string().nullable().optional(),
   morphologicalFamily: z.array(z.string()).default([]),
+  domainCategory: z.string().default('Uso General'),
+  verbTenses: VerbTensesSchema.nullable().optional(),
+  structuredFamily: StructuredFamilySchema.default({ nouns: [], verbs: [], adjectives: [], adverbs: [] }),
+  senses: z.array(VocabSenseSchema).default([]),
+  spellingCorrection: SpellingCorrectionSchema.optional(),
+  isValidEnglishWord: z.boolean().default(true),
 });
 
 export type VocabEnrichmentResponse = z.infer<typeof VocabEnrichmentResponseSchema>;
+export type VerbTensesData = z.infer<typeof VerbTensesSchema>;
+export type StructuredFamilyData = z.infer<typeof StructuredFamilySchema>;
+export type VocabSenseData = z.infer<typeof VocabSenseSchema>;
+export type SpellingCorrectionData = z.infer<typeof SpellingCorrectionSchema>;
 

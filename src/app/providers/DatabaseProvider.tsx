@@ -10,16 +10,19 @@ import {
 import { VocabRepository } from '@/infrastructure/db/repositories/VocabRepository';
 import { CardRepository } from '@/infrastructure/db/repositories/CardRepository';
 import { WritingRepository } from '@/infrastructure/db/repositories/WritingRepository';
+import { NotificationRepository } from '@/infrastructure/db/repositories/NotificationRepository';
 
 export interface DatabaseContextValue {
   db: Kysely<DatabaseSchema> | null;
   vocabRepo: VocabRepository | null;
   cardRepo: CardRepository | null;
   writingRepo?: WritingRepository | null;
+  notificationRepo?: NotificationRepository | null;
   isReady: boolean;
   error: Error | null;
   retry: () => void;
 }
+
 
 export const DatabaseContext = createContext<DatabaseContextValue | null>(null);
 
@@ -82,18 +85,24 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     return db ? new WritingRepository(db) : null;
   }, [db]);
 
+  const notificationRepo = useMemo(() => {
+    return db ? new NotificationRepository(db) : null;
+  }, [db]);
+
   const value = useMemo<DatabaseContextValue>(
     () => ({
       db,
       vocabRepo,
       cardRepo,
       writingRepo,
+      notificationRepo,
       isReady,
       error,
       retry,
     }),
-    [db, vocabRepo, cardRepo, writingRepo, isReady, error, retry],
+    [db, vocabRepo, cardRepo, writingRepo, notificationRepo, isReady, error, retry],
   );
+
 
   return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;
 }

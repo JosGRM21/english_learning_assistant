@@ -15,6 +15,7 @@ import { SrsCard, FsrsGrade } from '@/core/types/srs';
 import { ConnectedSpeechPill } from '@/features/phonology/components/ConnectedSpeechPill';
 import { useAudio } from '@/shared/hooks/useAudio';
 import { AudioService } from '@/infrastructure/audio/AudioService';
+import { VerbTensesCard } from '@/features/vocab/components/VerbTensesCard';
 
 export interface SrsCardDisplayProps {
   selectedVocab: VocabItem;
@@ -87,6 +88,11 @@ export function SrsCardDisplay({
                 <span className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
                   {partOfSpeechEs}
                 </span>
+                {selectedVocab.domainCategory && (
+                  <span className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60">
+                    {selectedVocab.domainCategory}
+                  </span>
+                )}
               </div>
 
               {selectedVocab.isFalseFriend && (
@@ -116,8 +122,22 @@ export function SrsCardDisplay({
                 </p>
               )}
 
+              {/* Contextual Meaning / Category Discriminator for Polysemic Words */}
+              <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
+                <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-50/90 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/70 shadow-xs flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                  <span>Categoría: <strong>{partOfSpeechEs}</strong></span>
+                  {selectedVocab.domainCategory && (
+                    <>
+                      <span className="text-indigo-300 dark:text-indigo-700">•</span>
+                      <span>Ámbito: <strong>{selectedVocab.domainCategory}</strong></span>
+                    </>
+                  )}
+                </span>
+              </div>
+
               {/* Audio Controls */}
-              <div className="flex items-center justify-center gap-2 pt-3">
+              <div className="flex items-center justify-center gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => audioService.speak(selectedVocab.word, 1.0)}
@@ -197,13 +217,18 @@ export function SrsCardDisplay({
           <div className="space-y-5">
             {/* Header: Level & Navigation controls */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
-                  {selectedVocab.cefrLevel}
+                  Nivel {selectedVocab.cefrLevel}
                 </span>
-                <span className="text-xs font-semibold text-gray-400">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
                   {partOfSpeechEs}
                 </span>
+                {selectedVocab.domainCategory && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60">
+                    Ámbito: {selectedVocab.domainCategory}
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -249,6 +274,11 @@ export function SrsCardDisplay({
                     </span>
                   )}
                 </div>
+                {selectedVocab.domainCategory && (
+                  <span className="text-xs px-2 py-0.5 rounded-md font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 border border-purple-200/50 dark:border-purple-800/40">
+                    {selectedVocab.domainCategory}
+                  </span>
+                )}
               </div>
 
               {selectedVocab.definitionEn && (
@@ -352,6 +382,13 @@ export function SrsCardDisplay({
                     />
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Verb Tenses Pill if word is a verb */}
+            {selectedVocab.partOfSpeech === 'VERB' && selectedVocab.verbTensesJson && (
+              <div className="pt-1">
+                <VerbTensesCard tenses={selectedVocab.verbTensesJson} compact />
               </div>
             )}
           </div>
