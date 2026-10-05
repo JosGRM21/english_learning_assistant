@@ -17,6 +17,8 @@
     "notification:default",
     "opener:default",
     "os:default",
-    "shell:default"
+    "shell:default",
+    "updater:default",
+    "process:default"
   ]
 }

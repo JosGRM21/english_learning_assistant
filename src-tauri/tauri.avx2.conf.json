@@ -1,0 +1,10 @@
+{
+  "productName": "English Learning Assistant (AVX2)",
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/JosGRM21/english_learning_assistant/releases/latest/download/latest-avx2.json"
+      ]
+    }
+  }
+}

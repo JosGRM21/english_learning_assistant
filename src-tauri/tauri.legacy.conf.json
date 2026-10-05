@@ -1,0 +1,10 @@
+{
+  "productName": "English Learning Assistant (Legacy)",
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/JosGRM21/english_learning_assistant/releases/latest/download/latest-legacy.json"
+      ]
+    }
+  }
+}

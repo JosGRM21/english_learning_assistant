@@ -1,0 +1,79 @@
+name: Release App (Dual AVX / AVX2)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor:
+          - name: 'legacy'
+            config_file: 'src-tauri/tauri.legacy.conf.json'
+            features: ''
+            manifest_name: 'latest-legacy.json'
+            display_name: 'Legacy (AVX)'
+          - name: 'avx2'
+            config_file: 'src-tauri/tauri.avx2.conf.json'
+            features: '--features native-kokoro'
+            manifest_name: 'latest-avx2.json'
+            display_name: 'Optimized (AVX2)'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build Tauri App (${{ matrix.flavor.display_name }})
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'ELA v__VERSION__'
+          releaseBody: 'English Learning Assistant (ELA) - Descarga la versión que mejor se adapte a tu procesador (AVX estándar o AVX2 con aceleración nativa).'
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: false
+          args: --config ${{ matrix.flavor.config_file }} ${{ matrix.flavor.features }}
+
+      - name: Rename and Upload Manifest (${{ matrix.flavor.manifest_name }})
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          $manifestSrc = Get-ChildItem -Path "src-tauri/target/release/bundle/updater" -Filter "latest.json" -Recurse | Select-Object -First 1
+          if ($manifestSrc) {
+            $destFile = "src-tauri/target/release/bundle/updater/${{ matrix.flavor.manifest_name }}"
+            Copy-Item $manifestSrc.FullName -Destination $destFile -Force
+            gh release upload $env:TAG_NAME "$destFile#${{ matrix.flavor.manifest_name }}" --clobber
+            Write-Host "Uploaded ${{ matrix.flavor.manifest_name }} to release $env:TAG_NAME"
+          } else {
+            Write-Host "No latest.json found in updater bundle folder"
+          }
