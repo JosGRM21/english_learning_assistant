@@ -1,6 +1,7 @@
 import { Database, AlertCircle, ChevronRight, Menu, Sun, Moon } from 'lucide-react';
 import { APP_TABS, AppTab } from '@/shared/constants/app-tabs';
 import { useDatabase } from '@/shared/hooks/useDatabase';
+import { StreakNavbarPill } from '@/features/habits/components/StreakNavbarPill';
 
 export interface AppNavbarProps {
   activeTab: AppTab;
@@ -42,6 +43,8 @@ export function AppNavbar({
 
       {/* Right: Actions, System & Database Status */}
       <div className="flex items-center gap-3 shrink-0">
+        <StreakNavbarPill />
+
         {error ? (
           <button
             onClick={retry}

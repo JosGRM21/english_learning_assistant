@@ -15,6 +15,7 @@ export interface IAudioService {
 export class AudioService implements IAudioService {
   private audioCtx: AudioContext | null = null;
   private currentSource: AudioBufferSourceNode | null = null;
+  private currentGain: GainNode | null = null;
   private audioBufferCache: Map<string, AudioBuffer> = new Map();
   private currentAbortController: AbortController | null = null;
   private backendInitPromise: Promise<boolean> | null = null;
@@ -341,6 +342,7 @@ export class AudioService implements IAudioService {
 
   /**
    * Plays an AudioBuffer with precise promise completion when playback ends, abortable via AbortSignal.
+   * Uses an anti-click GainNode envelope to eliminate start clicks and DC offset transients.
    */
   private async playAudioBuffer(buffer: AudioBuffer, signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) return;
@@ -357,19 +359,68 @@ export class AudioService implements IAudioService {
     return new Promise((resolve) => {
       const source = ctx.createBufferSource();
       source.buffer = buffer;
-      source.connect(ctx.destination);
-      this.currentSource = source;
 
-      const onAbort = () => {
-        try {
-          source.stop();
-        } catch {
-          // ignore if already stopped
+      // Anti-click gain envelope: 12ms smooth ramp on attack eliminates DAC and vocoder start clicks
+      const gainNode = typeof ctx.createGain === 'function' ? ctx.createGain() : null;
+      if (gainNode) {
+        const now = ctx.currentTime || 0;
+        if (gainNode.gain) {
+          if (typeof gainNode.gain.setValueAtTime === 'function') {
+            gainNode.gain.setValueAtTime(0.0001, now);
+            if (typeof gainNode.gain.exponentialRampToValueAtTime === 'function') {
+              gainNode.gain.exponentialRampToValueAtTime(1.0, now + 0.012);
+            } else if (typeof gainNode.gain.linearRampToValueAtTime === 'function') {
+              gainNode.gain.linearRampToValueAtTime(1.0, now + 0.012);
+            }
+          }
         }
+        source.connect(gainNode);
+        gainNode.connect(ctx.destination);
+      } else {
+        source.connect(ctx.destination);
+      }
+
+      this.currentSource = source;
+      this.currentGain = gainNode;
+
+      let cleanedUp = false;
+      const cleanup = () => {
+        if (cleanedUp) return;
+        cleanedUp = true;
         if (this.currentSource === source) {
           this.currentSource = null;
         }
+        if (this.currentGain === gainNode) {
+          this.currentGain = null;
+        }
         resolve();
+      };
+
+      const onAbort = () => {
+        try {
+          if (gainNode && ctx.state !== 'closed' && typeof gainNode.gain?.setValueAtTime === 'function') {
+            const abortTime = ctx.currentTime || 0;
+            gainNode.gain.setValueAtTime(gainNode.gain.value ?? 1.0, abortTime);
+            if (typeof gainNode.gain.linearRampToValueAtTime === 'function') {
+              gainNode.gain.linearRampToValueAtTime(0.0001, abortTime + 0.01);
+            }
+          }
+          setTimeout(() => {
+            try {
+              source.stop();
+            } catch {
+              // ignore
+            }
+            cleanup();
+          }, 12);
+        } catch {
+          try {
+            source.stop();
+          } catch {
+            // ignore if already stopped
+          }
+          cleanup();
+        }
       };
 
       if (signal) {
@@ -380,16 +431,13 @@ export class AudioService implements IAudioService {
         if (signal) {
           signal.removeEventListener('abort', onAbort);
         }
-        if (this.currentSource === source) {
-          this.currentSource = null;
-        }
-        resolve();
+        cleanup();
       };
 
       try {
         source.start(0);
       } catch {
-        resolve();
+        cleanup();
       }
     });
   }
@@ -500,6 +548,20 @@ export class AudioService implements IAudioService {
   }
 
   private stopCurrentPlayback(): void {
+    if (this.currentGain && this.audioCtx && this.audioCtx.state !== 'closed') {
+      try {
+        const now = this.audioCtx.currentTime || 0;
+        if (typeof this.currentGain.gain?.setValueAtTime === 'function') {
+          this.currentGain.gain.setValueAtTime(this.currentGain.gain.value ?? 1.0, now);
+          if (typeof this.currentGain.gain?.linearRampToValueAtTime === 'function') {
+            this.currentGain.gain.linearRampToValueAtTime(0.0001, now + 0.01);
+          }
+        }
+      } catch {
+        // ignore
+      }
+      this.currentGain = null;
+    }
     if (this.currentSource) {
       try {
         this.currentSource.stop();

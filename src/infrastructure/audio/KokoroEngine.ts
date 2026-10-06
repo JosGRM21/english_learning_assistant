@@ -57,6 +57,42 @@ export class KokoroEngine {
         const { KokoroTTS } = await import('kokoro-js');
         const canUseWebGPU = await this.checkWebGPUSupport();
 
+        // Ensure transformers environment is configured properly for browser / WebView2
+        try {
+          const { env } = await import('@huggingface/transformers');
+          env.allowLocalModels = false;
+          env.allowRemoteModels = true;
+          try {
+            if (typeof window !== 'undefined' && 'caches' in window && window.caches) {
+              await window.caches.open('kokoro-test-probe').then(() => {
+                window.caches.delete('kokoro-test-probe').catch(() => {});
+              });
+              env.useBrowserCache = true;
+            } else {
+              env.useBrowserCache = false;
+            }
+          } catch {
+            env.useBrowserCache = false;
+          }
+
+          if (env?.backends?.onnx?.wasm) {
+            const hasSharedArrayBuffer =
+              typeof window !== 'undefined' &&
+              typeof SharedArrayBuffer !== 'undefined' &&
+              Boolean(window.crossOriginIsolated);
+            const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 2 : 2;
+            const threads = hasSharedArrayBuffer ? Math.max(1, Math.min(4, cores)) : 1;
+            (env.backends.onnx.wasm as any).numThreads = threads;
+            (env.backends.onnx.wasm as any).simd = true;
+            if (!(env.backends.onnx.wasm as any).wasmPaths) {
+              (env.backends.onnx.wasm as any).wasmPaths =
+                `https://cdn.jsdelivr.net/npm/@huggingface/transformers@${env.version || '3.5.1'}/dist/`;
+            }
+          }
+        } catch {
+          // ignore env configuration if unavailable
+        }
+
         // 1. Primary: High-performance WebGPU compute shaders if available
         if (canUseWebGPU) {
           try {
@@ -77,22 +113,6 @@ export class KokoroEngine {
 
         // 2. Secondary / Fallback: Quantized q8 WebAssembly with SIMD and multithreading
         console.info('[KokoroEngine] Initializing Kokoro-82M ONNX model (quantized q8, WebAssembly SIMD)...');
-        try {
-          const { env } = await import('@huggingface/transformers');
-          if (env?.backends?.onnx?.wasm) {
-            const hasSharedArrayBuffer =
-              typeof window !== 'undefined' &&
-              typeof SharedArrayBuffer !== 'undefined' &&
-              Boolean(window.crossOriginIsolated);
-            const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 2 : 2;
-            const threads = hasSharedArrayBuffer ? Math.max(1, Math.min(4, cores)) : 1;
-            (env.backends.onnx.wasm as any).numThreads = threads;
-            (env.backends.onnx.wasm as any).simd = true;
-          }
-        } catch {
-          // ignore env configuration if unavailable
-        }
-
         const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-ONNX', {
           dtype: 'q8',
           device: 'wasm',

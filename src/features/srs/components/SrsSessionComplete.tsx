@@ -1,9 +1,9 @@
-import { CheckCircle2, RotateCw, Flame, Clock, Award, Target, Hourglass, Sparkles } from 'lucide-react';
+import { CheckCircle2, RotateCw, Clock, Award, Target, Hourglass, Sparkles } from 'lucide-react';
 import { SrsSessionStats } from '@/core/srs/SrsSessionEngine';
 
 export interface SrsSessionCompleteProps {
   stats: SrsSessionStats;
-  streakDays: number;
+  streakDays?: number;
   totalDeckCount: number;
   cooldownCount?: number;
   earliestCooldownDate?: string | null;
@@ -14,7 +14,7 @@ export interface SrsSessionCompleteProps {
 
 export function SrsSessionComplete({
   stats,
-  streakDays,
+  streakDays: _streakDays,
   totalDeckCount,
   cooldownCount = 0,
   earliestCooldownDate,
@@ -85,7 +85,7 @@ export function SrsSessionComplete({
         </div>
 
         {/* Metrics Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+        <div className="grid grid-cols-3 gap-3 pt-2">
           {/* Repasos realizados */}
           <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-[#161B28] border border-gray-100 dark:border-gray-800/80 text-center">
             <div className="flex items-center justify-center gap-1 text-indigo-600 dark:text-indigo-400 mb-1">
@@ -116,17 +116,6 @@ export function SrsSessionComplete({
             </div>
             <div className="text-xl font-black font-mono text-gray-900 dark:text-white">
               {stats.averageLatencyMs > 0 ? `${avgLatencySec}s` : '-'}
-            </div>
-          </div>
-
-          {/* Racha activa */}
-          <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-[#161B28] border border-gray-100 dark:border-gray-800/80 text-center">
-            <div className="flex items-center justify-center gap-1 text-rose-500 mb-1">
-              <Flame className="w-3.5 h-3.5" />
-              <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Racha</span>
-            </div>
-            <div className="text-xl font-black font-mono text-gray-900 dark:text-white">
-              {streakDays}d
             </div>
           </div>
         </div>

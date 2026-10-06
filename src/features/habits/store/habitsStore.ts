@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { UserStreak, DailyQuest, QuestType } from '@/core/types/habits';
 import { HabitsManager } from '@/core/habits/HabitsManager';
 
@@ -15,34 +16,42 @@ export interface HabitsState {
   updateStreak: (todayDateStr?: string) => void;
 }
 
-export const useHabitsStore = create<HabitsState>((set, get) => ({
-  habitsManager: defaultHabitsManager,
+export const useHabitsStore = create<HabitsState>()(
+  persist(
+    (set, get) => ({
+      habitsManager: defaultHabitsManager,
 
-  streak: {
-    id: 'streak_local',
-    userId: 'user_local',
-    currentStreak: 0,
-    longestStreak: 0,
-    lastActivityDate: null,
-    availableFreezes: 0,
-    updatedAt: new Date().toISOString(),
-  },
+      streak: {
+        id: 'streak_local',
+        userId: 'user_local',
+        currentStreak: 0,
+        longestStreak: 0,
+        lastActivityDate: null,
+        availableFreezes: 1,
+        updatedAt: new Date().toISOString(),
+      },
 
-  quests: defaultHabitsManager.generateDailyQuests('user_local'),
+      quests: defaultHabitsManager.generateDailyQuests('user_local'),
 
-  setStreak: (streak) => set({ streak }),
+      setStreak: (streak) => set({ streak }),
 
-  setQuests: (quests) => set({ quests }),
+      setQuests: (quests) => set({ quests }),
 
-  updateQuestProgress: (actionType, count = 1) => {
-    const { quests, habitsManager } = get();
-    const { quests: updatedQuests } = habitsManager.updateQuestProgress(quests, actionType, count);
-    set({ quests: updatedQuests });
-  },
+      updateQuestProgress: (actionType, count = 1) => {
+        const { quests, habitsManager } = get();
+        const { quests: updatedQuests } = habitsManager.updateQuestProgress(quests, actionType, count);
+        set({ quests: updatedQuests });
+      },
 
-  updateStreak: (todayDateStr) => {
-    const { streak, habitsManager } = get();
-    const result = habitsManager.updateStreak(streak, todayDateStr);
-    set({ streak: result.streak });
-  },
-}));
+      updateStreak: (todayDateStr) => {
+        const { streak, habitsManager } = get();
+        const result = habitsManager.updateStreak(streak, todayDateStr);
+        set({ streak: result.streak });
+      },
+    }),
+    {
+      name: 'ela_habits_store',
+      partialize: (state) => ({ streak: state.streak, quests: state.quests }),
+    }
+  )
+);

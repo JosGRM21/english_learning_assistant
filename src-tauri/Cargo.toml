@@ -1,6 +1,6 @@
 [package]
 name = "english-learning-assistant"
-version = "1.0.4"
+version = "1.0.5"
 description = "English Learning Assistant (ELA) - Local-First AI & SLA System"
 edition = "2021"
 

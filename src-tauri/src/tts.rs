@@ -140,8 +140,31 @@ fn samples_to_wav(samples: &[f32], sample_rate: u32) -> Vec<u8> {
     wav.extend_from_slice(b"data");
     wav.extend_from_slice(&data_chunk_size.to_le_bytes());
 
-    for &sample in samples {
-        let clamped = sample.max(-1.0).min(1.0);
+    let total_samples = samples.len();
+    // 15ms at 24kHz = 360 samples for attack smoothing (eliminates vocoder start click / DC offset)
+    let attack_samples = 360.min(total_samples / 4);
+    // 10ms at 24kHz = 240 samples for release smoothing
+    let release_samples = 240.min(total_samples / 4);
+
+    for (i, &sample) in samples.iter().enumerate() {
+        if !sample.is_finite() {
+            wav.extend_from_slice(&0i16.to_le_bytes());
+            continue;
+        }
+
+        let mut envelope = 1.0f32;
+        if attack_samples > 0 && i < attack_samples {
+            // Hann half-window ramp from 0.0 to 1.0
+            let factor = (std::f32::consts::PI * (i as f32) / (attack_samples as f32)).cos();
+            envelope = 0.5 * (1.0 - factor);
+        } else if release_samples > 0 && i >= total_samples.saturating_sub(release_samples) {
+            let idx = total_samples - 1 - i;
+            let factor = (std::f32::consts::PI * (idx as f32) / (release_samples as f32)).cos();
+            envelope = 0.5 * (1.0 - factor);
+        }
+
+        let smoothed = sample * envelope;
+        let clamped = smoothed.max(-1.0).min(1.0);
         let pcm_sample = (clamped * 32767.0) as i16;
         wav.extend_from_slice(&pcm_sample.to_le_bytes());
     }

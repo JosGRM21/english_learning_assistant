@@ -271,4 +271,74 @@ describe('SrsReviewSession Component Integration', () => {
       expect(screen.getAllByText('banana').length).toBeGreaterThan(0);
     });
   });
+
+  it('preserves completed session metrics (Repasos, Retención, Velocidad) across view change / remount', async () => {
+    const singleCard = createMockCardWithTarget('1', 'only_card');
+    const mockRecordReview = vi.fn().mockResolvedValue(undefined);
+
+    vi.spyOn(dbHook, 'useDatabase').mockReturnValue({
+      db: {} as any,
+      vocabRepo: {} as any,
+      cardRepo: {
+        getDueCardsWithDetails: vi.fn().mockResolvedValue([singleCard]),
+        getNewCardsWithDetails: vi.fn().mockResolvedValue([]),
+        getAllCardsWithDetails: vi.fn().mockResolvedValue([singleCard]),
+        recordReview: mockRecordReview,
+      } as any,
+      isReady: true,
+      error: null,
+      retry: vi.fn(),
+    });
+
+    const { unmount } = render(<SrsReviewSession />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('only_card').length).toBeGreaterThan(0);
+    });
+
+    // Reveal and rate
+    fireEvent.click(screen.getByText('Mostrar Respuesta'));
+    await waitFor(() => {
+      expect(screen.getByText('Fácil')).toBeDefined();
+    });
+    fireEvent.click(screen.getByText('Fácil'));
+
+    // Completion view appears with 1 review
+    await waitFor(() => {
+      expect(screen.getByText('¡Sesión de Repaso Completada!')).toBeDefined();
+      expect(screen.getByText('1')).toBeDefined(); // Repasos
+      expect(screen.getByText('Repasos')).toBeDefined();
+      expect(screen.getByText('Retención')).toBeDefined();
+      expect(screen.getByText('Velocidad')).toBeDefined();
+    });
+
+    // Simulate switching views (unmounting SrsReviewSession)
+    unmount();
+
+    // When navigating back, cardRepo returns 0 due cards because card was already reviewed
+    vi.spyOn(dbHook, 'useDatabase').mockReturnValue({
+      db: {} as any,
+      vocabRepo: {} as any,
+      cardRepo: {
+        getDueCardsWithDetails: vi.fn().mockResolvedValue([]),
+        getNewCardsWithDetails: vi.fn().mockResolvedValue([]),
+        getAllCardsWithDetails: vi.fn().mockResolvedValue([singleCard]),
+        recordReview: mockRecordReview,
+      } as any,
+      isReady: true,
+      error: null,
+      retry: vi.fn(),
+    });
+
+    // Remount
+    render(<SrsReviewSession />);
+
+    await waitFor(() => {
+      expect(screen.getByText('¡Sesión de Repaso Completada!')).toBeDefined();
+      expect(screen.getByText('1')).toBeDefined(); // Repasos still 1!
+      expect(screen.getByText('Repasos')).toBeDefined();
+      expect(screen.getByText('Retención')).toBeDefined();
+      expect(screen.getByText('Velocidad')).toBeDefined();
+    });
+  });
 });

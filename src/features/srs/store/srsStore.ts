@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { VocabItem, VocabContextExample } from '@/core/types/vocab';
 import { SrsCard, ReviewLog } from '@/core/types/srs';
+import { SrsSessionStats } from '@/core/srs/SrsSessionEngine';
 
 export interface OneClickCardPayload {
   word: string;
@@ -22,6 +23,7 @@ export interface SrsState {
   searchQuery: string;
   showAnswer: boolean;
   reviewCount: number;
+  lastSessionStats: SrsSessionStats | null;
 
   setVocabList: (list: VocabItem[] | ((prev: VocabItem[]) => VocabItem[])) => void;
   setSelectedVocab: (item: VocabItem | null) => void;
@@ -32,6 +34,7 @@ export interface SrsState {
   setSearchQuery: (query: string) => void;
   setShowAnswer: (show: boolean) => void;
   incrementReviewCount: () => void;
+  setLastSessionStats: (stats: SrsSessionStats | null) => void;
   resetSession: () => void;
   addExtractedCard: (payload: OneClickCardPayload) => void;
   addVocabItem: (item: VocabItem, context?: VocabContextExample | null, cardId?: string) => void;
@@ -49,6 +52,14 @@ export const useSrsStore = create<SrsState>((set) => ({
   searchQuery: '',
   showAnswer: false,
   reviewCount: 0,
+  lastSessionStats: (() => {
+    try {
+      const saved = localStorage.getItem('ela_last_session_stats');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  })(),
 
   setVocabList: (listOrFn) =>
     set((state) => ({
@@ -58,6 +69,19 @@ export const useSrsStore = create<SrsState>((set) => ({
   setSelectedVocab: (item) => set({ selectedVocab: item }),
 
   setAvailableContexts: (contexts) => set({ availableContexts: contexts }),
+
+  setLastSessionStats: (stats) => {
+    try {
+      if (stats) {
+        localStorage.setItem('ela_last_session_stats', JSON.stringify(stats));
+      } else {
+        localStorage.removeItem('ela_last_session_stats');
+      }
+    } catch {
+      // ignore
+    }
+    set({ lastSessionStats: stats });
+  },
 
   setCurrentContext: (context) => set({ currentContext: context }),
 

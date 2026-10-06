@@ -26,7 +26,7 @@ describe('SrsSessionComplete Component', () => {
     expect(screen.getByText('10')).toBeDefined(); // total reviews
     expect(screen.getByText('90%')).toBeDefined(); // accuracy (9 / 10)
     expect(screen.getByText('1.4s')).toBeDefined(); // avg speed
-    expect(screen.getByText('5d')).toBeDefined(); // streak
+    expect(screen.queryByText('Racha')).toBeNull(); // streak removed from review completion
   });
 
   it('calls onRestartSession when clicking repeat button', () => {

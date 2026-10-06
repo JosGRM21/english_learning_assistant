@@ -11,7 +11,6 @@ import { SrsSessionComplete } from './SrsSessionComplete';
 import { SrsDeckDrawer } from './SrsDeckDrawer';
 import { useAudio } from '@/shared/hooks/useAudio';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
-import { useHabitsStore } from '@/features/habits/store/habitsStore';
 
 export interface SrsReviewSessionProps {
   onNavigateTab?: (tab: string) => void;
@@ -19,7 +18,6 @@ export interface SrsReviewSessionProps {
 
 export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
   const { audioService } = useAudio();
-  const streak = useHabitsStore((s) => s.streak);
   const [isDeckExplorerOpen, setIsDeckExplorerOpen] = useState(false);
 
   const {
@@ -94,7 +92,6 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
       <>
         <SrsSessionComplete
           stats={sessionStats}
-          streakDays={streak.currentStreak}
           totalDeckCount={deckCards.length}
           cooldownCount={cooldownCount}
           earliestCooldownDate={earliestCooldownDate}

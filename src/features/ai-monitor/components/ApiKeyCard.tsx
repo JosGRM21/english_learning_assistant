@@ -132,7 +132,7 @@ export const ApiKeyCard: React.FC<ApiKeyCardProps> = ({
         </div>
 
         {/* Middle: Quota Progress & Status */}
-        <div className="flex-1 max-w-xl space-y-2">
+        <div className="flex-1 min-w-0 space-y-2">
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
               <span className="font-semibold text-gray-900 dark:text-white">

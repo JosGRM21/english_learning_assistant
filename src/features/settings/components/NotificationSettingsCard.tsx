@@ -146,7 +146,7 @@ export function NotificationSettingsCard() {
   const writingBadge = getConfidenceBadge(writingHabitAnalysis.confidence);
 
   return (
-    <div className="space-y-7 max-w-5xl mx-auto pb-12">
+    <div className="space-y-6 pb-12">
       {/* 1. Master Header Card */}
       <div className="relative overflow-hidden bg-white dark:bg-[#131722] border border-gray-200/80 dark:border-gray-800/80 rounded-3xl p-6 sm:p-7 shadow-[0_4px_25px_-5px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_25px_-5px_rgba(0,0,0,0.3)] transition-all">
         {/* Subtle ambient background glow */}

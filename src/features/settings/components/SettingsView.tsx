@@ -9,7 +9,7 @@ export function SettingsView() {
   const [activeSubTab, setActiveSubTab] = useState<SettingsSubTab>('notifications');
 
   return (
-    <div className="space-y-7 max-w-5xl mx-auto">
+    <div className="space-y-6">
       {/* Sub-tab Navigation */}
       <div className="flex border-b border-gray-200/80 dark:border-gray-800/80 gap-6 px-1">
         <button

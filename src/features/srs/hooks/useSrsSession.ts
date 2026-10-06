@@ -18,6 +18,8 @@ export function useSrsSession() {
   const updateStreak = useHabitsStore((s) => s.updateStreak);
   const incrementStoreReviewCount = useSrsStore((s) => s.incrementReviewCount);
   const setStoreVocabList = useSrsStore((s) => s.setVocabList);
+  const lastSessionStats = useSrsStore((s) => s.lastSessionStats);
+  const setLastSessionStats = useSrsStore((s) => s.setLastSessionStats);
 
   const scheduler = useMemo(() => new FsrsScheduler(0.9), []);
   const rotator = useMemo(() => new ContextRotator(), []);
@@ -89,6 +91,7 @@ export function useSrsSession() {
   const handleRestartSession = useCallback(async () => {
     if (!cardRepo) return;
     try {
+      setLastSessionStats(null);
       setIsLoadingSession(true);
       const allDeck = await cardRepo.getAllCardsWithDetails('user_local', 200);
       setDeckCards(allDeck);
@@ -175,6 +178,7 @@ export function useSrsSession() {
         // 5. Update counts
         setSessionReviewCount((c) => c + 1);
         incrementStoreReviewCount();
+        setLastSessionStats(sessionEngine.getStats());
 
         // 6. Play audio feedback chime
         audioService.playFeedback(grade >= 3);
@@ -245,16 +249,25 @@ export function useSrsSession() {
   );
 
   const isSessionFinished = sessionEngine ? sessionEngine.isFinished() : false;
-  const sessionStats: SrsSessionStats = sessionEngine
-    ? sessionEngine.getStats()
-    : {
+  const engineStats = sessionEngine ? sessionEngine.getStats() : null;
+  const sessionStats: SrsSessionStats = useMemo(() => {
+    if (engineStats && engineStats.totalReviewed > 0) {
+      return engineStats;
+    }
+    if (lastSessionStats && lastSessionStats.totalReviewed > 0) {
+      return lastSessionStats;
+    }
+    return (
+      engineStats || {
         totalReviewed: 0,
         successfulRecalls: 0,
         lapses: 0,
         averageLatencyMs: 0,
         startedAt: new Date().toISOString(),
         finishedAt: null,
-      };
+      }
+    );
+  }, [engineStats, lastSessionStats]);
 
   const remainingCount = sessionEngine ? sessionEngine.getRemainingCount() : 0;
   const completedCount = sessionEngine ? sessionEngine.getCompletedCount() : 0;
@@ -278,6 +291,7 @@ export function useSrsSession() {
 
   const handleStartEarlyStudy = useCallback(() => {
     if (deckCards.length === 0) return;
+    setLastSessionStats(null);
     const pendingNew = deckCards.filter((c) => c.card.state === 'NEW');
     const cardsToStudy = pendingNew.length > 0 ? pendingNew.slice(0, 15) : deckCards.slice(0, 15);
     const engine = new SrsSessionEngine(cardsToStudy);
@@ -287,7 +301,7 @@ export function useSrsSession() {
     setCurrentContextOverride(first?.currentContext || first?.allContexts[0] || null);
     setShowAnswer(false);
     presentationStartRef.current = performance.now();
-  }, [deckCards]);
+  }, [deckCards, setLastSessionStats]);
 
   return {
     // Current Active Card Details

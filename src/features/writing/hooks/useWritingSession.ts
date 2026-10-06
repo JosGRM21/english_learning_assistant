@@ -33,6 +33,7 @@ export function useWritingSession() {
   const { audioService } = useAudio();
   const { writingRepo, vocabRepo, cardRepo, isReady } = useDatabase();
   const updateQuestProgress = useHabitsStore((s) => s.updateQuestProgress);
+  const updateStreak = useHabitsStore((s) => s.updateStreak);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [srsSuccessMessage, setSrsSuccessMessage] = useState<string | null>(null);
@@ -135,6 +136,7 @@ export function useWritingSession() {
         await writingRepo.updateSubmissionStatus(subId, 'SOCRATIC_PHASE_1');
       }
 
+      updateStreak();
       setCurrentStage(2);
     } catch (err: unknown) {
       setErrorMessage(formatErrorMessage(err));
@@ -154,6 +156,7 @@ export function useWritingSession() {
     setSocraticResult,
     setDraft2,
     setCurrentStage,
+    updateStreak,
   ]);
 
   // Phase 2 -> Phase 3: Final Evaluation, Diff & Diagnostic logging
@@ -193,8 +196,9 @@ export function useWritingSession() {
         refreshHistory();
       }
 
-      // 3. Update habits daily quest
+      // 3. Update habits daily quest & streak
       updateQuestProgress('WRITING_SUBMISSION', 1);
+      updateStreak();
 
       setCurrentStage(3);
     } catch (err: unknown) {
@@ -217,6 +221,7 @@ export function useWritingSession() {
     setSelectedQuizOption,
     setQuizSubmitted,
     updateQuestProgress,
+    updateStreak,
     setCurrentStage,
   ]);
 
