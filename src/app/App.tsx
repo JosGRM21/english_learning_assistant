@@ -25,8 +25,48 @@ function AppContent({
 }
 
 export function App() {
-  // Inicializado en 'vocab' temporalmente mientras 'dashboard' y otras secciones se encuentran en desarrollo
-  const [activeTab, setActiveTab] = useState<AppTab>('vocab');
+  // Inicializado siempre en 'home' (Inicio) al iniciar la app
+  const [activeTab, setActiveTab] = useState<AppTab>('home');
+
+  // Restablecer a 'home' únicamente cuando la ventana se cierra a la bandeja de tray o se restaura desde la misma
+  useEffect(() => {
+    let unlistenRestored: (() => void) | undefined;
+    let unlistenClosed: (() => void) | undefined;
+    let isSubscribed = true;
+
+    async function setupTrayListeners() {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        const currentWin = getCurrentWindow();
+
+        const unlisten1 = await currentWin.listen('app-restored', () => {
+          if (isSubscribed) {
+            setActiveTab('home');
+          }
+        });
+
+        const unlisten2 = await currentWin.listen('app-closed-to-tray', () => {
+          if (isSubscribed) {
+            setActiveTab('home');
+          }
+        });
+
+        unlistenRestored = unlisten1;
+        unlistenClosed = unlisten2;
+      } catch {
+        // En entorno de navegador estándar o tests
+      }
+    }
+
+    setupTrayListeners();
+
+    return () => {
+      isSubscribed = false;
+      if (unlistenRestored) unlistenRestored();
+      if (unlistenClosed) unlistenClosed();
+    };
+  }, []);
+
 
   const {
     status,
@@ -46,6 +86,7 @@ export function App() {
     }, 2000);
     return () => clearTimeout(timer);
   }, [checkForUpdates]);
+
 
   return (
     <AppProviders>

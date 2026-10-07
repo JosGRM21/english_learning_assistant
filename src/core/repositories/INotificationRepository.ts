@@ -11,4 +11,5 @@ export interface INotificationRepository {
   getLogsToday(userId?: string, todayDateStr?: string): Promise<NotificationLog[]>;
   getLastLog(userId?: string): Promise<NotificationLog | null>;
   getLastLogByType(type: NotificationType, userId?: string): Promise<NotificationLog | null>;
+  deleteLogsForTypeToday(type: NotificationType, todayDateStr?: string, userId?: string): Promise<void>;
 }

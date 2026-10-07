@@ -426,19 +426,11 @@ export class AudioService implements IAudioService {
       const source = ctx.createBufferSource();
       source.buffer = buffer;
 
-      // Anti-click gain envelope: 12ms smooth ramp on attack eliminates DAC and vocoder start clicks
+      // Gain node used for smooth fade-out on abort/stop without start-of-sentence click artifacts
       const gainNode = typeof ctx.createGain === 'function' ? ctx.createGain() : null;
       if (gainNode) {
-        const now = ctx.currentTime || 0;
         if (gainNode.gain) {
-          if (typeof gainNode.gain.setValueAtTime === 'function') {
-            gainNode.gain.setValueAtTime(0.0001, now);
-            if (typeof gainNode.gain.exponentialRampToValueAtTime === 'function') {
-              gainNode.gain.exponentialRampToValueAtTime(1.0, now + 0.012);
-            } else if (typeof gainNode.gain.linearRampToValueAtTime === 'function') {
-              gainNode.gain.linearRampToValueAtTime(1.0, now + 0.012);
-            }
-          }
+          gainNode.gain.value = 1.0;
         }
         source.connect(gainNode);
         gainNode.connect(ctx.destination);

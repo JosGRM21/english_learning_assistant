@@ -233,6 +233,10 @@ export function useVocabList() {
   }, []);
 
   const sortedFilteredWords = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const isSearching = q.length > 0;
+    const includeDefinitions = q.length >= 3;
+
     const list = words.filter((w) => {
       // False Friends Filter
       if (onlyFalseFriends && !w.isFalseFriend) {
@@ -250,12 +254,12 @@ export function useVocabList() {
       }
 
       // Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
+      if (isSearching) {
         const matchWord = w.word.toLowerCase().includes(q);
         const matchTranslation = w.translationEs.toLowerCase().includes(q);
-        const matchDef = w.definitionEn.toLowerCase().includes(q);
         const matchIpa = w.ipaGeneralAmerican?.toLowerCase().includes(q);
+        const matchDef = includeDefinitions ? w.definitionEn.toLowerCase().includes(q) : false;
+
         if (!matchWord && !matchTranslation && !matchDef && !matchIpa) {
           return false;
         }
@@ -266,7 +270,35 @@ export function useVocabList() {
 
     const cefrRank: Record<string, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 };
 
+    // Function to calculate search relevance score (lower score = higher priority)
+    const getRelevanceScore = (item: VocabItem): number => {
+      if (!isSearching) return 0;
+      const wordLower = item.word.toLowerCase();
+      const transLower = item.translationEs.toLowerCase();
+
+      // 1. Exact match on word
+      if (wordLower === q) return 1;
+      // 2. Word starts with query
+      if (wordLower.startsWith(q)) return 2;
+      // 3. Exact match or starts with in translation
+      if (transLower === q || transLower.startsWith(q)) return 3;
+      // 4. Word contains query
+      if (wordLower.includes(q)) return 4;
+      // 5. Translation contains query
+      if (transLower.includes(q)) return 5;
+      // 6. IPA contains query
+      if (item.ipaGeneralAmerican?.toLowerCase().includes(q)) return 6;
+      // 7. Definition contains query
+      return 7;
+    };
+
     return list.sort((a, b) => {
+      // If user is actively searching and default RECENT sort is active, rank by search relevance first
+      if (isSearching && sortBy === 'RECENT') {
+        const scoreDiff = getRelevanceScore(a) - getRelevanceScore(b);
+        if (scoreDiff !== 0) return scoreDiff;
+      }
+
       switch (sortBy) {
         case 'ALPHA_ASC':
           return a.word.localeCompare(b.word);

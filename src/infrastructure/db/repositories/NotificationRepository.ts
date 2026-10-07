@@ -273,4 +273,18 @@ export class NotificationRepository implements INotificationRepository {
       sentAt: row.sent_at,
     };
   }
+
+  async deleteLogsForTypeToday(
+    type: NotificationType,
+    todayDateStr?: string,
+    userId = 'user_local',
+  ): Promise<void> {
+    const datePrefix = todayDateStr ?? new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    await this.db
+      .deleteFrom('notification_logs')
+      .where('user_id', '=', userId)
+      .where('notification_type', '=', type)
+      .where('sent_at', 'like', `${datePrefix}%`)
+      .execute();
+  }
 }

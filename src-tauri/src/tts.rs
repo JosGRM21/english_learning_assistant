@@ -240,8 +240,8 @@ fn apply_anticlick_envelope(samples: &mut [f32]) {
         return;
     }
 
-    // 15ms attack ramp at 24kHz = 360 samples
-    let attack_samples = 360.min(total_samples / 4);
+    // 2.5ms attack ramp at 24kHz = 60 samples (smooth DC offset transition without clipping initial phonemes)
+    let attack_samples = 60.min(total_samples / 4);
     if attack_samples > 0 {
         let inv_attack = 1.0f32 / (attack_samples as f32);
         for i in 0..attack_samples {
@@ -256,8 +256,8 @@ fn apply_anticlick_envelope(samples: &mut [f32]) {
         }
     }
 
-    // 10ms release ramp at 24kHz = 240 samples
-    let release_samples = 240.min(total_samples / 4);
+    // 2.5ms release ramp at 24kHz = 60 samples
+    let release_samples = 60.min(total_samples / 4);
     let release_start = total_samples.saturating_sub(release_samples);
     if release_samples > 0 && release_start < total_samples {
         let inv_release = 1.0f32 / (release_samples as f32);
@@ -275,6 +275,23 @@ fn apply_anticlick_envelope(samples: &mut [f32]) {
     }
 }
 
+/// Ensures that a sentence chunk ends with proper terminal punctuation so that Kokoro's
+/// G2P phonemizer and StyleTTS2 duration regulator predict natural terminal cadence and
+/// do not stretch single words or incomplete clauses into abnormal, distorted durations.
+#[cfg(feature = "native-kokoro")]
+fn ensure_terminal_punctuation(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let last_char = trimmed.chars().last().unwrap();
+    if matches!(last_char, '.' | '?' | '!' | ';' | ':' | ',') {
+        trimmed.to_string()
+    } else {
+        format!("{}.", trimmed)
+    }
+}
+
 /// Splits text into natural sentence/clause units based on punctuation.
 /// Facilitates low-latency pipelined streaming synthesis.
 #[cfg(feature = "native-kokoro")]
@@ -288,7 +305,7 @@ fn split_into_sentence_chunks(text: &str) -> Vec<String> {
         if ch == '.' || ch == '?' || ch == '!' || ch == ';' || ch == '\n' {
             let trimmed = current.trim();
             if !trimmed.is_empty() {
-                chunks.push(trimmed.to_string());
+                chunks.push(ensure_terminal_punctuation(trimmed));
             }
             current.clear();
         }
@@ -296,11 +313,11 @@ fn split_into_sentence_chunks(text: &str) -> Vec<String> {
 
     let remainder = current.trim();
     if !remainder.is_empty() {
-        chunks.push(remainder.to_string());
+        chunks.push(ensure_terminal_punctuation(remainder));
     }
 
     if chunks.is_empty() && !text.trim().is_empty() {
-        chunks.push(text.trim().to_string());
+        chunks.push(ensure_terminal_punctuation(text.trim()));
     }
 
     chunks
@@ -336,6 +353,13 @@ pub async fn kokoro_synthesize_stream(
         let gain_val = gain.unwrap_or(1.0);
         let total_segments = segments.len();
 
+        // kokoro-micro 1.3.0 scales input speed by SPEED_SCALE = 0.65 internally
+        // (clamped_speed = (speed * 0.65).clamp(0.35, 2.2)), which erroneously slows speech down
+        // to ~0.65x when given 1.0, and to ~0.49x when given 0.75 (causing extreme neural vocoder distortion).
+        // We compensate so the ONNX model receives the exact user-requested speed factor.
+        const KOKORO_MICRO_SPEED_SCALE: f32 = 0.65;
+        let effective_speed = speed_val.clamp(0.4, 2.2) / KOKORO_MICRO_SPEED_SCALE;
+
         tauri::async_runtime::spawn_blocking(move || {
             let mut engine_lock = state_clone.engine.blocking_lock();
             let engine = match engine_lock.as_mut() {
@@ -347,7 +371,7 @@ pub async fn kokoro_synthesize_stream(
 
             for (idx, segment) in segments.into_iter().enumerate() {
                 let mut samples = engine
-                    .synthesize_with_options(&segment, Some(&voice_val), speed_val, gain_val, None)
+                    .synthesize_with_options(&segment, Some(&voice_val), effective_speed, gain_val, None)
                     .map_err(|e| format!("Synthesis failed for segment '{}': {}", segment, e))?;
 
                 // Apply in-place anti-click cosine smoothing
@@ -392,7 +416,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "native-kokoro")]
     fn test_split_sentences() {
         let text = "Hello world! How are you today? This is a test.";
         let chunks = split_into_sentence_chunks(text);
@@ -400,6 +423,15 @@ mod tests {
         assert_eq!(chunks[0], "Hello world!");
         assert_eq!(chunks[1], "How are you today?");
         assert_eq!(chunks[2], "This is a test.");
+    }
+
+    #[test]
+    fn test_ensure_terminal_punctuation() {
+        assert_eq!(ensure_terminal_punctuation("run"), "run.");
+        assert_eq!(ensure_terminal_punctuation("fourth"), "fourth.");
+        assert_eq!(ensure_terminal_punctuation("run."), "run.");
+        assert_eq!(ensure_terminal_punctuation("hello!"), "hello!");
+        assert_eq!(ensure_terminal_punctuation("why?"), "why?");
     }
 
     #[test]

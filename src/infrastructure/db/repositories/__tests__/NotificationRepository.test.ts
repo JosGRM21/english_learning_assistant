@@ -94,5 +94,11 @@ describe('NotificationRepository', () => {
 
     const lastWriting = await repo.getLastLogByType('PRACTICE_REMINDER_WRITING', 'user_local');
     expect(lastWriting?.title).toBe('Writing Studio');
+
+    // Test deleteLogsForTypeToday
+    await repo.deleteLogsForTypeToday('PRACTICE_REMINDER_SRS', undefined, 'user_local');
+    const logsAfterDelete = await repo.getLogsToday('user_local');
+    expect(logsAfterDelete.some((l) => l.type === 'PRACTICE_REMINDER_SRS')).toBe(false);
+    expect(logsAfterDelete.some((l) => l.type === 'PRACTICE_REMINDER_WRITING')).toBe(true);
   });
 });

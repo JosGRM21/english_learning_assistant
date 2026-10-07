@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager,
+    Emitter, Manager,
 };
 
 mod cpu_features;
@@ -17,6 +17,15 @@ fn derive_stronghold_key(password: &str) -> Vec<u8> {
     hasher.update(b"com.ela.learningassistant.stronghold.v1:");
     hasher.update(password.as_bytes());
     hasher.finalize().to_vec()
+}
+
+fn restore_main_window<M: Manager<R>, R: tauri::Runtime>(manager: &M) {
+    if let Some(window) = manager.get_webview_window("main") {
+        let _ = window.emit("app-restored", ());
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
 }
 
 fn main() {
@@ -41,11 +50,7 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
+            restore_main_window(app);
         }))
         .setup(|app| {
             let open_i = MenuItem::with_id(app, "open", "Abrir Asistente (ELA)", true, None::<&str>)?;
@@ -57,11 +62,7 @@ fn main() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
-                        }
+                        restore_main_window(app);
                     }
                     "quit" => {
                         app.exit(0);
@@ -75,12 +76,7 @@ fn main() {
                         ..
                     } = event
                     {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
-                        }
+                        restore_main_window(tray.app_handle());
                     }
                 });
 
@@ -94,11 +90,14 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Emit app-closed-to-tray so frontend resets activeTab to 'home'
+                let _ = window.emit("app-closed-to-tray", ());
                 // Minimize to tray on close so reminder ticker continues in the background
                 let _ = window.hide();
                 api.prevent_close();
             }
         })
+
         .invoke_handler(tauri::generate_handler![
             tts::kokoro_is_ready,
             tts::kokoro_init,

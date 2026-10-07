@@ -1,4 +1,5 @@
 import { AppTab } from '@/shared/constants/app-tabs';
+import { HomeEmptyView } from '@/features/home/components/HomeView';
 import { VocabCatalogView } from '@/features/vocab/components/VocabCatalogView';
 import { SrsReviewSession } from '@/features/srs/components/SrsReviewSession';
 import { SocraticWritingStudio } from '@/features/writing/components/SocraticWritingStudio';
@@ -13,6 +14,8 @@ export interface AppRouterProps {
 
 export function AppRouter({ activeTab, onNavigateTab }: AppRouterProps) {
   switch (activeTab) {
+    case 'home':
+      return <HomeEmptyView onNavigateTab={onNavigateTab} />;
     case 'vocab':
       return <VocabCatalogView />;
     case 'srs':
@@ -26,7 +29,8 @@ export function AppRouter({ activeTab, onNavigateTab }: AppRouterProps) {
     case 'about':
       return <AboutView />;
     default:
-      return <VocabCatalogView />;
+      return <HomeEmptyView onNavigateTab={onNavigateTab} />;
   }
 }
+
 

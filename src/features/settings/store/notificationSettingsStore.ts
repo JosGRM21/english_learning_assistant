@@ -4,6 +4,7 @@ import {
   HabitAnalysisResult,
   NotificationLog,
   ActivityScheduleConfig,
+  NotificationType,
 } from '@/core/types/notifications';
 import { INotificationRepository } from '@/core/repositories/INotificationRepository';
 import { HabitScheduleDetector } from '@/core/habits/HabitScheduleDetector';
@@ -187,8 +188,15 @@ export const useNotificationSettingsStore = create<NotificationSettingsState>((s
 
   updateSettings: async (repo, delta) => {
     try {
+      const current = get().settings;
       const updated = await repo.updateSettings(delta);
-      set({ settings: updated });
+      if (delta.manualTime && delta.manualTime !== current.manualTime) {
+        await repo.deleteLogsForTypeToday('PRACTICE_REMINDER');
+        const logs = await repo.getLogsToday();
+        set({ settings: updated, todayLogs: logs });
+      } else {
+        set({ settings: updated });
+      }
     } catch (err) {
       console.error('[NotificationSettingsStore] updateSettings error:', err);
     }
@@ -199,7 +207,16 @@ export const useNotificationSettingsStore = create<NotificationSettingsState>((s
       const current = get().settings;
       const updatedActivity = { ...current[activity], ...delta };
       const updated = await repo.updateSettings({ [activity]: updatedActivity });
-      set({ settings: updated });
+
+      if (delta.manualTime && delta.manualTime !== current[activity]?.manualTime) {
+        const notifType: NotificationType =
+          activity === 'srs' ? 'PRACTICE_REMINDER_SRS' : 'PRACTICE_REMINDER_WRITING';
+        await repo.deleteLogsForTypeToday(notifType);
+        const logs = await repo.getLogsToday();
+        set({ settings: updated, todayLogs: logs });
+      } else {
+        set({ settings: updated });
+      }
     } catch (err) {
       console.error('[NotificationSettingsStore] updateActivitySettings error:', err);
     }

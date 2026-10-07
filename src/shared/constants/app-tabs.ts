@@ -1,4 +1,5 @@
 import {
+  Home,
   BookmarkCheck,
   Sparkles,
   PenTool,
@@ -17,6 +18,7 @@ export interface TabDefinition {
 }
 
 export type AppTab =
+  | 'home'
   | 'vocab'
   | 'srs'
   | 'writing'
@@ -30,6 +32,13 @@ export interface NavGroup {
 }
 
 export const APP_TABS: TabDefinition[] = [
+  {
+    id: 'home',
+    label: 'Inicio',
+    icon: Home,
+    activeColorClass: 'text-indigo-600 dark:text-indigo-400',
+    description: 'Pantalla de inicio y acceso a las áreas del asistente',
+  },
   {
     id: 'vocab',
     label: 'Vocabulario',
@@ -76,6 +85,10 @@ export const APP_TABS: TabDefinition[] = [
 
 export const NAV_GROUPS: NavGroup[] = [
   {
+    name: 'General',
+    tabs: ['home'],
+  },
+  {
     name: 'Aprendizaje',
     tabs: ['vocab', 'srs'],
   },
@@ -88,3 +101,4 @@ export const NAV_GROUPS: NavGroup[] = [
     tabs: ['quota_matrix', 'settings', 'about'],
   },
 ];
+
