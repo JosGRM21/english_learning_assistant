@@ -1,7 +1,7 @@
 {
   "name": "english-learning-assistant",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.0.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,11 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:dev:legacy": "tauri dev",
-    "tauri:dev:avx2": "tauri dev -- --features native-kokoro",
     "tauri:build": "tauri build",
-    "tauri:build:legacy": "tauri build -c src-tauri/tauri.legacy.conf.json",
-    "tauri:build:avx2": "tauri build -c src-tauri/tauri.avx2.conf.json -- --features native-kokoro",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

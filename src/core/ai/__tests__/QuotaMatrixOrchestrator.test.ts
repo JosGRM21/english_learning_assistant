@@ -178,7 +178,7 @@ describe('QuotaMatrixOrchestrator', () => {
     expect(summary?.remainingRequests).toBe(560 - 7);
   });
 
-  it('records and persists request logs across app restarts', () => {
+  it('records in-memory request logs during session without polluting localStorage', () => {
     orchestrator.logRequest({
       timestamp: new Date().toISOString(),
       apiKeyId: 'key_1',
@@ -192,18 +192,25 @@ describe('QuotaMatrixOrchestrator', () => {
     expect(logs.length).toBe(1);
     expect(logs[0].action).toBe('Taller de Redacción (Fase 1)');
 
+    // Request logs are strictly in-memory and not written to localStorage
     const savedLogsRaw = localStorage.getItem(STORAGE_REQUEST_LOGS_KEY);
-    expect(savedLogsRaw).toBeTruthy();
-
-    // Simulating app restart
-    const newOrchestrator = new QuotaMatrixOrchestrator(mockKeys);
-    const reloadedLogs = newOrchestrator.getRequestLogs();
-    expect(reloadedLogs.length).toBe(1);
-    expect(reloadedLogs[0].action).toBe('Taller de Redacción (Fase 1)');
+    expect(savedLogsRaw).toBeNull();
 
     // Can clear logs
-    newOrchestrator.clearRequestLogs();
-    expect(newOrchestrator.getRequestLogs().length).toBe(0);
+    orchestrator.clearRequestLogs();
+    expect(orchestrator.getRequestLogs().length).toBe(0);
+  });
+
+  it('invokes persistence handler when saving quotas', () => {
+    let savedCount = 0;
+    orchestrator.setPersistenceHandler({
+      saveQuotas: (quotas) => {
+        savedCount = quotas.length;
+      },
+    });
+
+    orchestrator.recordSuccess('key_1', 'gemini-3.8-flash');
+    expect(savedCount).toBeGreaterThan(0);
   });
 
   it('notifies subscribers when quotas or requests change', () => {

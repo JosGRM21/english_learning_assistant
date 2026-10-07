@@ -98,28 +98,51 @@ export async function runMigrations(db: Kysely<DatabaseSchema>): Promise<void> {
     }
   }
 
-  // Ensure new columns in vocab_items exist
+  // Ensure new columns in vocab_items exist if table exists
   try {
-    const tableInfo = await sql<{ name: string }>`PRAGMA table_info(vocab_items)`.execute(db);
-    const existingCols = new Set(tableInfo.rows.map((r) => r.name));
+    const tableCheck = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='vocab_items'`.execute(db);
+    if (tableCheck.rows.length > 0) {
+      const tableInfo = await sql<{ name: string }>`PRAGMA table_info(vocab_items)`.execute(db);
+      const existingCols = new Set(
+        tableInfo.rows.map((r: any) => (r.name || r.NAME || '').toLowerCase())
+      );
 
-    if (!existingCols.has('verb_tenses_json')) {
-      await sql.raw(`ALTER TABLE vocab_items ADD COLUMN verb_tenses_json TEXT`).execute(db);
-    }
-    if (!existingCols.has('structured_family_json')) {
-      await sql.raw(`ALTER TABLE vocab_items ADD COLUMN structured_family_json TEXT`).execute(db);
-    }
-    if (!existingCols.has('domain_category')) {
-      await sql.raw(`ALTER TABLE vocab_items ADD COLUMN domain_category TEXT`).execute(db);
-    }
-    if (!existingCols.has('alternate_senses_json')) {
-      await sql.raw(`ALTER TABLE vocab_items ADD COLUMN alternate_senses_json TEXT`).execute(db);
+      const colsToAdd = [
+        ['verb_tenses_json', 'TEXT'],
+        ['structured_family_json', 'TEXT'],
+        ['domain_category', 'TEXT'],
+        ['alternate_senses_json', 'TEXT'],
+      ];
+
+      for (const [col, type] of colsToAdd) {
+        if (!existingCols.has(col.toLowerCase())) {
+          try {
+            await sql.raw(`ALTER TABLE vocab_items ADD COLUMN ${col} ${type}`).execute(db);
+          } catch (colErr: any) {
+            if (!colErr?.message?.includes('duplicate column name')) {
+              console.warn(`[runMigrations] Could not add column ${col}:`, colErr);
+            }
+          }
+        }
+      }
     }
   } catch (err) {
     console.warn('[runMigrations] vocab_items column alteration error:', err);
   }
 
+  // Ensure app_settings table exists
+  await executeSqlBatch(
+    db,
+    `
+    CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (DATETIME('now'))
+    );
+    `,
+  );
+
   // Ensure PRAGMA user_version is updated
-  await sql.raw(`PRAGMA user_version = 2`).execute(db);
+  await sql.raw(`PRAGMA user_version = 3`).execute(db);
 }
 

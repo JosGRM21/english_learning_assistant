@@ -861,6 +861,11 @@ export function AddVocabModal({
                                 &ldquo;{exampleSentenceEn}&rdquo;
                               </p>
                             )}
+                            {exampleSentenceEs && (
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                                {exampleSentenceEs}
+                              </p>
+                            )}
                           </div>
                         </div>
 

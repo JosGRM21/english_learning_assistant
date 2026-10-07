@@ -212,7 +212,14 @@ CREATE TABLE IF NOT EXISTS notification_logs (
 
 CREATE INDEX IF NOT EXISTS idx_notif_logs_type_time ON notification_logs(notification_type, sent_at);
 
-PRAGMA user_version = 2;
+-- 12. Configuración Global de la Aplicación (Claves AI, Modelo Preferido, Cuotas)
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (DATETIME('now'))
+);
+
+PRAGMA user_version = 3;
 `;
 
 export const CLEANUP_OBSOLETE_TABLES_SQL = `

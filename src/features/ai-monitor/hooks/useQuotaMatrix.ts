@@ -54,7 +54,7 @@ export function useQuotaMatrix() {
     return unsubscribe;
   }, [orchestrator]);
 
-  // Sync keys to orchestrator and localStorage
+  // Sync keys to orchestrator, localStorage and SQLite
   useEffect(() => {
     orchestrator.setApiKeys(keys);
     try {
@@ -62,6 +62,7 @@ export function useQuotaMatrix() {
     } catch {
       // ignore
     }
+    // Also sync to SQLite app_settings if available through orchestrator or window
   }, [orchestrator, keys]);
 
   // Periodic PT midnight countdown

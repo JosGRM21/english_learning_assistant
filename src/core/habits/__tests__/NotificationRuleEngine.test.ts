@@ -255,4 +255,80 @@ describe('NotificationRuleEngine', () => {
       expect(decision.title).toContain('12 tarjetas listas');
     });
   });
+
+  describe('Channel-Specific Isolation & Anti-Collision Cooldowns', () => {
+    it('does NOT suppress practice reminders if a TEST notification was sent recently', () => {
+      const now = new Date('2026-10-05T18:05:00');
+      const recentTest = new Date(now.getTime() - 5 * 60 * 1000); // 5 min ago
+
+      const ctx = createMockContext({
+        currentTime: now,
+        lastNotificationAt: recentTest,
+        lastNotificationType: 'TEST',
+        settings: {
+          ...baseSettings,
+          srs: {
+            enabled: true,
+            scheduleMode: 'MANUAL',
+            manualTime: '18:00',
+            detectedTime: '18:00',
+          },
+        },
+        effectiveSrsTime: '18:00',
+        isSrsCompletedToday: false,
+      });
+
+      const decision = engine.evaluate(ctx);
+      expect(decision.shouldNotify).toBe(true);
+      expect(decision.type).toBe('PRACTICE_REMINDER_SRS');
+    });
+
+    it('suppresses immediate cross-category bursts within 5 minutes', () => {
+      const now = new Date('2026-10-05T18:02:00');
+      const recentBatch = new Date(now.getTime() - 2 * 60 * 1000); // 2 min ago
+
+      const ctx = createMockContext({
+        currentTime: now,
+        lastNotificationAt: recentBatch,
+        lastNotificationType: 'SRS_BATCH',
+        settings: {
+          ...baseSettings,
+          srs: {
+            enabled: true,
+            scheduleMode: 'MANUAL',
+            manualTime: '18:00',
+            detectedTime: '18:00',
+          },
+        },
+        effectiveSrsTime: '18:00',
+        isSrsCompletedToday: false,
+      });
+
+      const decision = engine.evaluate(ctx);
+      expect(decision.shouldNotify).toBe(false);
+      expect(decision.reason).toContain('Enfriamiento activo');
+    });
+
+    it('allows PRACTICE_REMINDER_SRS inside grace window (e.g. 35 mins after scheduled time)', () => {
+      const ctx = createMockContext({
+        currentTime: new Date('2026-10-05T18:35:00'), // 35 min after 18:00
+        settings: {
+          ...baseSettings,
+          srs: {
+            enabled: true,
+            scheduleMode: 'MANUAL',
+            manualTime: '18:00',
+            detectedTime: '18:00',
+          },
+        },
+        effectiveSrsTime: '18:00',
+        isSrsCompletedToday: false,
+      });
+
+      const decision = engine.evaluate(ctx);
+      expect(decision.shouldNotify).toBe(true);
+      expect(decision.type).toBe('PRACTICE_REMINDER_SRS');
+    });
+  });
 });
+

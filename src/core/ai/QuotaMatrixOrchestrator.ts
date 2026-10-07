@@ -101,19 +101,27 @@ export class QuotaExhaustedError extends Error {
   }
 }
 
+export interface QuotaPersistenceHandler {
+  saveQuotas?: (quotas: ModelQuotaState[]) => void | Promise<void>;
+}
+
 export class QuotaMatrixOrchestrator {
   private readonly quotaMap = new Map<string, ModelQuotaState>(); // key: `${apiKeyId}::${modelId}`
   private apiKeys: ApiKeyEntry[] = [];
   private defaultModel: GeminiModelId = 'gemini-3.8-flash';
   private requestLogs: ApiRequestLog[] = [];
   private readonly listeners = new Set<() => void>();
+  private persistenceHandler?: QuotaPersistenceHandler;
 
   constructor(
     initialKeys: ApiKeyEntry[] = [],
     initialModel?: GeminiModelId,
     initialQuotas?: ModelQuotaState[],
     initialLogs?: ApiRequestLog[],
+    persistenceHandler?: QuotaPersistenceHandler,
   ) {
+    this.persistenceHandler = persistenceHandler;
+
     if (initialQuotas && initialQuotas.length > 0) {
       for (const item of initialQuotas) {
         const key = this.getQuotaKey(item.apiKeyId, item.modelId);
@@ -130,14 +138,16 @@ export class QuotaMatrixOrchestrator {
 
     if (initialLogs && initialLogs.length > 0) {
       this.requestLogs = [...initialLogs];
-    } else {
-      this.loadRequestLogsFromStorage();
     }
 
     this.setApiKeys(initialKeys);
     if (initialModel && GEMINI_MODEL_HIERARCHY.includes(initialModel)) {
       this.defaultModel = initialModel;
     }
+  }
+
+  public setPersistenceHandler(handler: QuotaPersistenceHandler): void {
+    this.persistenceHandler = handler;
   }
 
   public subscribe(listener: () => void): () => void {
@@ -181,39 +191,39 @@ export class QuotaMatrixOrchestrator {
     }
   }
 
-  private persistQuotas(): void {
-    try {
-      if (typeof localStorage === 'undefined') return;
-      const items = Array.from(this.quotaMap.values());
-      localStorage.setItem(STORAGE_QUOTA_STATES_KEY, JSON.stringify(items));
-    } catch {
-      // ignore
+  public importQuotas(quotas: ModelQuotaState[]): void {
+    if (!Array.isArray(quotas)) return;
+    for (const item of quotas) {
+      if (item && item.apiKeyId && item.modelId) {
+        const key = this.getQuotaKey(item.apiKeyId, item.modelId);
+        const limits = GEMINI_MODEL_LIMITS[item.modelId as GeminiModelId];
+        this.quotaMap.set(key, {
+          ...item,
+          dailyLimit: limits ? limits.dailyLimit : item.dailyLimit,
+          rpmLimit: limits ? limits.rpmLimit : item.rpmLimit,
+        });
+      }
     }
+    this.persistQuotas();
+    this.notifyListeners();
   }
 
-  private loadRequestLogsFromStorage(): void {
+  private persistQuotas(): void {
+    const items = Array.from(this.quotaMap.values());
     try {
-      if (typeof localStorage === 'undefined') return;
-      const raw = localStorage.getItem(STORAGE_REQUEST_LOGS_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        this.requestLogs = parsed;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_QUOTA_STATES_KEY, JSON.stringify(items));
       }
     } catch {
       // ignore
     }
-  }
 
-  private persistRequestLogs(): void {
-    try {
-      if (typeof localStorage === 'undefined') return;
-      localStorage.setItem(
-        STORAGE_REQUEST_LOGS_KEY,
-        JSON.stringify(this.requestLogs.slice(0, 100)),
-      );
-    } catch {
-      // ignore
+    if (this.persistenceHandler?.saveQuotas) {
+      try {
+        this.persistenceHandler.saveQuotas(items);
+      } catch (err) {
+        console.warn('[QuotaMatrixOrchestrator] Failed to persist quotas to handler:', err);
+      }
     }
   }
 
@@ -226,7 +236,6 @@ export class QuotaMatrixOrchestrator {
     if (this.requestLogs.length > 100) {
       this.requestLogs = this.requestLogs.slice(0, 100);
     }
-    this.persistRequestLogs();
     this.notifyListeners();
     return entry;
   }
@@ -237,7 +246,6 @@ export class QuotaMatrixOrchestrator {
 
   public clearRequestLogs(): void {
     this.requestLogs = [];
-    this.persistRequestLogs();
     this.notifyListeners();
   }
 

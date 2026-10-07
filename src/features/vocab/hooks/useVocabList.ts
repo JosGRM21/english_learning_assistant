@@ -200,6 +200,30 @@ export function useVocabList() {
     [vocabRepo],
   );
 
+  const deleteMultipleWords = useCallback(
+    async (ids: string[]): Promise<boolean> => {
+      if (!vocabRepo || ids.length === 0) return false;
+      const count = await vocabRepo.deleteVocabs(ids);
+      if (count > 0) {
+        const idSet = new Set(ids);
+        setWords((prev) => prev.filter((w) => !idSet.has(w.id)));
+        setExamplesMap((prev) => {
+          const next = { ...prev };
+          for (const id of ids) {
+            delete next[id];
+          }
+          return next;
+        });
+        for (const id of ids) {
+          useSrsStore.getState().removeVocabItem(id);
+        }
+        return true;
+      }
+      return false;
+    },
+    [vocabRepo],
+  );
+
   const resetFilters = useCallback(() => {
     setSearchQuery('');
     setSelectedCefr('ALL');
@@ -316,6 +340,7 @@ export function useVocabList() {
     checkDuplicateWord,
     updateWord,
     deleteWord,
+    deleteMultipleWords,
     refresh: loadVocabData,
   };
 }

@@ -176,6 +176,12 @@ export interface NotificationLogsTable {
   sent_at: Generated<string>;
 }
 
+export interface AppSettingsTable {
+  key: string;
+  value: string;
+  updated_at: Generated<string>;
+}
+
 export interface DatabaseSchema {
   vocab_items: VocabItemsTable;
   phraseological_units: PhraseologicalUnitsTable;
@@ -189,5 +195,6 @@ export interface DatabaseSchema {
   user_streaks: UserStreaksTable;
   notification_settings: NotificationSettingsTable;
   notification_logs: NotificationLogsTable;
+  app_settings: AppSettingsTable;
 }
 

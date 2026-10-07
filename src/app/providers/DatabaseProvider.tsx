@@ -11,6 +11,7 @@ import { VocabRepository } from '@/infrastructure/db/repositories/VocabRepositor
 import { CardRepository } from '@/infrastructure/db/repositories/CardRepository';
 import { WritingRepository } from '@/infrastructure/db/repositories/WritingRepository';
 import { NotificationRepository } from '@/infrastructure/db/repositories/NotificationRepository';
+import { AppSettingsRepository } from '@/infrastructure/db/repositories/AppSettingsRepository';
 
 export interface DatabaseContextValue {
   db: Kysely<DatabaseSchema> | null;
@@ -18,6 +19,7 @@ export interface DatabaseContextValue {
   cardRepo: CardRepository | null;
   writingRepo?: WritingRepository | null;
   notificationRepo?: NotificationRepository | null;
+  appSettingsRepo?: AppSettingsRepository | null;
   isReady: boolean;
   error: Error | null;
   retry: () => void;
@@ -89,6 +91,10 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     return db ? new NotificationRepository(db) : null;
   }, [db]);
 
+  const appSettingsRepo = useMemo(() => {
+    return db ? new AppSettingsRepository(db) : null;
+  }, [db]);
+
   const value = useMemo<DatabaseContextValue>(
     () => ({
       db,
@@ -96,11 +102,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       cardRepo,
       writingRepo,
       notificationRepo,
+      appSettingsRepo,
       isReady,
       error,
       retry,
     }),
-    [db, vocabRepo, cardRepo, writingRepo, notificationRepo, isReady, error, retry],
+    [db, vocabRepo, cardRepo, writingRepo, notificationRepo, appSettingsRepo, isReady, error, retry],
   );
 
 

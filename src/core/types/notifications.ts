@@ -56,6 +56,8 @@ export interface NotificationLog {
   sentAt: string;
 }
 
+export type NotificationCategory = 'PRACTICE' | 'STREAK' | 'BATCH' | 'SYSTEM';
+
 export interface RuleEngineContext {
   currentTime: Date;
   settings: NotificationSettings;
@@ -70,6 +72,7 @@ export interface RuleEngineContext {
   dueCardsCount: number;
   lastNotificationAt: Date | null;
   lastNotificationType: NotificationType | null;
+  lastNotificationsByType?: Partial<Record<NotificationType, Date>>;
   sentTodayTypes: NotificationType[];
 }
 
@@ -80,3 +83,4 @@ export interface RuleEngineDecision {
   body?: string;
   reason: string;
 }
+

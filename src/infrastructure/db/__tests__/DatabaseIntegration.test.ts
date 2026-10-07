@@ -277,4 +277,69 @@ describe('Database Integration & Repositories', () => {
     const dueCards = await cardRepo.getDueCards('user_local');
     expect(dueCards.some((c) => c.id === card.id)).toBe(true);
   });
+
+  it('deletes multiple vocab items and cascades to SRS cards and examples', async () => {
+    const v1 = await vocabRepo.createVocab({
+      word: 'bulk1',
+      translationEs: 'lote 1',
+      definitionEn: 'First bulk item',
+      cefrLevel: 'A1',
+      partOfSpeech: 'NOUN',
+      grammaticalDimension: 'CONTENT',
+      ipaGeneralAmerican: '/bʌlk wʌn/',
+      isFalseFriend: false,
+    });
+
+    const v2 = await vocabRepo.createVocab({
+      word: 'bulk2',
+      translationEs: 'lote 2',
+      definitionEn: 'Second bulk item',
+      cefrLevel: 'A2',
+      partOfSpeech: 'NOUN',
+      grammaticalDimension: 'CONTENT',
+      ipaGeneralAmerican: '/bʌlk tuː/',
+      isFalseFriend: false,
+    });
+
+    await cardRepo.createCard({
+      id: `card_${v1.id}`,
+      userId: 'user_local',
+      targetType: 'VOCAB',
+      targetId: v1.id,
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+    });
+
+    await cardRepo.createCard({
+      id: `card_${v2.id}`,
+      userId: 'user_local',
+      targetType: 'VOCAB',
+      targetId: v2.id,
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+    });
+
+    const deletedCount = await vocabRepo.deleteVocabs([v1.id, v2.id]);
+    expect(deletedCount).toBe(2);
+
+    const checkV1 = await vocabRepo.getVocabById(v1.id);
+    const checkV2 = await vocabRepo.getVocabById(v2.id);
+    expect(checkV1).toBeNull();
+    expect(checkV2).toBeNull();
+
+    const checkC1 = await cardRepo.getCardById(`card_${v1.id}`);
+    const checkC2 = await cardRepo.getCardById(`card_${v2.id}`);
+    expect(checkC1).toBeNull();
+    expect(checkC2).toBeNull();
+  });
 });

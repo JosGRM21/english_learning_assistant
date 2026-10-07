@@ -245,6 +245,9 @@ describe('AddVocabModal Component', () => {
       expect(screen.getByText('B1')).toBeDefined();
       expect(screen.getByText(/dirigir o gestionar/i)).toBeDefined();
       expect(screen.getByText(/circular con regularidad/i)).toBeDefined();
+      // Primary sentence translation & alternate sentence translations
+      expect(screen.getByText('Corro todos los días.')).toBeDefined();
+      expect(screen.getByText('Ella dirige una panadería.')).toBeDefined();
     });
 
     // Initially all 3 are selected (1 primary + 2 alternates)

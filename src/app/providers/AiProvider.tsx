@@ -1,4 +1,4 @@
-import React, { createContext, useMemo, useState, useCallback } from 'react';
+import React, { createContext, useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { IAiGateway } from '@/infrastructure/ai/IAiGateway';
 import { GeminiAiGateway } from '@/infrastructure/ai/GeminiAiGateway';
 import {
@@ -6,12 +6,14 @@ import {
   GeminiModelId,
   GEMINI_MODEL_HIERARCHY,
   ApiKeyEntry,
+  ModelQuotaState,
 } from '@/core/ai/QuotaMatrixOrchestrator';
 import {
   SocraticFeedbackResponse,
   WritingEvaluationResponse,
   VocabEnrichmentResponse,
 } from '@/infrastructure/ai/schemas';
+import { useDatabase } from '@/shared/hooks/useDatabase';
 
 export const STORAGE_KEYS_KEY = 'ela_ai_api_keys';
 export const STORAGE_DEFAULT_MODEL_KEY = 'ela_default_ai_model';
@@ -103,6 +105,7 @@ class DelegatingAiGateway implements IAiGateway {
 }
 
 export function AiProvider({ children }: { children: React.ReactNode }) {
+  const { appSettingsRepo, isReady } = useDatabase();
   const [defaultModel, setDefaultModelState] = useState<GeminiModelId>(loadInitialModel);
 
   const orchestrator = useMemo(
@@ -110,6 +113,96 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
     [],
   );
   const aiGateway = useMemo(() => new DelegatingAiGateway(orchestrator), [orchestrator]);
+  const hasSyncedDbRef = useRef(false);
+
+  // Hook orchestrator quota and keys persistence directly into SQLite app_settings
+  useEffect(() => {
+    if (!appSettingsRepo || !isReady) return;
+
+    orchestrator.setPersistenceHandler({
+      saveQuotas: (quotas: ModelQuotaState[]) => {
+        appSettingsRepo.setSetting('ela_ai_quota_states', JSON.stringify(quotas)).catch((err) => {
+          console.warn('[AiProvider] Error saving quotas to SQLite:', err);
+        });
+      },
+    });
+
+    const unsubscribe = orchestrator.subscribe(() => {
+      const keys = orchestrator.getApiKeys();
+      appSettingsRepo.setSetting(STORAGE_KEYS_KEY, JSON.stringify(keys)).catch((err) => {
+        console.warn('[AiProvider] Error saving API keys to SQLite:', err);
+      });
+    });
+
+    return unsubscribe;
+  }, [orchestrator, appSettingsRepo, isReady]);
+
+  // Synchronize state with SQLite on startup/DB ready
+  useEffect(() => {
+    if (!appSettingsRepo || !isReady || hasSyncedDbRef.current) return;
+    hasSyncedDbRef.current = true;
+
+    async function syncFromDb() {
+      try {
+        const [dbKeysRaw, dbModelRaw, dbQuotasRaw] = await Promise.all([
+          appSettingsRepo!.getSetting(STORAGE_KEYS_KEY),
+          appSettingsRepo!.getSetting(STORAGE_DEFAULT_MODEL_KEY),
+          appSettingsRepo!.getSetting('ela_ai_quota_states'),
+        ]);
+
+        if (dbKeysRaw) {
+          try {
+            const parsedKeys = JSON.parse(dbKeysRaw);
+            if (Array.isArray(parsedKeys) && parsedKeys.length > 0) {
+              orchestrator.setApiKeys(parsedKeys);
+              if (typeof localStorage !== 'undefined') {
+                localStorage.setItem(STORAGE_KEYS_KEY, JSON.stringify(parsedKeys));
+              }
+            }
+          } catch {
+            // ignore
+          }
+        } else {
+          // First time with DB: seed DB from existing localStorage keys if present
+          const currentKeys = orchestrator.getApiKeys();
+          if (currentKeys.length > 0) {
+            await appSettingsRepo!.setSetting(STORAGE_KEYS_KEY, JSON.stringify(currentKeys));
+          }
+        }
+
+        if (dbModelRaw && GEMINI_MODEL_HIERARCHY.includes(dbModelRaw as GeminiModelId)) {
+          setDefaultModelState(dbModelRaw as GeminiModelId);
+          orchestrator.setDefaultModel(dbModelRaw as GeminiModelId);
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(STORAGE_DEFAULT_MODEL_KEY, dbModelRaw);
+          }
+        } else {
+          // Seed model to DB
+          await appSettingsRepo!.setSetting(STORAGE_DEFAULT_MODEL_KEY, orchestrator.getDefaultModel());
+        }
+
+        if (dbQuotasRaw) {
+          try {
+            const parsedQuotas = JSON.parse(dbQuotasRaw);
+            if (Array.isArray(parsedQuotas) && parsedQuotas.length > 0) {
+              orchestrator.importQuotas(parsedQuotas);
+            }
+          } catch {
+            // ignore
+          }
+        } else {
+          const currentQuotas = orchestrator.getAllQuotas();
+          if (currentQuotas.length > 0) {
+            await appSettingsRepo!.setSetting('ela_ai_quota_states', JSON.stringify(currentQuotas));
+          }
+        }
+      } catch (err) {
+        console.warn('[AiProvider] Sync with SQLite app_settings warning:', err);
+      }
+    }
+
+    syncFromDb();
+  }, [appSettingsRepo, isReady, orchestrator]);
 
   const setDefaultModel = useCallback(
     (model: GeminiModelId) => {
@@ -122,8 +215,13 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // ignore
       }
+      if (appSettingsRepo) {
+        appSettingsRepo.setSetting(STORAGE_DEFAULT_MODEL_KEY, model).catch((err) => {
+          console.warn('[AiProvider] Failed to persist defaultModel to SQLite:', err);
+        });
+      }
     },
-    [orchestrator],
+    [orchestrator, appSettingsRepo],
   );
 
   const value = useMemo<AiContextValue>(

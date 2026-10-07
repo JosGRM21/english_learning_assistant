@@ -4,6 +4,8 @@ import {
   AlertCircle,
   BookOpen,
   ArrowRight,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import {
   VocabItem,
@@ -17,9 +19,19 @@ export interface VocabCardProps {
   vocab: VocabItem;
   examples?: VocabContextExample[];
   onSelectWord?: (vocab: VocabItem) => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (vocab: VocabItem) => void;
 }
 
-export function VocabCard({ vocab, examples, onSelectWord }: VocabCardProps) {
+export function VocabCard({
+  vocab,
+  examples,
+  onSelectWord,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelect,
+}: VocabCardProps) {
   const { audioService } = useAudio();
   const [isPlayingWord, setIsPlayingWord] = useState(false);
   const [isPlayingExample, setIsPlayingExample] = useState(false);
@@ -70,10 +82,22 @@ export function VocabCard({ vocab, examples, onSelectWord }: VocabCardProps) {
       ? 'Verbo Irreg.'
       : PART_OF_SPEECH_LABELS_ES[vocab.partOfSpeech] ?? vocab.partOfSpeech;
 
+  const handleCardClick = () => {
+    if (isSelectionMode && onToggleSelect) {
+      onToggleSelect(vocab);
+    } else {
+      onSelectWord?.(vocab);
+    }
+  };
+
   return (
     <div
-      onClick={() => onSelectWord?.(vocab)}
-      className="group relative rounded-2xl border border-gray-200/80 dark:border-white/[0.08] bg-white dark:bg-[#121622] hover:border-indigo-400/80 dark:hover:border-indigo-500/50 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_12px_32px_rgba(0,0,0,0.4)] transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer"
+      onClick={handleCardClick}
+      className={`group relative rounded-2xl border transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer ${
+        isSelected
+          ? 'border-indigo-500 bg-indigo-50/30 dark:bg-indigo-950/20 ring-2 ring-indigo-500/50 shadow-md'
+          : 'border-gray-200/80 dark:border-white/[0.08] bg-white dark:bg-[#121622] hover:border-indigo-400/80 dark:hover:border-indigo-500/50 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_12px_32px_rgba(0,0,0,0.4)]'
+      }`}
     >
       {/* Top ambient accent glow on hover */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-indigo-500/40 dark:via-indigo-400/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -81,9 +105,32 @@ export function VocabCard({ vocab, examples, onSelectWord }: VocabCardProps) {
       <div className="flex-1 flex flex-col justify-between">
         {/* Card Header: 2-tier layout so badges never overlap or compress the headword */}
         <div className="p-5 pb-3 space-y-2.5">
-          {/* Tier 1: Horizontal Meta Badges (CEFR, Part of Speech, Domain, False Friend) */}
+          {/* Tier 1: Horizontal Meta Badges (Selection checkbox, CEFR, Part of Speech, Domain, False Friend) */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Selection Checkbox */}
+              {(isSelectionMode || isSelected) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleSelect?.(vocab);
+                  }}
+                  className={`p-0.5 rounded-md transition-colors cursor-pointer mr-0.5 ${
+                    isSelected
+                      ? 'text-indigo-600 dark:text-indigo-400'
+                      : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                  }`}
+                  title={isSelected ? 'Deseleccionar' : 'Seleccionar'}
+                >
+                  {isSelected ? (
+                    <CheckSquare className="w-4 h-4 fill-indigo-100 dark:fill-indigo-950/60" />
+                  ) : (
+                    <Square className="w-4 h-4" />
+                  )}
+                </button>
+              )}
+
               <span
                 className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border shrink-0 ${getCefrBadgeStyle(
                   vocab.cefrLevel,

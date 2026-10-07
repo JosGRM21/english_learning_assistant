@@ -68,6 +68,9 @@ export function useNotificationScheduler() {
     };
   }, [isReady, notificationRepo, cardRepo, writingRepo, loadSettings, checkPermission]);
 
+  // Deduplication lock to prevent burst triggers while an async log write is in flight
+  const inFlightTypesRef = useRef<Set<string>>(new Set());
+
   // 2. Periodic evaluation tick
   const evaluateScheduleTick = useCallback(async () => {
     if (!isReady || !notificationRepo || !cardRepo || isEvaluatingRef.current) return;
@@ -76,19 +79,24 @@ export function useNotificationScheduler() {
     isEvaluatingRef.current = true;
     try {
       const now = new Date();
+      // Use local date formatted string for daily idempotency and activity matching
       const todayStr = dayjs(now).format('YYYY-MM-DD');
 
       // Check if user completed study today
       const isCompletedToday = streak.lastActivityDate === todayStr;
 
-      // Activity-specific completion checks
+      // Activity-specific completion checks with robust local day comparison
       const recentReviews = await cardRepo.getAllReviewLogs(50);
-      const isSrsCompletedToday = recentReviews.some((r) => r.reviewedAt?.startsWith(todayStr));
+      const isSrsCompletedToday = recentReviews.some((r) => {
+        if (!r.reviewedAt) return false;
+        return dayjs(r.reviewedAt).format('YYYY-MM-DD') === todayStr;
+      });
 
       const recentWriting = await writingRepo?.getSubmissions('user_local', 20);
-      const isWritingCompletedToday = (recentWriting ?? []).some((w) =>
-        w.submittedAt?.startsWith(todayStr),
-      );
+      const isWritingCompletedToday = (recentWriting ?? []).some((w) => {
+        if (!w.submittedAt) return false;
+        return dayjs(w.submittedAt).format('YYYY-MM-DD') === todayStr;
+      });
 
       // Check due cards count
       const deckStats = await cardRepo.getDeckStatistics('user_local');
@@ -98,9 +106,24 @@ export function useNotificationScheduler() {
       const todayLogs = await notificationRepo.getLogsToday('user_local', todayStr);
       const sentTodayTypes = todayLogs.map((l) => l.type);
 
+      // Include any currently in-flight types to strictly avoid double-firing
+      for (const inFlightType of inFlightTypesRef.current) {
+        if (!sentTodayTypes.includes(inFlightType as any)) {
+          sentTodayTypes.push(inFlightType as any);
+        }
+      }
+
       const lastLog = await notificationRepo.getLastLog('user_local');
       const lastNotificationAt = lastLog ? new Date(lastLog.sentAt) : null;
       const lastNotificationType = lastLog ? lastLog.type : null;
+
+      // Build type-specific timestamp map
+      const lastNotificationsByType: Partial<Record<any, Date>> = {};
+      for (const log of todayLogs) {
+        if (!lastNotificationsByType[log.type]) {
+          lastNotificationsByType[log.type] = new Date(log.sentAt);
+        }
+      }
 
       const effectivePracticeTime =
         settings.scheduleMode === 'AUTO'
@@ -131,25 +154,41 @@ export function useNotificationScheduler() {
         dueCardsCount,
         lastNotificationAt,
         lastNotificationType,
+        lastNotificationsByType,
         sentTodayTypes,
       };
 
       const decision = ruleEngine.evaluate(context);
 
       if (decision.shouldNotify && decision.type && decision.title && decision.body) {
-        const delivered = await notificationService.notify({
-          title: decision.title,
-          body: decision.body,
-          extra: { notificationType: decision.type },
-        });
+        // Double-check in-flight mutex for this specific type
+        if (inFlightTypesRef.current.has(decision.type)) {
+          return;
+        }
 
-        if (delivered) {
-          await notificationRepo.recordLog({
-            userId: 'user_local',
-            type: decision.type,
+        // Lock in-flight
+        inFlightTypesRef.current.add(decision.type);
+
+        try {
+          const delivered = await notificationService.notify({
             title: decision.title,
             body: decision.body,
+            extra: { notificationType: decision.type },
           });
+
+          if (delivered) {
+            await notificationRepo.recordLog({
+              userId: 'user_local',
+              type: decision.type,
+              title: decision.title,
+              body: decision.body,
+            });
+          }
+        } finally {
+          // Release lock after persistent log has been stored or notification failed
+          setTimeout(() => {
+            inFlightTypesRef.current.delete(decision.type!);
+          }, 2000);
         }
       }
     } catch (err) {

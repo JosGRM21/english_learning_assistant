@@ -284,14 +284,21 @@ export class VocabRepository implements IVocabRepository {
   }
 
   async deleteVocab(vocabId: string): Promise<boolean> {
-    // 1. Find all associated SRS card IDs
+    const count = await this.deleteVocabs([vocabId]);
+    return count > 0;
+  }
+
+  async deleteVocabs(vocabIds: string[]): Promise<number> {
+    if (!vocabIds || vocabIds.length === 0) return 0;
+
+    // 1. Find all associated SRS card IDs for all selected vocab items
     const associatedCards = await this.db
       .selectFrom('srs_cards')
       .select('id')
-      .where('target_id', '=', vocabId)
+      .where('target_id', 'in', vocabIds)
       .execute();
 
-    // 2. Delete review logs first to guarantee FK integrity even if PRAGMA foreign_keys is off
+    // 2. Delete review logs first to guarantee FK integrity
     if (associatedCards.length > 0) {
       const cardIds = associatedCards.map((c) => c.id);
       await this.db
@@ -303,22 +310,22 @@ export class VocabRepository implements IVocabRepository {
     // 3. Delete associated SRS cards (both VOCAB and PHRASE target types)
     await this.db
       .deleteFrom('srs_cards')
-      .where('target_id', '=', vocabId)
+      .where('target_id', 'in', vocabIds)
       .execute();
 
     // 4. Delete context examples
     await this.db
       .deleteFrom('vocab_context_examples')
-      .where('vocab_id', '=', vocabId)
+      .where('vocab_id', 'in', vocabIds)
       .execute();
 
-    // 5. Delete vocab item
+    // 5. Delete vocab items
     const result = await this.db
       .deleteFrom('vocab_items')
-      .where('id', '=', vocabId)
+      .where('id', 'in', vocabIds)
       .executeTakeFirst();
 
-    return Number(result.numDeletedRows ?? 1) > 0;
+    return Number(result.numDeletedRows ?? 0);
   }
 }
 

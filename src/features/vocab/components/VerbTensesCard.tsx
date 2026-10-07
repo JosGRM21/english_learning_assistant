@@ -136,18 +136,18 @@ export function VerbTensesCard({ tenses, compact = false }: VerbTensesCardProps)
         </div>
       </div>
 
-      {/* Grid of Tenses */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+      {/* Grid of Tenses - Responsive auto-wrapping to prevent overflow with long verb forms */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
         {tenseItems.map((item) => {
           const isPlayingThis = playingKey === item.key;
           return (
             <div
               key={item.key}
-              className="p-3 rounded-xl bg-white/90 dark:bg-[#121520] border border-gray-200/80 dark:border-white/[0.06] shadow-xs flex flex-col justify-between hover:border-indigo-300 dark:hover:border-indigo-700 transition-all group"
+              className="p-3 rounded-xl bg-white/90 dark:bg-[#121520] border border-gray-200/80 dark:border-white/[0.06] shadow-xs flex flex-col justify-between hover:border-indigo-300 dark:hover:border-indigo-700 transition-all group min-w-0"
             >
               <div className="space-y-0.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
                     {item.tag}
                   </span>
                   <button
@@ -157,19 +157,25 @@ export function VerbTensesCard({ tenses, compact = false }: VerbTensesCardProps)
                       handleSpeak(item.key, item.value);
                     }}
                     disabled={isPlayingThis}
-                    className="p-1 rounded-lg text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                    className="p-1 rounded-lg text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer shrink-0"
                     title={`Escuchar "${item.value}"`}
                   >
                     <Volume2 className={`w-3 h-3 ${isPlayingThis ? 'animate-pulse text-indigo-600' : ''}`} />
                   </button>
                 </div>
-                <span className="text-[10px] text-gray-400 dark:text-gray-500 block truncate font-medium">
+                <span
+                  className="text-[10px] text-gray-400 dark:text-gray-500 block truncate font-medium"
+                  title={item.label}
+                >
                   {item.label}
                 </span>
               </div>
 
-              <div className="pt-2">
-                <p className="text-sm font-bold text-gray-900 dark:text-white tracking-tight truncate">
+              <div className="pt-2 min-w-0">
+                <p
+                  className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white tracking-tight break-words"
+                  title={item.value}
+                >
                   {item.value}
                 </p>
               </div>

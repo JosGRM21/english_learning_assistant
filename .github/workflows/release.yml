@@ -1,4 +1,4 @@
-name: Release App (Dual AVX / AVX2)
+name: Release App (Unified Multi-SIMD)
 
 on:
   push:
@@ -11,20 +11,6 @@ jobs:
     permissions:
       contents: write
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        flavor:
-          - name: 'legacy'
-            config_file: 'src-tauri/tauri.legacy.conf.json'
-            features: ''
-            manifest_name: 'latest-legacy.json'
-            display_name: 'Legacy (AVX)'
-          - name: 'avx2'
-            config_file: 'src-tauri/tauri.avx2.conf.json'
-            features: '--features native-kokoro'
-            manifest_name: 'latest-avx2.json'
-            display_name: 'Optimized (AVX2)'
 
     steps:
       - name: Checkout repository
@@ -47,7 +33,17 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build Tauri App (${{ matrix.flavor.display_name }})
+      - name: Fetch Universal ONNX Runtime DLL
+        shell: pwsh
+        run: |
+          $url = "https://github.com/microsoft/onnxruntime/releases/download/v1.28.0/onnxruntime-win-x64-1.28.0.zip"
+          Write-Host "Downloading universal ONNX Runtime DLL from $url..."
+          Invoke-WebRequest -Uri $url -OutFile "ort.zip"
+          Expand-Archive -Path "ort.zip" -DestinationPath "ort_extracted"
+          Copy-Item "ort_extracted\onnxruntime-win-x64-1.28.0\lib\onnxruntime.dll" "src-tauri\onnxruntime.dll"
+          Remove-Item -Recurse -Force "ort.zip", "ort_extracted"
+
+      - name: Build Tauri App
         id: tauri_build
         uses: tauri-apps/tauri-action@v0
         env:
@@ -57,13 +53,12 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'ELA v__VERSION__'
-          releaseBody: 'English Learning Assistant (ELA) - Descarga la versión que mejor se adapte a tu procesador (AVX estándar o AVX2 con aceleración nativa).'
+          releaseBody: 'English Learning Assistant (ELA) - Binario unificado de alto rendimiento con detección automática de microarquitectura CPU (AVX-512, AVX2, AVX, SSE).'
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: false
-          args: --config ${{ matrix.flavor.config_file }} ${{ matrix.flavor.features }}
 
-      - name: Generate and Upload Updater Manifest (${{ matrix.flavor.manifest_name }})
+      - name: Generate and Upload Updater Manifest (latest.json)
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -81,25 +76,28 @@ jobs:
           $releaseId = "$env:RELEASE_ID"
           Write-Host "Obteniendo release con ID: $releaseId"
           $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/$releaseId" -Headers $headers
-          $flavorPattern = if ("${{ matrix.flavor.name }}" -eq "legacy") { "*Legacy*setup.exe" } else { "*AVX2*setup.exe" }
 
-          $exeAsset = $release.assets | Where-Object { $_.name -like $flavorPattern -and -not ($_.name -like "*.sig") } | Select-Object -First 1
+          # 2. Localizar el ejecutable instalador y su firma
+          $exeAsset = $release.assets | Where-Object { $_.name -like "*setup.exe" -and -not ($_.name -like "*.sig") } | Select-Object -First 1
+          if (-not $exeAsset) {
+            $exeAsset = $release.assets | Where-Object { $_.name -like "*.exe" -and -not ($_.name -like "*.sig") } | Select-Object -First 1
+          }
           $sigAsset = $release.assets | Where-Object { $_.name -eq "$($exeAsset.name).sig" } | Select-Object -First 1
 
           if (-not $exeAsset -or -not $sigAsset) {
-            Write-Error "No se encontraron los assets .exe o .sig para ${{ matrix.flavor.name }}"
+            Write-Error "No se encontraron los assets instalador .exe o su firma .sig"
             exit 1
           }
 
-          # 2. Descargar el contenido de la firma .sig
+          # 3. Descargar el contenido de la firma .sig
           $sigResponse = Invoke-WebRequest -Uri $sigAsset.browser_download_url -Headers $headers -UseBasicParsing
           $signatureText = [System.Text.Encoding]::UTF8.GetString($sigResponse.Content).Trim()
 
-          # 3. Construir el objeto JSON de actualización de Tauri v2
+          # 4. Construir el objeto JSON canónico de actualización de Tauri v2 (latest.json)
           $versionNumber = if ($env:APP_VERSION) { $env:APP_VERSION } else { "$($release.tag_name)".TrimStart('v') }
           $manifest = @{
             version   = "$versionNumber"
-            notes     = "Actualización automática de ELA ${{ matrix.flavor.display_name }} (v$versionNumber)"
+            notes     = "Actualización automática de English Learning Assistant (v$versionNumber)"
             pub_date  = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
             platforms = @{
               "windows-x86_64" = @{
@@ -110,17 +108,17 @@ jobs:
           }
 
           $jsonContent = $manifest | ConvertTo-Json -Depth 5
-          $jsonFileName = "${{ matrix.flavor.manifest_name }}"
+          $jsonFileName = "latest.json"
           [System.IO.File]::WriteAllText("$PWD/$jsonFileName", $jsonContent)
 
-          # 4. Eliminar si ya existía previamente el asset con ese nombre
+          # 5. Eliminar si ya existía previamente el asset latest.json
           $existingAsset = $release.assets | Where-Object { $_.name -eq $jsonFileName }
           if ($existingAsset) {
             Write-Host "Borrando versión anterior del asset $jsonFileName..."
             Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/$repo/releases/assets/$($existingAsset.id)" -Headers $headers
           }
 
-          # 5. Subir el archivo manifest al Release
+          # 6. Subir el manifest latest.json al Release
           $uploadUrl = $release.upload_url -replace '\{\?name,label\}', "?name=$jsonFileName"
           $uploadHeaders = @{
             "Authorization" = "Bearer $env:GITHUB_TOKEN"
@@ -129,4 +127,4 @@ jobs:
           }
           $bytes = [System.Text.Encoding]::UTF8.GetBytes($jsonContent)
           Invoke-RestMethod -Method Post -Uri $uploadUrl -Headers $uploadHeaders -Body $bytes
-          Write-Host "¡$jsonFileName subido exitosamente a la release $($release.tag_name)!"
+          Write-Host "¡$jsonFileName unificado subido exitosamente a la release $($release.tag_name)!"

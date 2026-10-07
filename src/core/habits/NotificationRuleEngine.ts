@@ -1,4 +1,6 @@
 import {
+  NotificationCategory,
+  NotificationType,
   RuleEngineContext,
   RuleEngineDecision,
 } from '../types/notifications';
@@ -6,15 +8,36 @@ import {
 export class NotificationRuleEngine {
   private readonly defaultCooldownMinutes: number;
   public readonly srsBatchIntervalHours: number;
+  private readonly graceWindowMinutes: number;
 
   constructor(options?: {
     cooldownMinutes?: number;
     srsBatchIntervalHours?: number;
+    graceWindowMinutes?: number;
   }) {
     this.defaultCooldownMinutes = options?.cooldownMinutes ?? 75;
     this.srsBatchIntervalHours = options?.srsBatchIntervalHours ?? 4;
+    this.graceWindowMinutes = options?.graceWindowMinutes ?? 45;
   }
 
+  /**
+   * Maps a NotificationType to its logical functional category.
+   */
+  public getNotificationCategory(type: NotificationType): NotificationCategory {
+    switch (type) {
+      case 'PRACTICE_REMINDER':
+      case 'PRACTICE_REMINDER_SRS':
+      case 'PRACTICE_REMINDER_WRITING':
+        return 'PRACTICE';
+      case 'STREAK_SAVER_1':
+      case 'STREAK_SAVER_2':
+        return 'STREAK';
+      case 'SRS_BATCH':
+        return 'BATCH';
+      case 'TEST':
+        return 'SYSTEM';
+    }
+  }
 
   /**
    * Evaluates the full context against business rules to decide if a notification should be fired.
@@ -32,17 +55,53 @@ export class NotificationRuleEngine {
       return { shouldNotify: false, reason: 'Horario de silencio activo (Quiet Hours)' };
     }
 
-    // 3. Minimum cooldown between any consecutive notification
-    if (context.lastNotificationAt) {
-      const elapsedMs = currentTime.getTime() - context.lastNotificationAt.getTime();
-      const elapsedMinutes = elapsedMs / (1000 * 60);
-      if (elapsedMinutes < this.defaultCooldownMinutes) {
-        return {
-          shouldNotify: false,
-          reason: `Enfriamiento activo (${Math.round(this.defaultCooldownMinutes - elapsedMinutes)} min restantes)`,
-        };
+    // Helper: Verify cooldown for a specific candidate type
+    const isCoolingDown = (candidateType: NotificationType): boolean => {
+      // Channel/Type-specific cooldown check
+      const typeTimestamp = context.lastNotificationsByType?.[candidateType];
+      if (typeTimestamp) {
+        const elapsedMinutes = (currentTime.getTime() - typeTimestamp.getTime()) / (1000 * 60);
+        if (elapsedMinutes < this.defaultCooldownMinutes) {
+          return true;
+        }
       }
-    }
+
+      // Check last notification if of the same category or general throttling
+      if (context.lastNotificationAt && context.lastNotificationType) {
+        // SYSTEM tests never block practice or streak notifications
+        if (context.lastNotificationType === 'TEST') {
+          return false;
+        }
+
+        const candidateCat = this.getNotificationCategory(candidateType);
+        const lastCat = this.getNotificationCategory(context.lastNotificationType);
+
+        // Same category cooldown
+        if (candidateCat === lastCat) {
+          const elapsedMs = currentTime.getTime() - context.lastNotificationAt.getTime();
+          const elapsedMinutes = elapsedMs / (1000 * 60);
+          if (elapsedMinutes < this.defaultCooldownMinutes) {
+            return true;
+          }
+        } else {
+          // Cross-category burst protection (prevent 2 popups in less than 5 minutes)
+          const elapsedMs = currentTime.getTime() - context.lastNotificationAt.getTime();
+          const elapsedMinutes = elapsedMs / (1000 * 60);
+          if (elapsedMinutes < 5) {
+            return true;
+          }
+        }
+      } else if (context.lastNotificationAt && !context.lastNotificationType) {
+        // Fallback for legacy contexts without type: standard cooldown
+        const elapsedMs = currentTime.getTime() - context.lastNotificationAt.getTime();
+        const elapsedMinutes = elapsedMs / (1000 * 60);
+        if (elapsedMinutes < this.defaultCooldownMinutes) {
+          return true;
+        }
+      }
+
+      return false;
+    };
 
     const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
     const effectiveTime = context.effectivePracticeTime || '19:30';
@@ -73,10 +132,19 @@ export class NotificationRuleEngine {
     // 4a. SRS Card Review Reminder
     if (
       settings.srs?.enabled &&
-      !(context.isSrsCompletedToday ?? context.isCompletedToday) &&
+      !(context.isSrsCompletedToday ?? false) &&
       !context.sentTodayTypes.includes('PRACTICE_REMINDER_SRS')
     ) {
-      if (currentMinutes >= srsMinutes && currentMinutes <= srsMinutes + 20) {
+      if (
+        currentMinutes >= srsMinutes &&
+        currentMinutes <= srsMinutes + this.graceWindowMinutes
+      ) {
+        if (isCoolingDown('PRACTICE_REMINDER_SRS')) {
+          return {
+            shouldNotify: false,
+            reason: 'Enfriamiento activo para repaso de tarjetas SRS',
+          };
+        }
         return {
           shouldNotify: true,
           type: 'PRACTICE_REMINDER_SRS',
@@ -93,7 +161,16 @@ export class NotificationRuleEngine {
       !(context.isWritingCompletedToday ?? false) &&
       !context.sentTodayTypes.includes('PRACTICE_REMINDER_WRITING')
     ) {
-      if (currentMinutes >= writingMinutes && currentMinutes <= writingMinutes + 20) {
+      if (
+        currentMinutes >= writingMinutes &&
+        currentMinutes <= writingMinutes + this.graceWindowMinutes
+      ) {
+        if (isCoolingDown('PRACTICE_REMINDER_WRITING')) {
+          return {
+            shouldNotify: false,
+            reason: 'Enfriamiento activo para taller de redacción',
+          };
+        }
         return {
           shouldNotify: true,
           type: 'PRACTICE_REMINDER_WRITING',
@@ -111,7 +188,16 @@ export class NotificationRuleEngine {
       !context.isCompletedToday &&
       !context.sentTodayTypes.includes('PRACTICE_REMINDER')
     ) {
-      if (currentMinutes >= practiceMinutes && currentMinutes <= practiceMinutes + 20) {
+      if (
+        currentMinutes >= practiceMinutes &&
+        currentMinutes <= practiceMinutes + this.graceWindowMinutes
+      ) {
+        if (isCoolingDown('PRACTICE_REMINDER')) {
+          return {
+            shouldNotify: false,
+            reason: 'Enfriamiento activo para recordatorio de práctica general',
+          };
+        }
         const isLateNightHabit = practiceMinutes >= 22 * 60 + 30; // 22:30 or later
         return {
           shouldNotify: true,
@@ -153,6 +239,12 @@ export class NotificationRuleEngine {
         currentMinutes >= saver1Start &&
         currentMinutes <= saver1End
       ) {
+        if (isCoolingDown('STREAK_SAVER_1')) {
+          return {
+            shouldNotify: false,
+            reason: 'Enfriamiento activo para alerta nocturna 1',
+          };
+        }
         return {
           shouldNotify: true,
           type: 'STREAK_SAVER_1',
@@ -174,6 +266,12 @@ export class NotificationRuleEngine {
         currentMinutes >= saver2Start &&
         currentMinutes <= saver2End
       ) {
+        if (isCoolingDown('STREAK_SAVER_2')) {
+          return {
+            shouldNotify: false,
+            reason: 'Enfriamiento activo para alerta nocturna 2',
+          };
+        }
         let body = `¡No pierdas tu racha de ${context.currentStreak} días! Solo necesitas 3 minutos de repaso.`;
         if (context.availableFreezes > 0 && context.currentStreak > 0) {
           body = `Quedan pocos minutos. Si no practicas hoy, gastarás 1 Streak Freeze para salvar tu racha de ${context.currentStreak} días.`;
@@ -193,6 +291,12 @@ export class NotificationRuleEngine {
     // Only triggers if enabled, threshold reached, and not sent recently (4h minimum)
     if (settings.srsBatchEnabled && context.dueCardsCount >= settings.srsBatchThreshold) {
       if (!context.sentTodayTypes.includes('SRS_BATCH')) {
+        if (isCoolingDown('SRS_BATCH')) {
+          return {
+            shouldNotify: false,
+            reason: 'Enfriamiento activo para lote de tarjetas SRS',
+          };
+        }
         return {
           shouldNotify: true,
           type: 'SRS_BATCH',
@@ -229,3 +333,4 @@ export class NotificationRuleEngine {
     }
   }
 }
+

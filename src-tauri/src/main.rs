@@ -9,6 +9,7 @@ use tauri::{
     Manager,
 };
 
+mod cpu_features;
 mod tts;
 
 fn derive_stronghold_key(password: &str) -> Vec<u8> {
@@ -39,6 +40,13 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .setup(|app| {
             let open_i = MenuItem::with_id(app, "open", "Abrir Asistente (ELA)", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Salir de ELA", true, None::<&str>)?;
@@ -94,9 +102,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             tts::kokoro_is_ready,
             tts::kokoro_init,
-            tts::kokoro_synthesize,
+            tts::kokoro_synthesize_stream,
             tts::kokoro_get_voices,
             tts::get_build_target,
+            tts::get_cpu_capabilities,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

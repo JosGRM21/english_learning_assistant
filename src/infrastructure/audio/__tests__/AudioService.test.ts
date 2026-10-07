@@ -2,9 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { AudioService } from '../AudioService';
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}));
+vi.mock('@tauri-apps/api/core', () => {
+  class MockChannel<T = any> {
+    public onmessage: ((data: T) => void) | null = null;
+    constructor() {}
+  }
+  return {
+    invoke: vi.fn(),
+    Channel: MockChannel,
+  };
+});
 
 describe('AudioService', () => {
   let audioService: AudioService;
@@ -102,27 +109,36 @@ describe('AudioService', () => {
     }).not.toThrow();
   });
 
-  it('synthesizes via native backend when running in Tauri and backend is available', async () => {
+  it('synthesizes via native backend streaming when running in Tauri and backend is available', async () => {
     // Simulate Tauri runtime
     (window as any).__TAURI_INTERNALS__ = {};
 
-    mockInvoke.mockImplementation(async (cmd: string) => {
+    mockInvoke.mockImplementation(async (cmd: string, args?: any) => {
       if (cmd === 'kokoro_is_ready') return true;
       if (cmd === 'get_build_target') return 'avx2-native';
-      if (cmd === 'kokoro_synthesize') {
-        // Return dummy bytes representing audio
-        return [0, 0, 0, 0];
+      if (cmd === 'kokoro_synthesize_stream') {
+        // Trigger simulated stream chunk to verify channel
+        if (args?.onChunk?.onmessage) {
+          args.onChunk.onmessage({
+            samples: [0.1, -0.1, 0.2, -0.2],
+            sample_rate: 24000,
+            chunk_index: 0,
+            is_final: true,
+          });
+        }
+        return undefined;
       }
       return null;
     });
 
-    // Mock AudioContext and decodeAudioData
+    const mockChannelData = new Float32Array(4);
     const mockAudioBuffer = {
-      length: 100,
+      length: 4,
       numberOfChannels: 1,
       sampleRate: 24000,
       duration: 0.1,
-    } as AudioBuffer;
+      getChannelData: vi.fn().mockReturnValue(mockChannelData),
+    } as unknown as AudioBuffer;
 
     const mockSource = {
       connect: vi.fn(),
@@ -138,7 +154,7 @@ describe('AudioService', () => {
       state = 'running';
       destination = {};
       resume = vi.fn().mockResolvedValue(undefined);
-      decodeAudioData = vi.fn().mockResolvedValue(mockAudioBuffer);
+      createBuffer = vi.fn().mockReturnValue(mockAudioBuffer);
       createBufferSource = vi.fn().mockReturnValue(mockSource);
     }
     // @ts-expect-error test mock
@@ -150,7 +166,7 @@ describe('AudioService', () => {
 
     await audioService.speak('Hello world', 1.0);
 
-    expect(mockInvoke).toHaveBeenCalledWith('kokoro_synthesize', expect.objectContaining({
+    expect(mockInvoke).toHaveBeenCalledWith('kokoro_synthesize_stream', expect.objectContaining({
       text: 'Hello world',
     }));
 

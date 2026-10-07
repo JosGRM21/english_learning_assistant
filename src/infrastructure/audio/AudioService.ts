@@ -1,5 +1,12 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, Channel } from '@tauri-apps/api/core';
 import { KokoroEngine } from './KokoroEngine';
+
+export interface NativeAudioChunkPayload {
+  samples: number[];
+  sample_rate: number;
+  chunk_index: number;
+  is_final: boolean;
+}
 
 export interface IAudioService {
   speak(text: string, rate?: number, voice?: string): Promise<void>;
@@ -91,12 +98,13 @@ export class AudioService implements IAudioService {
   }
 
   /**
-   * Returns the current application build target (AVX2 native, Legacy universal, or web).
+   * Returns the current application build target (native SIMD tier, legacy universal, or web).
    */
   public async getBuildTarget(): Promise<'avx2-native' | 'legacy-universal' | 'web'> {
     if (!this.isTauri()) return 'web';
     try {
-      return await invoke<'avx2-native' | 'legacy-universal'>('get_build_target');
+      const target = await invoke<string>('get_build_target');
+      return target === 'avx2-native' ? 'avx2-native' : 'legacy-universal';
     } catch {
       return 'legacy-universal';
     }
@@ -176,50 +184,92 @@ export class AudioService implements IAudioService {
       return;
     }
 
-    // 1. Primary for AVX2 build: Native Kokoro in Rust backend
+    // 1. Primary: Native Multi-SIMD Streaming Engine in Rust backend (AVX-512 / AVX2 / AVX)
     try {
       let isNativeReady = await this.isBackendAvailable();
       if (!isNativeReady && this.isTauri()) {
         isNativeReady = await this.initBackend();
       }
       if (isNativeReady) {
-        // Native synthesis returns raw binary bytes (tauri::ipc::Response / ArrayBuffer)
-        const rawWav = await invoke<ArrayBuffer | number[]>('kokoro_synthesize', {
-          text: trimmed,
-          voice,
-          speed: rate,
-        });
+        const ctx = this.getAudioContext();
+        if (ctx) {
+          const collectedBuffers: AudioBuffer[] = [];
+          const playbackQueue: AudioBuffer[] = [];
+          let isProducerDone = false;
+          let producerError: unknown = null;
+          const consumerRef: { notify: (() => void) | null } = { notify: null };
 
-        if (signal.aborted) return;
-
-        if (rawWav) {
-          const ctx = this.getAudioContext();
-          if (ctx) {
-            let arrayBuffer: ArrayBuffer;
-            if (rawWav instanceof ArrayBuffer) {
-              arrayBuffer = rawWav;
-            } else if (ArrayBuffer.isView(rawWav)) {
-              const view = rawWav as unknown as Uint8Array;
-              arrayBuffer = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
-            } else if (Array.isArray(rawWav)) {
-              const uint8 = new Uint8Array(rawWav);
-              arrayBuffer = uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength) as ArrayBuffer;
-            } else {
-              throw new Error('Unsupported audio payload format from native synthesis');
+          const wakeConsumer = () => {
+            if (consumerRef.notify) {
+              const cb = consumerRef.notify;
+              consumerRef.notify = null;
+              cb();
             }
+          };
 
-            const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
+          const onChunkChannel = new Channel<NativeAudioChunkPayload>();
+          onChunkChannel.onmessage = (payload: NativeAudioChunkPayload) => {
             if (signal.aborted) return;
+            const sampleCount = payload.samples.length;
+            if (sampleCount === 0) return;
 
-            this.setCacheEntry(cacheKey, decodedBuffer);
+            // Direct zero-copy injection into Web Audio Buffer (bypassing WAV & decodeAudioData)
+            const audioBuffer = ctx.createBuffer(1, sampleCount, payload.sample_rate || 24000);
+            const channelData = audioBuffer.getChannelData(0);
+            channelData.set(payload.samples);
 
-            await this.playAudioBuffer(decodedBuffer, signal);
+            collectedBuffers.push(audioBuffer);
+            playbackQueue.push(audioBuffer);
+            wakeConsumer();
+          };
+
+          const nativeStreamPromise = invoke<void>('kokoro_synthesize_stream', {
+            text: trimmed,
+            voice,
+            speed: rate,
+            onChunk: onChunkChannel,
+          })
+            .catch((err) => {
+              producerError = err;
+            })
+            .finally(() => {
+              isProducerDone = true;
+              wakeConsumer();
+            });
+
+          // Consumer plays each audio chunk as soon as it arrives, overlapping with next chunk synthesis
+          while (!signal.aborted) {
+            if (playbackQueue.length > 0) {
+              const nextBuffer = playbackQueue.shift()!;
+              await this.playAudioBuffer(nextBuffer, signal);
+            } else if (isProducerDone) {
+              break;
+            } else {
+              await new Promise<void>((resolve) => {
+                consumerRef.notify = resolve;
+              });
+            }
+          }
+
+          await nativeStreamPromise;
+
+          if (signal.aborted) return;
+          if (producerError && collectedBuffers.length === 0) {
+            throw producerError;
+          }
+
+          // Cache the consolidated audio for instant future replays (< 5ms)
+          if (collectedBuffers.length > 0) {
+            const mergedBuffer = this.mergeAudioBuffers(ctx, collectedBuffers);
+            if (mergedBuffer) {
+              this.setCacheEntry(cacheKey, mergedBuffer);
+            }
             return;
           }
         }
       }
     } catch (nativeErr) {
-      console.warn('[AudioService] Native AVX2 Kokoro synthesis unavailable, falling back to client engine:', nativeErr);
+      console.warn('[AudioService] Native SIMD streaming synthesis unavailable, falling back to client engine:', nativeErr);
     }
 
     if (signal.aborted) return;
@@ -228,22 +278,35 @@ export class AudioService implements IAudioService {
     const ctx = this.getAudioContext();
     if (ctx) {
       try {
+        if (!KokoroEngine.isReady()) {
+          // Trigger worker warmup in background
+          KokoroEngine.warmup();
+          // Give cached or quick worker up to 2 seconds to signal ready; otherwise fallback instantly to Web Speech
+          const quickReady = await Promise.race([
+            KokoroEngine.init(),
+            new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000)),
+          ]);
+          if (!quickReady) {
+            throw new Error('Kokoro client worker initializing; falling back to instant Web Speech');
+          }
+        }
+
         const collectedBuffers: AudioBuffer[] = [];
         const playbackQueue: AudioBuffer[] = [];
-      let isProducerDone = false;
-      let producerError: unknown = null;
-      const consumerRef: { notify: (() => void) | null } = { notify: null };
+        let isProducerDone = false;
+        let producerError: unknown = null;
+        const consumerRef: { notify: (() => void) | null } = { notify: null };
 
-      const wakeConsumer = () => {
-        if (consumerRef.notify) {
-          const cb = consumerRef.notify;
-          consumerRef.notify = null;
-          cb();
-        }
-      };
+        const wakeConsumer = () => {
+          if (consumerRef.notify) {
+            const cb = consumerRef.notify;
+            consumerRef.notify = null;
+            cb();
+          }
+        };
 
-      // Background producer receives chunks streamed from the worker thread
-      const producerPromise = KokoroEngine.synthesizeStream(trimmed, {
+        // Background producer receives chunks streamed from the worker thread
+        const producerPromise = KokoroEngine.synthesizeStream(trimmed, {
         voice,
         speed: rate,
         signal,

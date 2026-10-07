@@ -38,7 +38,7 @@ describe('Database Migrations Engine', () => {
     expect(rows.rows[1].id).toBe('row2');
   });
 
-  it('cleans up legacy temporary tables and sets user_version to 2', async () => {
+  it('cleans up legacy temporary tables and sets user_version to 3', async () => {
     // 1. Create a dummy legacy table that should be cleaned up
     await sql.raw(`CREATE TABLE users_new (id TEXT PRIMARY KEY)`).execute(db);
 
@@ -49,9 +49,9 @@ describe('Database Migrations Engine', () => {
     // Run migrations
     await runMigrations(db);
 
-    // Version should now be 2
-    const v2 = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
-    expect(v2.rows[0]?.user_version).toBe(2);
+    // Version should now be 3
+    const v3 = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
+    expect(v3.rows[0]?.user_version).toBe(3);
 
     // Legacy table should be dropped
     const checkLegacy = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='users_new'`.execute(db);
@@ -61,10 +61,14 @@ describe('Database Migrations Engine', () => {
     const checkNotifSettings = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='notification_settings'`.execute(db);
     expect(checkNotifSettings.rows).toHaveLength(1);
 
+    // App settings table should exist
+    const checkAppSettings = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='app_settings'`.execute(db);
+    expect(checkAppSettings.rows).toHaveLength(1);
+
     // Running migrations again is idempotent
     await runMigrations(db);
-    const v2Idempotent = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
-    expect(v2Idempotent.rows[0]?.user_version).toBe(2);
+    const v3Idempotent = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
+    expect(v3Idempotent.rows[0]?.user_version).toBe(3);
   });
 });
 
