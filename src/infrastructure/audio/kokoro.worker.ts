@@ -51,7 +51,21 @@ async function checkWebGPUSupport(): Promise<boolean> {
     const adapter = await navigator.gpu.requestAdapter({
       powerPreference: 'high-performance',
     });
-    return adapter !== null;
+    if (!adapter) return false;
+
+    // Check adapter info: Intel GPUs (Iris Xe / UHD / Arc) suffer from severe FP16 WGSL
+    // matrix multiplication precision bugs in ONNX Runtime WebGPU, resulting in loud metallic
+    // screeching distortion in neural vocoders. For Intel systems, bypass WebGPU to WASM SIMD.
+    const info = (adapter as any).info || (await (adapter as any).requestAdapterInfo?.()) || {};
+    const vendorStr = `${info.vendor || ''} ${info.description || ''} ${info.architecture || ''}`.toLowerCase();
+    if (vendorStr.includes('intel')) {
+      console.warn(
+        `[KokoroWorker] Intel GPU adapter detected (${vendorStr.trim() || 'Intel'}). Bypassing WebGPU in favor of WASM SIMD for pristine audio fidelity.`
+      );
+      return false;
+    }
+
+    return true;
   } catch {
     return false;
   }

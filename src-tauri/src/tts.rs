@@ -377,6 +377,15 @@ pub async fn kokoro_synthesize_stream(
                 // Apply in-place anti-click cosine smoothing
                 apply_anticlick_envelope(&mut samples);
 
+                // Guarantee all samples are strictly finite and normalized in [-1.0, 1.0]
+                for s in samples.iter_mut() {
+                    if !s.is_finite() {
+                        *s = 0.0;
+                    } else {
+                        *s = s.clamp(-1.0, 1.0);
+                    }
+                }
+
                 let is_final = idx == total_segments - 1;
                 let payload = AudioChunkPayload {
                     samples,
@@ -432,6 +441,36 @@ mod tests {
         assert_eq!(ensure_terminal_punctuation("run."), "run.");
         assert_eq!(ensure_terminal_punctuation("hello!"), "hello!");
         assert_eq!(ensure_terminal_punctuation("why?"), "why?");
+    }
+
+    #[test]
+    fn test_inspect_db_phonemes() {
+        use kokoro_micro::g2p::{phonemize, Lang};
+        let items = [
+            "fourth.",
+            "run.",
+            "fan.",
+            "thought.",
+            "disperse.",
+            "Her birthday is on the fourth of July.",
+            "She likes to run in the park every morning.",
+            "He runs a small tech company in downtown Seattle.",
+            "You need a powerful processor to run this software.",
+            "I usually go for a five-mile run on weekends.",
+            "It was very hot in the room, so she turned on the fan.",
+            "He is a huge fan of rock music.",
+            "She used a paper fan to cool herself in the summer heat.",
+            "The thought of traveling alone makes her nervous.",
+            "After a lot of thought, he decided to accept the job offer.",
+            "Police used tear gas to disperse the crowd.",
+            "A prism can disperse white light into a rainbow.",
+            "The wind helps to disperse seeds across the field.",
+        ];
+        for item in items {
+            let res = phonemize(item, Lang::AmericanEnglish);
+            println!("{}: {:?}", item, res);
+            assert!(res.is_ok());
+        }
     }
 
     #[test]

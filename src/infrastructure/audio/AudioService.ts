@@ -210,13 +210,17 @@ export class AudioService implements IAudioService {
           const onChunkChannel = new Channel<NativeAudioChunkPayload>();
           onChunkChannel.onmessage = (payload: NativeAudioChunkPayload) => {
             if (signal.aborted) return;
-            const sampleCount = payload.samples.length;
+            const sampleCount = payload.samples?.length || 0;
             if (sampleCount === 0) return;
 
             // Direct zero-copy injection into Web Audio Buffer (bypassing WAV & decodeAudioData)
             const audioBuffer = ctx.createBuffer(1, sampleCount, payload.sample_rate || 24000);
             const channelData = audioBuffer.getChannelData(0);
-            channelData.set(payload.samples);
+            const samples = payload.samples;
+            for (let i = 0; i < sampleCount; i++) {
+              const s = samples[i];
+              channelData[i] = Number.isFinite(s) ? Math.max(-1.0, Math.min(1.0, s)) : 0;
+            }
 
             collectedBuffers.push(audioBuffer);
             playbackQueue.push(audioBuffer);
@@ -252,6 +256,12 @@ export class AudioService implements IAudioService {
           }
 
           await nativeStreamPromise;
+
+          // Crucial: Drain any remaining chunks in the queue after the native stream promise completes
+          while (!signal.aborted && playbackQueue.length > 0) {
+            const nextBuffer = playbackQueue.shift()!;
+            await this.playAudioBuffer(nextBuffer, signal);
+          }
 
           if (signal.aborted) return;
           if (producerError && collectedBuffers.length === 0) {
@@ -312,12 +322,19 @@ export class AudioService implements IAudioService {
         signal,
         onChunk: (chunk) => {
           if (signal.aborted) return;
+          const sampleCount = chunk.samples?.length || 0;
+          if (sampleCount === 0) return;
           const audioBuffer = ctx.createBuffer(
             1,
-            chunk.samples.length,
+            sampleCount,
             chunk.sampleRate || 24000,
           );
-          audioBuffer.getChannelData(0).set(chunk.samples);
+          const channelData = audioBuffer.getChannelData(0);
+          const samples = chunk.samples;
+          for (let i = 0; i < sampleCount; i++) {
+            const s = samples[i];
+            channelData[i] = Number.isFinite(s) ? Math.max(-1.0, Math.min(1.0, s)) : 0;
+          }
           collectedBuffers.push(audioBuffer);
           playbackQueue.push(audioBuffer);
           wakeConsumer();
@@ -346,6 +363,12 @@ export class AudioService implements IAudioService {
       }
 
       await producerPromise;
+
+      // Drain any remaining chunks in the worker queue after synthesis finishes
+      while (!signal.aborted && playbackQueue.length > 0) {
+        const nextBuffer = playbackQueue.shift()!;
+        await this.playAudioBuffer(nextBuffer, signal);
+      }
 
       if (signal.aborted) return;
       if (producerError && collectedBuffers.length === 0) {
