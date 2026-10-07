@@ -169,6 +169,9 @@ export class AudioService implements IAudioService {
     const cacheKey = `${trimmed}::${voice}::${rate.toFixed(2)}`;
     const cachedBuffer = this.audioBufferCache.get(cacheKey);
     if (cachedBuffer) {
+      // LRU refresh: move to most recent position
+      this.audioBufferCache.delete(cacheKey);
+      this.audioBufferCache.set(cacheKey, cachedBuffer);
       await this.playAudioBuffer(cachedBuffer, signal);
       return;
     }
@@ -180,7 +183,8 @@ export class AudioService implements IAudioService {
         isNativeReady = await this.initBackend();
       }
       if (isNativeReady) {
-        const rawWavBytes = await invoke<number[]>('kokoro_synthesize', {
+        // Native synthesis returns raw binary bytes (tauri::ipc::Response / ArrayBuffer)
+        const rawWav = await invoke<ArrayBuffer | number[]>('kokoro_synthesize', {
           text: trimmed,
           voice,
           speed: rate,
@@ -188,22 +192,26 @@ export class AudioService implements IAudioService {
 
         if (signal.aborted) return;
 
-        if (rawWavBytes && rawWavBytes.length > 0) {
+        if (rawWav) {
           const ctx = this.getAudioContext();
           if (ctx) {
-            const uint8Array = new Uint8Array(rawWavBytes);
-            const arrayBuffer = uint8Array.buffer.slice(
-              uint8Array.byteOffset,
-              uint8Array.byteOffset + uint8Array.byteLength,
-            );
+            let arrayBuffer: ArrayBuffer;
+            if (rawWav instanceof ArrayBuffer) {
+              arrayBuffer = rawWav;
+            } else if (ArrayBuffer.isView(rawWav)) {
+              const view = rawWav as unknown as Uint8Array;
+              arrayBuffer = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
+            } else if (Array.isArray(rawWav)) {
+              const uint8 = new Uint8Array(rawWav);
+              arrayBuffer = uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength) as ArrayBuffer;
+            } else {
+              throw new Error('Unsupported audio payload format from native synthesis');
+            }
+
             const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
             if (signal.aborted) return;
 
-            if (this.audioBufferCache.size >= AudioService.MAX_CACHE_ENTRIES) {
-              const firstKey = this.audioBufferCache.keys().next().value;
-              if (firstKey) this.audioBufferCache.delete(firstKey);
-            }
-            this.audioBufferCache.set(cacheKey, decodedBuffer);
+            this.setCacheEntry(cacheKey, decodedBuffer);
 
             await this.playAudioBuffer(decodedBuffer, signal);
             return;
@@ -216,105 +224,100 @@ export class AudioService implements IAudioService {
 
     if (signal.aborted) return;
 
-    // 2. Secondary (Legacy build or Web): High-fidelity Kokoro-ONNX with Sentence Streaming
-    try {
-      const tts = await KokoroEngine.getInstance();
-      if (signal.aborted) return;
-
-      if (tts) {
-        const { TextSplitterStream } = await import('kokoro-js');
-        const splitter = new TextSplitterStream();
-        splitter.push(trimmed);
-        splitter.close();
-
-        const ctx = this.getAudioContext();
-        if (!ctx) return;
-
+    // 2. Secondary (Legacy build or Web): High-fidelity Kokoro-ONNX off-thread with Worker Streaming
+    const ctx = this.getAudioContext();
+    if (ctx) {
+      try {
         const collectedBuffers: AudioBuffer[] = [];
         const playbackQueue: AudioBuffer[] = [];
-        let isProducerDone = false;
-        let producerError: unknown = null;
-        const consumerRef: { notify: (() => void) | null } = { notify: null };
+      let isProducerDone = false;
+      let producerError: unknown = null;
+      const consumerRef: { notify: (() => void) | null } = { notify: null };
 
-        const wakeConsumer = () => {
-          if (consumerRef.notify) {
-            const cb = consumerRef.notify;
-            consumerRef.notify = null;
-            cb();
-          }
-        };
-
-        // Background producer generates audio chunks asynchronously
-        const producerPromise = (async () => {
-          try {
-            for await (const chunk of tts.stream(splitter, {
-              voice: (voice as any) || 'af_heart',
-              speed: rate,
-            })) {
-              if (signal.aborted) break;
-              if (chunk?.audio?.audio) {
-                const audioBuffer = ctx.createBuffer(
-                  1,
-                  chunk.audio.audio.length,
-                  chunk.audio.sampling_rate || 24000,
-                );
-                audioBuffer.getChannelData(0).set(chunk.audio.audio);
-                collectedBuffers.push(audioBuffer);
-                playbackQueue.push(audioBuffer);
-                wakeConsumer();
-              }
-            }
-          } catch (err) {
-            producerError = err;
-          } finally {
-            isProducerDone = true;
-            wakeConsumer();
-          }
-        })();
-
-        // Consumer plays each audio chunk as soon as it arrives, overlapping with next chunk synthesis
-        while (!signal.aborted) {
-          if (playbackQueue.length > 0) {
-            const nextBuffer = playbackQueue.shift()!;
-            await this.playAudioBuffer(nextBuffer, signal);
-          } else if (isProducerDone) {
-            break;
-          } else {
-            await new Promise<void>((resolve) => {
-              consumerRef.notify = resolve;
-            });
-          }
+      const wakeConsumer = () => {
+        if (consumerRef.notify) {
+          const cb = consumerRef.notify;
+          consumerRef.notify = null;
+          cb();
         }
+      };
 
-        await producerPromise;
+      // Background producer receives chunks streamed from the worker thread
+      const producerPromise = KokoroEngine.synthesizeStream(trimmed, {
+        voice,
+        speed: rate,
+        signal,
+        onChunk: (chunk) => {
+          if (signal.aborted) return;
+          const audioBuffer = ctx.createBuffer(
+            1,
+            chunk.samples.length,
+            chunk.sampleRate || 24000,
+          );
+          audioBuffer.getChannelData(0).set(chunk.samples);
+          collectedBuffers.push(audioBuffer);
+          playbackQueue.push(audioBuffer);
+          wakeConsumer();
+        },
+      })
+        .catch((err) => {
+          producerError = err;
+        })
+        .finally(() => {
+          isProducerDone = true;
+          wakeConsumer();
+        });
 
-        if (signal.aborted) return;
-        if (producerError && collectedBuffers.length === 0) {
-          throw producerError;
+      // Consumer plays each audio chunk as soon as it arrives, overlapping with next chunk synthesis
+      while (!signal.aborted) {
+        if (playbackQueue.length > 0) {
+          const nextBuffer = playbackQueue.shift()!;
+          await this.playAudioBuffer(nextBuffer, signal);
+        } else if (isProducerDone) {
+          break;
+        } else {
+          await new Promise<void>((resolve) => {
+            consumerRef.notify = resolve;
+          });
         }
+      }
 
-        // Cache the consolidated audio for instant future replays
-        if (collectedBuffers.length > 0) {
-          const mergedBuffer = this.mergeAudioBuffers(ctx, collectedBuffers);
-          if (mergedBuffer) {
-            if (this.audioBufferCache.size >= AudioService.MAX_CACHE_ENTRIES) {
-              const firstKey = this.audioBufferCache.keys().next().value;
-              if (firstKey) this.audioBufferCache.delete(firstKey);
-            }
-            this.audioBufferCache.set(cacheKey, mergedBuffer);
-          }
+      await producerPromise;
+
+      if (signal.aborted) return;
+      if (producerError && collectedBuffers.length === 0) {
+        throw producerError;
+      }
+
+      // Cache the consolidated audio for instant future replays
+      if (collectedBuffers.length > 0) {
+        const mergedBuffer = this.mergeAudioBuffers(ctx, collectedBuffers);
+        if (mergedBuffer) {
+          this.setCacheEntry(cacheKey, mergedBuffer);
         }
-
         return;
       }
     } catch (err) {
-      console.warn('[AudioService] Kokoro-ONNX synthesis unavailable, falling back to Web Speech:', err);
+      console.warn('[AudioService] Kokoro-ONNX worker synthesis unavailable, falling back to Web Speech:', err);
     }
+  }
 
     if (signal.aborted) return;
 
     // 3. Fallback: Web Speech API
     await this.speakWebSpeech(trimmed, rate, signal);
+  }
+
+  /**
+   * Sets a cache entry maintaining LRU eviction ordering and max limits.
+   */
+  private setCacheEntry(key: string, buffer: AudioBuffer): void {
+    this.audioBufferCache.delete(key);
+    if (this.audioBufferCache.size >= AudioService.MAX_CACHE_ENTRIES) {
+      const oldestKey = this.audioBufferCache.keys().next().value;
+      if (oldestKey) this.audioBufferCache.delete(oldestKey);
+    }
+    this.audioBufferCache.set(key, buffer);
   }
 
   /**

@@ -145,28 +145,62 @@ fn samples_to_wav(samples: &[f32], sample_rate: u32) -> Vec<u8> {
     let attack_samples = 360.min(total_samples / 4);
     // 10ms at 24kHz = 240 samples for release smoothing
     let release_samples = 240.min(total_samples / 4);
+    let release_start = total_samples.saturating_sub(release_samples);
 
-    for (i, &sample) in samples.iter().enumerate() {
-        if !sample.is_finite() {
-            wav.extend_from_slice(&0i16.to_le_bytes());
-            continue;
+    // Pre-allocate payload buffer to eliminate repeated reallocations
+    let data_offset = wav.len();
+    wav.resize(data_offset + (total_samples * 2), 0);
+    let pcm_bytes = &mut wav[data_offset..];
+
+    // Pass 1: Attack envelope ramp
+    if attack_samples > 0 {
+        let inv_attack = 1.0f32 / (attack_samples as f32);
+        for i in 0..attack_samples {
+            let sample = samples[i];
+            let pcm_sample = if sample.is_finite() {
+                let factor = (std::f32::consts::PI * (i as f32) * inv_attack).cos();
+                let envelope = 0.5 * (1.0 - factor);
+                let smoothed = sample * envelope;
+                (smoothed.max(-1.0).min(1.0) * 32767.0) as i16
+            } else {
+                0i16
+            };
+            let offset = i * 2;
+            pcm_bytes[offset..offset + 2].copy_from_slice(&pcm_sample.to_le_bytes());
         }
+    }
 
-        let mut envelope = 1.0f32;
-        if attack_samples > 0 && i < attack_samples {
-            // Hann half-window ramp from 0.0 to 1.0
-            let factor = (std::f32::consts::PI * (i as f32) / (attack_samples as f32)).cos();
-            envelope = 0.5 * (1.0 - factor);
-        } else if release_samples > 0 && i >= total_samples.saturating_sub(release_samples) {
-            let idx = total_samples - 1 - i;
-            let factor = (std::f32::consts::PI * (idx as f32) / (release_samples as f32)).cos();
-            envelope = 0.5 * (1.0 - factor);
+    // Pass 2: Middle body (vectorizable loop without envelope branches)
+    let mid_start = attack_samples;
+    let mid_end = release_start.max(mid_start);
+    for i in mid_start..mid_end {
+        let sample = samples[i];
+        let pcm_sample = if sample.is_finite() {
+            (sample.max(-1.0).min(1.0) * 32767.0) as i16
+        } else {
+            0i16
+        };
+        let offset = i * 2;
+        pcm_bytes[offset..offset + 2].copy_from_slice(&pcm_sample.to_le_bytes());
+    }
+
+    // Pass 3: Release envelope ramp
+    if release_samples > 0 && release_start < total_samples {
+        let inv_release = 1.0f32 / (release_samples as f32);
+        for i in release_start..total_samples {
+            let sample = samples[i];
+            let pcm_sample = if sample.is_finite() {
+                let idx = total_samples - 1 - i;
+                let factor = (std::f32::consts::PI * (idx as f32) * inv_release).cos();
+                let envelope = 0.5 * (1.0 - factor);
+                let smoothed = sample * envelope;
+                (smoothed.max(-1.0).min(1.0) * 32767.0) as i16
+            } else {
+                0i16
+            };
+            let offset = i * 2;
+            pcm_bytes[offset..offset + 2].copy_from_slice(&pcm_sample.to_le_bytes());
         }
-
-        let smoothed = sample * envelope;
-        let clamped = smoothed.max(-1.0).min(1.0);
-        let pcm_sample = (clamped * 32767.0) as i16;
-        wav.extend_from_slice(&pcm_sample.to_le_bytes());
     }
 
     wav
@@ -179,27 +213,39 @@ pub async fn kokoro_synthesize(
     voice: Option<String>,
     speed: Option<f32>,
     gain: Option<f32>,
-) -> Result<Vec<u8>, String> {
+) -> Result<tauri::ipc::Response, String> {
     #[cfg(feature = "native-kokoro")]
     {
-        let mut engine_lock = state.engine.lock().await;
-        let engine = match engine_lock.as_mut() {
-            Some(e) => e,
-            None => {
-                return Err("Native Kokoro engine is not initialized. Call kokoro_init first.".to_string());
-            }
-        };
+        let is_ready = *state.is_available.lock().await;
+        if !is_ready {
+            return Err("Native Kokoro engine is not initialized. Call kokoro_init first.".to_string());
+        }
 
-        let voice_ref = voice.as_deref().unwrap_or("af_heart");
+        let state_clone = Arc::clone(&state);
+        let voice_val = voice.unwrap_or_else(|| "af_heart".to_string());
         let speed_val = speed.unwrap_or(1.0);
         let gain_val = gain.unwrap_or(1.0);
 
-        let samples = engine
-            .synthesize_with_options(&text, Some(voice_ref), speed_val, gain_val, None)
-            .map_err(|e| format!("Synthesis failed: {}", e))?;
+        tokio::task::spawn_blocking(move || {
+            let mut engine_lock = state_clone
+                .engine
+                .blocking_lock();
+            let engine = match engine_lock.as_mut() {
+                Some(e) => e,
+                None => {
+                    return Err("Native Kokoro engine is not initialized.".to_string());
+                }
+            };
 
-        let wav_bytes = samples_to_wav(&samples, 24000);
-        Ok(wav_bytes)
+            let samples = engine
+                .synthesize_with_options(&text, Some(&voice_val), speed_val, gain_val, None)
+                .map_err(|e| format!("Synthesis failed: {}", e))?;
+
+            let wav_bytes = samples_to_wav(&samples, 24000);
+            Ok(tauri::ipc::Response::new(wav_bytes))
+        })
+        .await
+        .map_err(|e| format!("Synthesis thread join error: {}", e))?
     }
     #[cfg(not(feature = "native-kokoro"))]
     {
@@ -207,3 +253,4 @@ pub async fn kokoro_synthesize(
         Err("Legacy compatibility mode: Built without AVX2 native Kokoro feature. Delegating to client audio pipeline.".to_string())
     }
 }
+

@@ -1,161 +1,236 @@
-import type { KokoroTTS } from 'kokoro-js';
+import type { WorkerInMessage, WorkerOutMessage } from './kokoro.worker';
 
+export interface KokoroAudioChunk {
+  samples: Float32Array;
+  sampleRate: number;
+}
+
+export type ChunkCallback = (chunk: KokoroAudioChunk) => void;
+
+/**
+ * KokoroEngine manages the lifetime of the off-thread Kokoro Web Worker.
+ * All neural network evaluations, ONNX runtime execution and tensor operations
+ * run strictly off the UI thread to ensure 60fps responsiveness.
+ */
 export class KokoroEngine {
-  private static instance: KokoroTTS | null = null;
-  private static loadingPromise: Promise<KokoroTTS | null> | null = null;
-  private static isInitialized = false;
+  private static worker: Worker | null = null;
   private static activeDevice: 'webgpu' | 'wasm' = 'wasm';
+  private static isInitialized = false;
+  private static initPromise: Promise<boolean> | null = null;
+  private static nextRequestId = 1;
+
+  // Callbacks mapped by request id
+  private static activeCallbacks: Map<
+    string,
+    {
+      onChunk: ChunkCallback;
+      onDone: () => void;
+      onError: (err: Error) => void;
+    }
+  > = new Map();
 
   /**
-   * Checks whether the current runtime environment supports WebGPU.
+   * Initializes or retrieves the dedicated Web Worker instance.
    */
-  public static async checkWebGPUSupport(): Promise<boolean> {
-    if (
-      typeof window === 'undefined' ||
-      typeof navigator === 'undefined' ||
-      !('gpu' in navigator) ||
-      !navigator.gpu
-    ) {
-      return false;
+  private static getWorker(): Worker | null {
+    if (typeof window === 'undefined' || typeof Worker === 'undefined') {
+      return null;
     }
-    try {
-      const adapter = await navigator.gpu.requestAdapter({
-        powerPreference: 'high-performance',
-      });
-      return adapter !== null;
-    } catch {
-      return false;
+    if (import.meta.env?.MODE === 'test') {
+      return null;
     }
+
+    if (!this.worker) {
+      try {
+        this.worker = new Worker(new URL('./kokoro.worker.ts', import.meta.url), {
+          type: 'module',
+        });
+
+        this.worker.onmessage = (event: MessageEvent<WorkerOutMessage>) => {
+          const msg = event.data;
+          if (!msg) return;
+
+          if (msg.type === 'INIT_RESULT') {
+            this.isInitialized = msg.success;
+            this.activeDevice = msg.device;
+            return;
+          }
+
+          if (msg.type === 'AUDIO_CHUNK') {
+            const cbs = this.activeCallbacks.get(msg.id);
+            if (cbs) {
+              cbs.onChunk({
+                samples: msg.samples,
+                sampleRate: msg.sampleRate,
+              });
+            }
+            return;
+          }
+
+          if (msg.type === 'SYNTHESIS_DONE') {
+            const cbs = this.activeCallbacks.get(msg.id);
+            if (cbs) {
+              this.activeCallbacks.delete(msg.id);
+              cbs.onDone();
+            }
+            return;
+          }
+
+          if (msg.type === 'SYNTHESIS_ERROR') {
+            const cbs = this.activeCallbacks.get(msg.id);
+            if (cbs) {
+              this.activeCallbacks.delete(msg.id);
+              cbs.onError(new Error(msg.error));
+            }
+            return;
+          }
+        };
+
+        this.worker.onerror = (err) => {
+          console.warn('[KokoroEngine] Worker error event:', err);
+        };
+      } catch (e) {
+        console.warn('[KokoroEngine] Could not instantiate Web Worker:', e);
+        return null;
+      }
+    }
+
+    return this.worker;
   }
 
   /**
-   * Returns the current active compute device ('webgpu' or 'wasm').
+   * Returns current active device ('webgpu' or 'wasm').
    */
   public static getActiveDevice(): 'webgpu' | 'wasm' {
     return this.activeDevice;
   }
 
   /**
-   * Initializes and returns the singleton KokoroTTS instance.
-   * Prioritizes WebGPU for hardware acceleration, with automatic fallback to optimized WASM SIMD.
-   * Model weights are automatically cached in browser storage for 100% offline usage.
+   * Returns whether the engine is ready.
    */
-  public static async getInstance(): Promise<KokoroTTS | null> {
+  public static isReady(): boolean {
+    return this.isInitialized && this.worker !== null;
+  }
+
+  /**
+   * Ensures the worker is spawned and model initialization is triggered.
+   */
+  public static async init(): Promise<boolean> {
     if (
       typeof window === 'undefined' ||
       typeof DecompressionStream === 'undefined' ||
       import.meta.env?.MODE === 'test'
     ) {
-      return null;
+      return false;
     }
 
-    if (this.instance) return this.instance;
-    if (this.loadingPromise) return this.loadingPromise;
+    if (this.isInitialized) return true;
+    if (this.initPromise) return this.initPromise;
 
-    this.loadingPromise = (async () => {
-      try {
-        const { KokoroTTS } = await import('kokoro-js');
-        const canUseWebGPU = await this.checkWebGPUSupport();
+    const worker = this.getWorker();
+    if (!worker) return false;
 
-        // Ensure transformers environment is configured properly for browser / WebView2
-        try {
-          const { env } = await import('@huggingface/transformers');
-          env.allowLocalModels = false;
-          env.allowRemoteModels = true;
-          try {
-            if (typeof window !== 'undefined' && 'caches' in window && window.caches) {
-              await window.caches.open('kokoro-test-probe').then(() => {
-                window.caches.delete('kokoro-test-probe').catch(() => {});
-              });
-              env.useBrowserCache = true;
-            } else {
-              env.useBrowserCache = false;
-            }
-          } catch {
-            env.useBrowserCache = false;
-          }
+    this.initPromise = new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => {
+        resolve(false);
+      }, 30000);
 
-          if (env?.backends?.onnx?.wasm) {
-            const hasSharedArrayBuffer =
-              typeof window !== 'undefined' &&
-              typeof SharedArrayBuffer !== 'undefined' &&
-              Boolean(window.crossOriginIsolated);
-            const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 2 : 2;
-            const threads = hasSharedArrayBuffer ? Math.max(1, Math.min(4, cores)) : 1;
-            (env.backends.onnx.wasm as any).numThreads = threads;
-            (env.backends.onnx.wasm as any).simd = true;
-            if (!(env.backends.onnx.wasm as any).wasmPaths) {
-              (env.backends.onnx.wasm as any).wasmPaths =
-                `https://cdn.jsdelivr.net/npm/@huggingface/transformers@${env.version || '3.5.1'}/dist/`;
-            }
-          }
-        } catch {
-          // ignore env configuration if unavailable
+      const handler = (event: MessageEvent<WorkerOutMessage>) => {
+        if (event.data?.type === 'INIT_RESULT') {
+          clearTimeout(timeout);
+          worker.removeEventListener('message', handler);
+          resolve(event.data.success);
         }
+      };
 
-        // 1. Primary: High-performance WebGPU compute shaders if available
-        if (canUseWebGPU) {
-          try {
-            console.info('[KokoroEngine] WebGPU hardware acceleration detected! Initializing on GPU...');
-            const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-ONNX', {
-              dtype: 'fp32',
-              device: 'webgpu',
-            });
-            this.instance = tts;
-            this.activeDevice = 'webgpu';
-            this.isInitialized = true;
-            console.info('[KokoroEngine] Kokoro-ONNX neural speech engine ready with WebGPU acceleration!');
-            return tts;
-          } catch (gpuErr) {
-            console.warn('[KokoroEngine] WebGPU initialization failed, falling back to WebAssembly:', gpuErr);
-          }
-        }
+      worker.addEventListener('message', handler);
+      const msg: WorkerInMessage = { type: 'INIT' };
+      worker.postMessage(msg);
+    }).finally(() => {
+      this.initPromise = null;
+    });
 
-        // 2. Secondary / Fallback: Quantized q8 WebAssembly with SIMD and multithreading
-        console.info('[KokoroEngine] Initializing Kokoro-82M ONNX model (quantized q8, WebAssembly SIMD)...');
-        const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-ONNX', {
-          dtype: 'q8',
-          device: 'wasm',
-        });
-        this.instance = tts;
-        this.activeDevice = 'wasm';
-        this.isInitialized = true;
-        console.info('[KokoroEngine] Kokoro-ONNX WebAssembly neural engine is ready!');
-        return tts;
-      } catch (err) {
-        console.warn('[KokoroEngine] Kokoro-ONNX initialization failed or unavailable:', err);
-        return null;
-      } finally {
-        this.loadingPromise = null;
-      }
-    })();
-
-    return this.loadingPromise;
-  }
-
-  public static isReady(): boolean {
-    return this.isInitialized && this.instance !== null;
+    return this.initPromise;
   }
 
   /**
-   * Warms up the model and caches default voice in the background without blocking the UI.
+   * Synthesizes text by streaming audio chunks from the dedicated worker thread.
+   */
+  public static async synthesizeStream(
+    text: string,
+    options: {
+      voice?: string;
+      speed?: number;
+      signal?: AbortSignal;
+      onChunk: ChunkCallback;
+    },
+  ): Promise<void> {
+    const ready = await this.init();
+    if (!ready) {
+      throw new Error('Kokoro Web Worker is not available');
+    }
+
+    const worker = this.getWorker();
+    if (!worker) {
+      throw new Error('Web Worker instance not available');
+    }
+
+    const id = `req_${++this.nextRequestId}_${Date.now()}`;
+
+    return new Promise<void>((resolve, reject) => {
+      if (options.signal?.aborted) {
+        return resolve();
+      }
+
+      const onAbort = () => {
+        this.activeCallbacks.delete(id);
+        const abortMsg: WorkerInMessage = { type: 'ABORT', id };
+        worker.postMessage(abortMsg);
+        resolve();
+      };
+
+      if (options.signal) {
+        options.signal.addEventListener('abort', onAbort, { once: true });
+      }
+
+      this.activeCallbacks.set(id, {
+        onChunk: options.onChunk,
+        onDone: () => {
+          if (options.signal) {
+            options.signal.removeEventListener('abort', onAbort);
+          }
+          resolve();
+        },
+        onError: (err) => {
+          if (options.signal) {
+            options.signal.removeEventListener('abort', onAbort);
+          }
+          reject(err);
+        },
+      });
+
+      const synthMsg: WorkerInMessage = {
+        type: 'SYNTHESIZE',
+        id,
+        text,
+        voice: options.voice || 'af_heart',
+        speed: options.speed || 1.0,
+      };
+
+      worker.postMessage(synthMsg);
+    });
+  }
+
+  /**
+   * Warms up the model in the background worker thread without blocking the UI.
    */
   public static warmup(): void {
     if (
       typeof window !== 'undefined' &&
       typeof DecompressionStream !== 'undefined' &&
-      import.meta.env?.MODE !== 'test' &&
-      !this.instance &&
-      !this.loadingPromise
+      import.meta.env?.MODE !== 'test'
     ) {
-      this.getInstance()
-        .then((tts) => {
-          if (tts) {
-            // Pre-warm neural graph and cache default voice in background
-            tts.generate('Hello', { voice: 'af_heart' as any, speed: 1.0 }).catch(() => {});
-          }
-        })
-        .catch(() => {});
+      this.init().catch(() => {});
     }
   }
 }
