@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   BookOpen,
   ArrowRight,
   Layers,
+  Zap,
 } from 'lucide-react';
 import { useSrsSession } from '../hooks/useSrsSession';
 import { SrsCardDisplay } from './SrsCardDisplay';
@@ -19,6 +20,8 @@ export interface SrsReviewSessionProps {
 export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
   const { audioService } = useAudio();
   const [isDeckExplorerOpen, setIsDeckExplorerOpen] = useState(false);
+  const [cardElapsedSec, setCardElapsedSec] = useState(0);
+  const cardStartRef = useRef<number>(Date.now());
 
   const {
     currentCard,
@@ -46,9 +49,99 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
     isReady,
   } = useSrsSession();
 
+  // Reset timer whenever currentCard changes
+  useEffect(() => {
+    cardStartRef.current = Date.now();
+    setCardElapsedSec(0);
+    const interval = setInterval(() => {
+      setCardElapsedSec(Math.round((Date.now() - cardStartRef.current) / 1000));
+    }, 500);
+    return () => clearInterval(interval);
+  }, [currentCard?.card.id]);
+
+  // Global Keyboard Shortcuts (Space, 1..4, R, S, N, Esc)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore keystrokes when typing into form fields
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (isDeckExplorerOpen || !currentCard || isRating) return;
+
+      if (!showAnswer) {
+        // Front face shortcuts
+        if (e.code === 'Space' || e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          setShowAnswer(true);
+        } else if (e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          if (selectedVocab) {
+            audioService.speak(selectedVocab.word, 1.0);
+          }
+        } else if (e.key === 's' || e.key === 'S') {
+          e.preventDefault();
+          if (selectedVocab) {
+            audioService.speak(selectedVocab.word, 0.75);
+          }
+        }
+      } else {
+        // Back face shortcuts
+        if (e.key === '1') {
+          e.preventDefault();
+          handleRate(1);
+        } else if (e.key === '2') {
+          e.preventDefault();
+          handleRate(2);
+        } else if (e.key === '3') {
+          e.preventDefault();
+          handleRate(3);
+        } else if (e.key === '4') {
+          e.preventDefault();
+          handleRate(4);
+        } else if (e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          if (selectedVocab) {
+            audioService.speak(selectedVocab.word, 1.0);
+          }
+        } else if (e.key === 's' || e.key === 'S') {
+          e.preventDefault();
+          if (selectedVocab) {
+            audioService.speak(selectedVocab.word, 0.75);
+          }
+        } else if (e.key === 'n' || e.key === 'N') {
+          e.preventDefault();
+          handleRotateContext();
+        } else if (e.key === 'Escape' || e.key === 'Backspace') {
+          e.preventDefault();
+          setShowAnswer(false);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    showAnswer,
+    currentCard,
+    selectedVocab,
+    isRating,
+    isDeckExplorerOpen,
+    setShowAnswer,
+    handleRate,
+    handleRotateContext,
+    audioService,
+  ]);
+
   // 1. Database still connecting or loading
   if (!isReady) {
-    return <LoadingSpinner label="Conectando con el motor FSRS v5..." />;
+    return <LoadingSpinner label="Cargando mazo de repaso..." />;
   }
 
   // 2. Empty state: database ready but no flashcards registered yet
@@ -65,7 +158,7 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
               Tu Mazo de Repaso está Vacío
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto leading-relaxed">
-              No tienes tarjetas registradas aún. Registra tus primeras palabras en el Catálogo de Vocabulario para activar el algoritmo de repaso espaciado FSRS v5.
+              No tienes tarjetas registradas aún. Registra tus primeras palabras en el Catálogo de Vocabulario para comenzar tus sesiones de repaso inteligente.
             </p>
           </div>
 
@@ -117,45 +210,63 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
   // 4. Active Review Arena
   return (
     <div className="relative max-w-2xl mx-auto space-y-4 py-2 animate-in fade-in duration-200">
-      {/* Session Progress Header Bar */}
-      <div className="p-3.5 px-5 rounded-2xl bg-white/80 dark:bg-[#121622]/80 border border-gray-200/70 dark:border-gray-800/80 backdrop-blur-md shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-2.5">
+      {/* Session Progress Header Bar - Modern Minimalist Design */}
+      <div className="p-4 px-5 rounded-2xl bg-white/70 dark:bg-[#121622]/70 border border-slate-200/70 dark:border-slate-800/70 backdrop-blur-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 dark:bg-indigo-400/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
               <Sparkles className="w-4 h-4" />
-            </span>
+            </div>
             <div>
-              <h2 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <span>Sesión FSRS & Fonología</span>
+              <h2 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+                Mazo Ágil de Vocabulario
               </h2>
-              <div className="flex items-center gap-2 text-[11px] text-gray-400 font-mono">
+              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 pt-0.5">
                 <span>
-                  Restantes: <strong className="text-indigo-600 dark:text-indigo-400 font-sans">{remainingCount}</strong>
+                  Restantes: <strong className="text-indigo-600 dark:text-indigo-400 font-semibold">{remainingCount}</strong>
                 </span>
-                <span>•</span>
+                <span className="opacity-30">•</span>
                 <span>
-                  Completadas: <strong className="text-emerald-600 dark:text-emerald-400 font-sans">{completedCount}</strong>
+                  Completadas: <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">{completedCount}</strong>
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Deck Explorer Trigger */}
-          <button
-            type="button"
-            onClick={() => setIsDeckExplorerOpen(true)}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-gray-700 dark:text-gray-300 border border-gray-200/70 dark:border-gray-700/60 transition-colors flex items-center gap-1.5 cursor-pointer"
-            title="Abrir explorador de mazo para elegir palabra"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Mazo ({deckCards.length})</span>
-          </button>
+          <div className="flex items-center gap-2.5">
+            {/* Elegant Cadence Timer */}
+            <div
+              className={`px-2.5 py-1 rounded-full text-xs font-mono font-medium flex items-center gap-1.5 border transition-all ${
+                cardElapsedSec <= 5
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20'
+                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20'
+              }`}
+              title="Tiempo en la tarjeta actual (cadencia objetivo: 3-5s)"
+            >
+              <Zap className="w-3 h-3" />
+              <span>{cardElapsedSec}s</span>
+            </div>
+
+            {/* Deck Explorer Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsDeckExplorerOpen(true)}
+              className="px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-100/80 hover:bg-slate-200/70 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/60 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-[0.98]"
+              title="Abrir explorador de mazo para elegir palabra"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Mazo</span>
+              <span className="px-1.5 py-0.2 rounded-md bg-slate-200/70 dark:bg-slate-700/70 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">
+                {deckCards.length}
+              </span>
+            </button>
+          </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="w-full h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+        {/* Progress Bar with smooth gradient */}
+        <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800/80 overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-300 rounded-full"
+            className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-500 ease-out rounded-full"
             style={{ width: `${progressPercentage}%` }}
           />
         </div>

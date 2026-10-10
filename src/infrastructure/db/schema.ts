@@ -12,7 +12,14 @@ CREATE TABLE IF NOT EXISTS vocab_items (
     translation_es TEXT NOT NULL,
     ipa_general_american TEXT NOT NULL,
     ipa_received_pronunciation TEXT,
+    ipa_weak_form TEXT,
     cefr_level TEXT NOT NULL CHECK(cefr_level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
+    frequency_band TEXT CHECK(frequency_band IN ('TOP_500', 'TOP_1000', 'TOP_3000', 'TOP_5000')),
+    is_core INTEGER NOT NULL DEFAULT 1 CHECK(is_core IN (0, 1)),
+    mastery_status TEXT NOT NULL DEFAULT 'INACTIVE' CHECK(mastery_status IN ('INACTIVE', 'NEW', 'LEARNING', 'RECEPTIVE_MASTERY', 'RECEPTIVE_MASTERED', 'PRODUCTIVE_MASTERY', 'PRODUCTIVE_ACTIVE')),
+    collocations_json TEXT,
+    is_separable INTEGER CHECK(is_separable IN (0, 1)),
+    phonetic_ed_ending TEXT,
     is_false_friend INTEGER NOT NULL DEFAULT 0 CHECK(is_false_friend IN (0, 1)),
     false_friend_note TEXT,
     morphological_family_json TEXT,
@@ -27,6 +34,8 @@ CREATE INDEX IF NOT EXISTS idx_vocab_word ON vocab_items(word);
 CREATE INDEX IF NOT EXISTS idx_vocab_pos ON vocab_items(part_of_speech);
 CREATE INDEX IF NOT EXISTS idx_vocab_cefr ON vocab_items(cefr_level);
 CREATE INDEX IF NOT EXISTS idx_vocab_false_friend ON vocab_items(is_false_friend);
+CREATE INDEX IF NOT EXISTS idx_vocab_core_status ON vocab_items(is_core, mastery_status);
+CREATE INDEX IF NOT EXISTS idx_vocab_frequency ON vocab_items(frequency_band);
 
 -- 2. Unidades Fraseológicas (Lexical Chunks)
 CREATE TABLE IF NOT EXISTS phraseological_units (
@@ -65,17 +74,20 @@ CREATE TABLE IF NOT EXISTS vocab_context_examples (
 CREATE INDEX IF NOT EXISTS idx_context_vocab ON vocab_context_examples(vocab_id);
 CREATE INDEX IF NOT EXISTS idx_context_phrase ON vocab_context_examples(phrase_id);
 
--- 4. Repetición Espaciada FSRS 4.5
+-- 4. Repetición Espaciada FSRS 5.0
 CREATE TABLE IF NOT EXISTS srs_cards (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL DEFAULT 'user_local',
-    target_type TEXT NOT NULL CHECK(target_type IN ('VOCAB', 'PHRASE')),
+    target_type TEXT NOT NULL CHECK(target_type IN ('VOCAB', 'PHRASE', 'WRITING_ERROR')),
     target_id TEXT NOT NULL,
+    srs_profile TEXT NOT NULL DEFAULT 'VOCAB_AGILE' CHECK(srs_profile IN ('VOCAB_AGILE', 'WRITING_ERROR_REFLECTIVE')),
     state TEXT NOT NULL DEFAULT 'NEW' CHECK(state IN ('NEW', 'LEARNING', 'REVIEW', 'RELEARNING')),
     stability REAL NOT NULL DEFAULT 0.0,
     difficulty REAL NOT NULL DEFAULT 5.0,
     reps INTEGER NOT NULL DEFAULT 0,
     lapses INTEGER NOT NULL DEFAULT 0,
+    consecutive_lapses INTEGER NOT NULL DEFAULT 0,
+    is_leech INTEGER NOT NULL DEFAULT 0 CHECK(is_leech IN (0, 1)),
     is_proceduralized INTEGER NOT NULL DEFAULT 0 CHECK(is_proceduralized IN (0, 1)),
     consecutive_fast_retrievals INTEGER NOT NULL DEFAULT 0,
     last_reaction_time_ms INTEGER,
@@ -86,6 +98,7 @@ CREATE TABLE IF NOT EXISTS srs_cards (
 
 CREATE INDEX IF NOT EXISTS idx_srs_due ON srs_cards(scheduled_for, state);
 CREATE INDEX IF NOT EXISTS idx_srs_target ON srs_cards(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_srs_profile ON srs_cards(srs_profile);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_srs_target_unique ON srs_cards(target_type, target_id);
 
 CREATE TABLE IF NOT EXISTS review_logs (
@@ -106,26 +119,15 @@ CREATE INDEX IF NOT EXISTS idx_review_card ON review_logs(card_id);
 CREATE INDEX IF NOT EXISTS idx_review_time ON review_logs(reviewed_at);
 
 -- 5. Taller de Redacción Socrática
-CREATE TABLE IF NOT EXISTS writing_prompts (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    prompt_text TEXT NOT NULL,
-    topic TEXT NOT NULL CHECK(topic IN ('WORK_BUSINESS', 'DAILY_LIFE', 'OPINION_ARGUMENT', 'TECHNOLOGY', 'TRAVEL_CULTURE', 'PERSONAL_REFLECTIONS')),
-    cefr_level TEXT NOT NULL CHECK(cefr_level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
-    suggested_vocabulary_json TEXT,
-    created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
-);
-
 CREATE TABLE IF NOT EXISTS writing_submissions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL DEFAULT 'user_local',
     prompt_id TEXT,
-    submission_mode TEXT NOT NULL DEFAULT 'GUIDED' CHECK(submission_mode IN ('FREE', 'GUIDED', 'MICRO_WRITING')),
+    submission_mode TEXT NOT NULL DEFAULT 'FREE' CHECK(submission_mode IN ('FREE', 'GUIDED', 'MICRO_WRITING', 'READING_TO_WRITE')),
     user_text TEXT NOT NULL,
     word_count INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'DRAFT' CHECK(status IN ('DRAFT', 'SOCRATIC_PHASE_1', 'SOCRATIC_PHASE_2', 'EVALUATED', 'ERROR')),
-    submitted_at TEXT NOT NULL DEFAULT (DATETIME('now')),
-    FOREIGN KEY (prompt_id) REFERENCES writing_prompts(id) ON DELETE SET NULL
+    submitted_at TEXT NOT NULL DEFAULT (DATETIME('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_sub_date ON writing_submissions(submitted_at);
@@ -149,16 +151,52 @@ CREATE TABLE IF NOT EXISTS writing_evaluations (
     submission_id TEXT NOT NULL UNIQUE,
     model_used TEXT NOT NULL DEFAULT 'gemini-3.8-flash' CHECK(model_used IN ('gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash')),
     estimated_cefr TEXT NOT NULL CHECK(estimated_cefr IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
+    clean_structural_version TEXT NOT NULL DEFAULT '',
+    native_recast_version TEXT NOT NULL DEFAULT '',
+    noticing_the_gap_json TEXT NOT NULL DEFAULT '[]',
     grammar_score REAL NOT NULL,
     vocabulary_score REAL NOT NULL,
     coherence_score REAL NOT NULL,
+    accuracy_score REAL NOT NULL DEFAULT 0.0,
+    range_precision_score REAL NOT NULL DEFAULT 0.0,
+    cohesion_flow_score REAL NOT NULL DEFAULT 0.0,
+    pragmatics_complexity_score REAL NOT NULL DEFAULT 0.0,
     overall_feedback_es TEXT NOT NULL,
+    qualitative_recommendations_es TEXT NOT NULL DEFAULT '',
     corrections_json TEXT NOT NULL,
     micro_challenge_json TEXT,
     successful_repairs_json TEXT,
     evaluated_at TEXT NOT NULL DEFAULT (DATETIME('now')),
     FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS writing_error_logs (
+    id TEXT PRIMARY KEY,
+    submission_id TEXT NOT NULL,
+    user_id TEXT NOT NULL DEFAULT 'user_local',
+    error_span TEXT NOT NULL,
+    error_type TEXT NOT NULL,
+    taxonomy_code TEXT NOT NULL,
+    is_l1_spanish_transfer INTEGER NOT NULL DEFAULT 1 CHECK(is_l1_spanish_transfer IN (0, 1)),
+    explanation_es TEXT NOT NULL,
+    native_reformulation TEXT NOT NULL,
+    original_sentence TEXT NOT NULL DEFAULT '',
+    expanded_context TEXT NOT NULL DEFAULT '',
+    drill_format TEXT NOT NULL DEFAULT 'CONTEXTUAL_CLOZE' CHECK(drill_format IN ('CONTEXTUAL_CLOZE', 'C_TEST', 'SENTENCE_REWRITE', 'CHUNK_SCRAMBLE')),
+    drill_data_json TEXT NOT NULL DEFAULT '{}',
+    srs_card_id TEXT,
+    mastery_status TEXT NOT NULL DEFAULT 'LEARNING' CHECK(mastery_status IN ('LEARNING', 'INTERNALIZED', 'RECIDIVIST')),
+    is_fossilized_alert INTEGER NOT NULL DEFAULT 0 CHECK(is_fossilized_alert IN (0, 1)),
+    times_recidivist INTEGER NOT NULL DEFAULT 0,
+    is_resolved INTEGER NOT NULL DEFAULT 0 CHECK(is_resolved IN (0, 1)),
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+    FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE,
+    FOREIGN KEY (srs_card_id) REFERENCES srs_cards(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_wel_user_taxonomy ON writing_error_logs(user_id, taxonomy_code);
+CREATE INDEX IF NOT EXISTS idx_wel_submission ON writing_error_logs(submission_id);
+CREATE INDEX IF NOT EXISTS idx_wel_srs_card ON writing_error_logs(srs_card_id);
 
 -- 6. Racha de Estudio Local (Streak)
 CREATE TABLE IF NOT EXISTS user_streaks (
@@ -219,7 +257,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
     updated_at TEXT NOT NULL DEFAULT (DATETIME('now'))
 );
 
-PRAGMA user_version = 3;
+PRAGMA user_version = 4;
 `;
 
 export const CLEANUP_OBSOLETE_TABLES_SQL = `

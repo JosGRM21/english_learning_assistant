@@ -10,11 +10,14 @@ describe('FsrsScheduler', () => {
     userId: 'user-1',
     targetType: 'VOCAB',
     targetId: 'vocab-1',
+    srsProfile: 'VOCAB_AGILE',
     state: 'NEW',
     stability: 0,
     difficulty: 5.0,
     reps: 0,
     lapses: 0,
+    consecutiveLapses: 0,
+    isLeech: false,
     lastReviewedAt: null,
     scheduledFor: '2026-09-20T10:00:00Z',
     createdAt: '2026-09-20T10:00:00Z',
@@ -208,4 +211,112 @@ describe('FsrsScheduler', () => {
       expect(intervalDays).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe('Differentiated Profiles (VOCAB_AGILE vs WRITING_ERROR_REFLECTIVE)', () => {
+    it('applies 0.90 retention for VOCAB_AGILE and 0.92 retention for WRITING_ERROR_REFLECTIVE', () => {
+      const stability = 20;
+      const intervalAgile = scheduler.nextInterval(stability, 'VOCAB_AGILE');
+      const intervalReflective = scheduler.nextInterval(stability, 'WRITING_ERROR_REFLECTIVE');
+
+      // Higher retention requirement (0.92) means shorter review interval than 0.90
+      expect(intervalReflective).toBeLessThan(intervalAgile);
+      expect(intervalAgile).toBe(20);
+      expect(intervalReflective).toBeLessThanOrEqual(16);
+    });
+
+    it('caps WRITING_ERROR_REFLECTIVE intervals at 180 days', () => {
+      const highStability = 500;
+      const intervalAgile = scheduler.nextInterval(highStability, 'VOCAB_AGILE');
+      const intervalReflective = scheduler.nextInterval(highStability, 'WRITING_ERROR_REFLECTIVE');
+
+      expect(intervalAgile).toBe(365);
+      expect(intervalReflective).toBe(180);
+    });
+
+    it('applies higher lapse penalty for reflective error cards on lapse', () => {
+      const cardAgile = createNewCard({
+        state: 'REVIEW',
+        srsProfile: 'VOCAB_AGILE',
+        stability: 10,
+        difficulty: 5,
+        reps: 5,
+        lastReviewedAt: new Date(Date.now() - 10 * 86400000).toISOString(),
+      });
+
+      const cardReflective = createNewCard({
+        state: 'REVIEW',
+        srsProfile: 'WRITING_ERROR_REFLECTIVE',
+        stability: 10,
+        difficulty: 5,
+        reps: 5,
+        lastReviewedAt: new Date(Date.now() - 10 * 86400000).toISOString(),
+      });
+
+      const resAgile = scheduler.schedule(cardAgile, 1);
+      const resReflective = scheduler.schedule(cardReflective, 1);
+
+      expect(resReflective.updatedCard.stability).toBeLessThan(resAgile.updatedCard.stability);
+    });
+  });
+
+  describe('Fuzz Factor (RF-SRS-CORE-05)', () => {
+    it('does not apply fuzz to intervals < 3 days', () => {
+      expect(scheduler.applyFuzz(1)).toBe(1);
+      expect(scheduler.applyFuzz(2)).toBe(2);
+    });
+
+    it('disperses intervals >= 3 days within +/- 5%', () => {
+      const interval = 100;
+      const fuzzed = scheduler.applyFuzz(interval);
+      // +/- 5 days on 100
+      expect(fuzzed).toBeGreaterThanOrEqual(95);
+      expect(fuzzed).toBeLessThanOrEqual(105);
+    });
+  });
+
+  describe('Leech Detection (RF-SRS-CORE-09)', () => {
+    it('marks card as leech after 4 consecutive lapses for VOCAB_AGILE', () => {
+      let card = createNewCard({
+        state: 'REVIEW',
+        srsProfile: 'VOCAB_AGILE',
+        consecutiveLapses: 3,
+        lapses: 3,
+        stability: 4,
+      });
+
+      expect(card.isLeech).toBeFalsy();
+
+      const { updatedCard } = scheduler.schedule(card, 1);
+      expect(updatedCard.consecutiveLapses).toBe(4);
+      expect(updatedCard.isLeech).toBe(true);
+    });
+
+    it('marks card as leech after 3 consecutive lapses for WRITING_ERROR_REFLECTIVE', () => {
+      let card = createNewCard({
+        state: 'REVIEW',
+        srsProfile: 'WRITING_ERROR_REFLECTIVE',
+        consecutiveLapses: 2,
+        lapses: 2,
+        stability: 4,
+      });
+
+      const { updatedCard } = scheduler.schedule(card, 1);
+      expect(updatedCard.consecutiveLapses).toBe(3);
+      expect(updatedCard.isLeech).toBe(true);
+    });
+
+    it('resets consecutiveLapses to 0 on successful recall (grade >= 2)', () => {
+      const card = createNewCard({
+        state: 'REVIEW',
+        consecutiveLapses: 3,
+        lapses: 3,
+        stability: 4,
+        lastReviewedAt: new Date(Date.now() - 4 * 86400000).toISOString(),
+      });
+
+      const { updatedCard } = scheduler.schedule(card, 3);
+      expect(updatedCard.consecutiveLapses).toBe(0);
+    });
+  });
 });
+

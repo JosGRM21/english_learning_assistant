@@ -38,6 +38,7 @@ export interface SrsState {
   resetSession: () => void;
   addExtractedCard: (payload: OneClickCardPayload) => void;
   addVocabItem: (item: VocabItem, context?: VocabContextExample | null, cardId?: string) => void;
+  addBatchVocabItems: (items: VocabItem[]) => void;
   updateVocabItem: (item: VocabItem) => void;
   removeVocabItem: (id: string) => void;
 }
@@ -117,6 +118,8 @@ export const useSrsStore = create<SrsState>((set) => ({
       ipaGeneralAmerican: payload.ipa || 'ˌɛk.strækt',
       cefrLevel: payload.cefrLevel,
       isFalseFriend: false,
+      isCore: true,
+      masteryStatus: 'LEARNING',
       createdAt: new Date().toISOString(),
     };
 
@@ -135,11 +138,14 @@ export const useSrsStore = create<SrsState>((set) => ({
       userId: 'user_local',
       targetType: 'VOCAB',
       targetId: newItem.id,
+      srsProfile: 'VOCAB_AGILE',
       state: 'NEW',
       stability: 0,
       difficulty: 5.0,
       reps: 0,
       lapses: 0,
+      consecutiveLapses: 0,
+      isLeech: false,
       lastReviewedAt: null,
       scheduledFor: new Date().toISOString(),
       createdAt: new Date().toISOString(),
@@ -161,11 +167,14 @@ export const useSrsStore = create<SrsState>((set) => ({
       userId: 'user_local',
       targetType: 'VOCAB',
       targetId: item.id,
+      srsProfile: 'VOCAB_AGILE',
       state: 'NEW',
       stability: 0,
       difficulty: 5.0,
       reps: 0,
       lapses: 0,
+      consecutiveLapses: 0,
+      isLeech: false,
       lastReviewedAt: null,
       scheduledFor: new Date().toISOString(),
       createdAt: new Date().toISOString(),
@@ -186,6 +195,50 @@ export const useSrsStore = create<SrsState>((set) => ({
           selectedVocab: item,
           availableContexts: contexts,
           currentContext: context || null,
+          srsCard: newCard,
+          showAnswer: false,
+        };
+      }
+
+      return {
+        vocabList: updatedVocabList,
+      };
+    });
+  },
+
+  addBatchVocabItems: (items: VocabItem[]) => {
+    if (!items || items.length === 0) return;
+
+    set((state) => {
+      const existingMap = new Map(state.vocabList.map((v) => [v.id, v]));
+      for (const item of items) {
+        existingMap.set(item.id, item);
+      }
+      const updatedVocabList = Array.from(existingMap.values());
+
+      if (!state.selectedVocab && items.length > 0) {
+        const first = items[0];
+        const newCard: SrsCard = {
+          id: `card_${first.id}`,
+          userId: 'user_local',
+          targetType: 'VOCAB',
+          targetId: first.id,
+          srsProfile: 'VOCAB_AGILE',
+          state: 'NEW',
+          stability: 0,
+          difficulty: 5.0,
+          reps: 0,
+          lapses: 0,
+          consecutiveLapses: 0,
+          isLeech: false,
+          lastReviewedAt: null,
+          scheduledFor: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        };
+
+        return {
+          vocabList: updatedVocabList,
+          selectedVocab: first,
           srsCard: newCard,
           showAnswer: false,
         };

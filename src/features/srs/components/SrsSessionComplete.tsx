@@ -1,4 +1,4 @@
-import { CheckCircle2, RotateCw, Clock, Award, Target, Hourglass, Sparkles } from 'lucide-react';
+import { CheckCircle2, RotateCw, Clock, Award, Target, Hourglass, Sparkles, Zap, ArrowRight } from 'lucide-react';
 import { SrsSessionStats } from '@/core/srs/SrsSessionEngine';
 
 export interface SrsSessionCompleteProps {
@@ -20,6 +20,7 @@ export function SrsSessionComplete({
   earliestCooldownDate,
   onRestartSession,
   onStartEarlyStudy,
+  onNavigateTab,
 }: SrsSessionCompleteProps) {
   const accuracyPercentage =
     stats.totalReviewed > 0
@@ -27,6 +28,7 @@ export function SrsSessionComplete({
       : 100;
 
   const avgLatencySec = (stats.averageLatencyMs / 1000).toFixed(1);
+  const isAgilePace = stats.averageLatencyMs > 0 && stats.averageLatencyMs <= 5000;
 
   // If user reviewed nothing and all new cards are resting in the 4h consolidation cooldown
   const isAllInCooldown = stats.totalReviewed === 0 && cooldownCount > 0;
@@ -77,14 +79,26 @@ export function SrsSessionComplete({
                 Tienes <strong>{cooldownCount} {cooldownCount === 1 ? 'palabra' : 'palabras'}</strong> en periodo de consolidación neural inicial (cooldown de 4h). Para evitar el sesgo de recuerdo inmediato (<em>priming</em>), tu primer test FSRS madurará {formatCooldownTime(earliestCooldownDate)}.
               </>
             ) : stats.totalReviewed > 0 ? (
-              'Has completado todas las tarjetas programadas para esta sesión. El algoritmo FSRS v5 ha recalculado la estabilidad e intervalos óptimos de memoria.'
+              'Has completado todas las tarjetas programadas para esta sesión bajo el Perfil Ágil (r = 0.90). El motor FSRS ha recalculado la estabilidad e intervalos óptimos de memoria.'
             ) : (
               'No tienes tarjetas vencidas pendientes para hoy. El modelo de decaimiento temporal FSRS te notificará cuando sea el momento exacto para consolidar tu recuerdo.'
             )}
           </p>
         </div>
 
-        {/* Metrics Grid */}
+        {/* Pacing Badge for Agile Cadence */}
+        {stats.totalReviewed > 0 && (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-[#161B28] border border-gray-200/60 dark:border-gray-800 text-xs">
+            <Zap className={`w-3.5 h-3.5 ${isAgilePace ? 'text-emerald-500' : 'text-amber-500'}`} />
+            <span className="font-semibold text-gray-700 dark:text-gray-300">
+              {isAgilePace
+                ? '⚡ Ritmo Ágil Cumplido (Promedio 3–5s por tarjeta)'
+                : '🎯 Ritmo Reflexivo (Se recomienda 3–5s para fluidez léxica)'}
+            </span>
+          </div>
+        )}
+
+        {/* Bento Metrics Grid */}
         <div className="grid grid-cols-3 gap-3 pt-2">
           {/* Repasos realizados */}
           <div className="p-3.5 rounded-2xl bg-gray-50 dark:bg-[#161B28] border border-gray-100 dark:border-gray-800/80 text-center">
@@ -141,6 +155,17 @@ export function SrsSessionComplete({
             >
               <RotateCw className="w-4 h-4" />
               <span>Repetir Mazo ({totalDeckCount})</span>
+            </button>
+          )}
+
+          {onNavigateTab && (
+            <button
+              type="button"
+              onClick={() => onNavigateTab('vocab')}
+              className="w-full sm:w-auto h-11 px-5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Explorar Vocabulario</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

@@ -4,7 +4,7 @@ import { SQLITE_DDL_SCHEMA, CLEANUP_OBSOLETE_TABLES_SQL } from './schema';
 import { SqlJsDialect } from './dialects/SqlJsDialect';
 import { TauriSqliteDialect } from 'kysely-dialect-tauri';
 import Database from '@tauri-apps/plugin-sql';
-import { runMigrations, executeSqlBatch } from './migrations';
+import { runMigrations, executeSqlBatch, migrateExistingTableColumns } from './migrations';
 
 /**
  * Checks whether the app is executing inside a Tauri desktop webview runtime.
@@ -37,11 +37,19 @@ export async function initializeDatabase(db: Kysely<DatabaseSchema>): Promise<vo
     // 1. Drop obsolete tables if any exist
     await executeSqlBatch(db, CLEANUP_OBSOLETE_TABLES_SQL);
 
-    // 2. Execute base DDL schema with comment stripping and clean sequential execution
+    // 2. Pre-migrate columns on any existing tables (e.g. is_core on vocab_items, srs_profile on srs_cards)
+    // BEFORE executing base DDL schema so that index creations do not fail with "no such column: is_core"
+    await migrateExistingTableColumns(db);
+
+    // 3. Execute base DDL schema with comment stripping and clean sequential execution
     await executeSqlBatch(db, SQLITE_DDL_SCHEMA);
 
-    // 3. Ensure schema maintenance and pragma user_version
+    // 4. Ensure schema maintenance and pragma user_version
     await runMigrations(db);
+
+    // 5. Seed master core vocabulary corpus if DB is clean
+    const { seedCoreCorpus } = await import('./seeder');
+    await seedCoreCorpus(db);
   })();
 
   activeInitPromises.set(db, initPromise);

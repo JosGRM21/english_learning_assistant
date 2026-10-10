@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import '@testing-library/jest-dom';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { useWritingStore } from '../store/writingStore';
-import { WRITING_PROMPTS_CATALOG } from '@/data/writing-prompts-catalog';
 import { ZpdScaffoldingCard } from '../components/ZpdScaffoldingCard';
 import { WritingStageOne } from '../components/WritingStageOne';
 import { WritingStageTwo } from '../components/WritingStageTwo';
@@ -21,21 +20,7 @@ describe('Writing Studio Components & Store', () => {
       expect(state.currentStage).toBe(1);
       expect(state.draft1).toBe('');
       expect(state.targetCefr).toBe('B1');
-      expect(state.selectedPrompt).toBeNull();
       expect(state.activeTab).toBe('STUDIO');
-    });
-
-    it('selectPromptAndApply sets prompt, CEFR level and initial draft', () => {
-      const samplePrompt = WRITING_PROMPTS_CATALOG[0];
-      useWritingStore.getState().selectPromptAndApply(samplePrompt);
-
-      const state = useWritingStore.getState();
-      expect(state.selectedPrompt?.id).toBe(samplePrompt.id);
-      expect(state.targetCefr).toBe(samplePrompt.cefrLevel);
-      expect(state.submissionMode).toBe('GUIDED');
-      if (samplePrompt.sampleOpening) {
-        expect(state.draft1).toContain(samplePrompt.sampleOpening);
-      }
     });
 
     it('loadSubmissionIntoStudio restores evaluated submission at stage 3', () => {
@@ -51,6 +36,11 @@ describe('Writing Studio Components & Store', () => {
         submittedAt: '2026-09-30T10:00:00Z',
         evaluation: {
           overall_feedback_es: 'Feedback',
+          clean_structural_version: 'Corrected text',
+          native_recast_version: 'Polished text',
+          noticing_the_gap_contrasts: [],
+          rubric_scores: { accuracy: 8.5, range_and_precision: 8.0, cohesion_and_flow: 9.0, pragmatics_and_complexity: 8.0 },
+          qualitative_recommendations_es: '',
           estimated_cefr: 'B2' as const,
           scores: { grammar: 8.5, vocabulary: 8.0, coherence: 9.0 },
           successful_repairs: [],
@@ -73,7 +63,6 @@ describe('Writing Studio Components & Store', () => {
       expect(state.draft2).toBe('Corrected text');
       expect(state.evalResult?.estimated_cefr).toBe('B2');
       expect(state.submissionMode).toBe('FREE');
-      expect(state.selectedPrompt).toBeNull();
     });
   });
 
@@ -335,15 +324,12 @@ Finally, today I will finish everything.`;
           draft1={currentDraft}
           targetCefr="B1"
           submissionMode="FREE"
-          selectedPrompt={null}
           isLoading={false}
           onDraftChange={handleDraftChange}
           onTargetCefrChange={() => {}}
           onSubmissionModeChange={() => {}}
-          onOpenPromptModal={() => {}}
-          onClearPrompt={() => {}}
           onRequestSocratic={() => {}}
-        />,
+        />
       );
 
       // Open connectors
@@ -362,6 +348,11 @@ Finally, today I will finish everything.`;
     it('displays learner uptake block when successful_repairs are provided', () => {
       const mockEval = {
         overall_feedback_es: 'Buen trabajo',
+        clean_structural_version: 'It depends on money',
+        native_recast_version: 'It depends on financial resources',
+        noticing_the_gap_contrasts: [],
+        rubric_scores: { accuracy: 8.5, range_and_precision: 8.0, cohesion_and_flow: 8.5, pragmatics_and_complexity: 8.0 },
+        qualitative_recommendations_es: '',
         estimated_cefr: 'B1' as const,
         scores: { grammar: 8.5, vocabulary: 8.0, coherence: 8.5 },
         successful_repairs: [
@@ -386,9 +377,6 @@ Finally, today I will finish everything.`;
           evalResult={mockEval}
           draft1="It depends of money"
           draft2="It depends on money"
-          selectedQuizOption={null}
-          quizSubmitted={false}
-          onAnswerQuiz={() => {}}
           onReset={() => {}}
         />,
       );
@@ -420,4 +408,80 @@ Finally, today I will finish everything.`;
       expect(screen.getByRole('button', { name: /Copiar al portapapeles/i })).toBeDefined();
     });
   });
+
+  describe('Reading-to-Write and Target Vocabulary in WritingStore', () => {
+    it('selectReadingAndApply configures store for reading-to-write mode', () => {
+      const mockReading = {
+        id: 'read_1',
+        title: 'The Silent Meadow',
+        cefrLevel: 'A2' as const,
+        category: 'SHORT_STORIES' as const,
+        categoryLabelEs: 'Cuentos Cortos',
+        readingTimeMin: 2,
+        wordCount: 150,
+        readingTextEn: 'Once upon a time in a silent meadow...',
+        readingSummaryEs: 'Un cuento sobre la tranquilidad de la naturaleza.',
+        keyVocabulary: [],
+        comprehensionQuestions: [],
+        writingMissions: [
+          {
+            type: 'SUMMARY' as const,
+            titleEs: 'Misión: Resumen',
+            instructionsEs: 'Resume lo ocurrido.',
+            suggestedOpening: 'In this story,',
+            suggestedWordRange: { min: 30, max: 60 },
+          },
+        ],
+      };
+
+      const mission = mockReading.writingMissions[0];
+      useWritingStore.getState().selectReadingAndApply(mockReading, mission);
+
+      const state = useWritingStore.getState();
+      expect(state.submissionMode).toBe('READING_TO_WRITE');
+      expect(state.selectedReading?.id).toBe('read_1');
+      expect(state.selectedMission?.type).toBe('SUMMARY');
+      expect(state.targetCefr).toBe('A2');
+      expect(state.draft1).toBe('In this story, ');
+      expect(state.currentStage).toBe(1);
+    });
+
+    it('updateTargetWordUsage marks target words as used when detected in draft', () => {
+      useWritingStore.getState().setTargetWords([
+        { word: 'thrive', translationEs: 'prosperar', isUsed: false },
+        { word: 'struggle', translationEs: 'luchar', isUsed: false },
+      ]);
+
+      // Student writes a draft containing 'thrived'
+      useWritingStore.getState().updateTargetWordUsage('Plants thrived in the sunlight.');
+
+      const state = useWritingStore.getState();
+      expect(state.targetWords[0].isUsed).toBe(true);
+      expect(state.targetWords[1].isUsed).toBe(false);
+    });
+
+    it('replaceTargetWord swaps an active target word with one from the weak pool', () => {
+      useWritingStore.getState().setTargetWords([
+        { word: 'reluctant', translationEs: 'renuente', isUsed: false },
+        { word: 'eager', translationEs: 'ansioso', isUsed: false },
+      ]);
+      useWritingStore.getState().setAvailableWeakPool([
+        { word: 'persistent', translationEs: 'persistente', isUsed: false },
+      ]);
+
+      useWritingStore.getState().replaceTargetWord(0);
+
+      const state = useWritingStore.getState();
+      expect(state.targetWords[0].word).toBe('persistent');
+      expect(state.availableWeakPool[0].word).toBe('reluctant');
+    });
+
+    it('records error drill completion by errorSpan', () => {
+      useWritingStore.getState().setErrorDrillCompleted('depend of', true);
+
+      const state = useWritingStore.getState();
+      expect(state.errorDrillsCompleted['depend of']).toBe(true);
+    });
+  });
 });
+

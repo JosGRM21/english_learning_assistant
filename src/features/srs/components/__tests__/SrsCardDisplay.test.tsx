@@ -27,6 +27,8 @@ describe('SrsCardDisplay Component', () => {
     ipaGeneralAmerican: 'rʌn',
     cefrLevel: 'B2',
     isFalseFriend: false,
+    isCore: true,
+    masteryStatus: 'LEARNING',
     createdAt: new Date().toISOString(),
     verbTensesJson: {
       infinitive: 'run',
@@ -49,6 +51,8 @@ describe('SrsCardDisplay Component', () => {
     ipaGeneralAmerican: 'rʌn',
     cefrLevel: 'B1',
     isFalseFriend: false,
+    isCore: true,
+    masteryStatus: 'LEARNING',
     createdAt: new Date().toISOString(),
   };
 
@@ -57,11 +61,14 @@ describe('SrsCardDisplay Component', () => {
     userId: 'user_local',
     targetType: 'VOCAB',
     targetId: 'voc_run_1',
+    srsProfile: 'VOCAB_AGILE',
     state: 'REVIEW',
     stability: 5.0,
     difficulty: 3.0,
     reps: 4,
     lapses: 0,
+    consecutiveLapses: 0,
+    isLeech: false,
     lastReviewedAt: new Date().toISOString(),
     scheduledFor: new Date().toISOString(),
     createdAt: new Date().toISOString(),

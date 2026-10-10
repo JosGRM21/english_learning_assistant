@@ -1,10 +1,11 @@
 import { useCallback, useState, useEffect } from 'react';
-import { useWritingStore } from '../store/writingStore';
+import { useWritingStore, TargetWordItem } from '../store/writingStore';
 import { useAiGateway } from '@/shared/hooks/useAiGateway';
 import { useAudio } from '@/shared/hooks/useAudio';
 import { useDatabase } from '@/shared/hooks/useDatabase';
 import { useHabitsStore } from '@/features/habits/store/habitsStore';
 import { CorrectionItem } from '@/infrastructure/ai/schemas';
+import { synthesizeErrorDrillFallback } from '@/core/text/WeakVocabMatcher';
 
 function formatErrorMessage(err: unknown): string {
   if (err instanceof Error) {
@@ -44,15 +45,20 @@ export function useWritingSession() {
     currentStage,
     currentSubmissionId,
     submissionMode,
-    selectedPrompt,
+    selectedReading,
+    selectedMission,
     draft1,
     draft2,
     targetCefr,
+    targetWords,
+    availableWeakPool,
     isLoading,
     socraticResult,
     evalResult,
     selectedQuizOption,
     quizSubmitted,
+    activeErrorIndex,
+    errorDrillsCompleted,
     historySubmissions,
     isLoadingHistory,
     selectedHistoryItem,
@@ -60,19 +66,25 @@ export function useWritingSession() {
     setCurrentStage,
     setCurrentSubmissionId,
     setSubmissionMode,
-    setSelectedPrompt,
+    setSelectedReading,
+    setSelectedMission,
     setDraft1,
     setDraft2,
     setTargetCefr,
+    setTargetWords,
+    setAvailableWeakPool,
+    replaceTargetWord,
+    updateTargetWordUsage,
     setIsLoading,
     setSocraticResult,
     setEvalResult,
     setSelectedQuizOption,
     setQuizSubmitted,
+    setActiveErrorIndex,
     setHistorySubmissions,
     setIsLoadingHistory,
     setSelectedHistoryItem,
-    selectPromptAndApply,
+    selectReadingAndApply,
     loadSubmissionIntoStudio,
     resetWriting,
   } = useWritingStore();
@@ -91,11 +103,53 @@ export function useWritingSession() {
     }
   }, [writingRepo, setIsLoadingHistory, setHistorySubmissions]);
 
+  // Load weak vocabulary suggestions from SRS
+  const refreshWeakVocabulary = useCallback(async () => {
+    if (!cardRepo) return;
+    try {
+      const contextCategory = selectedReading?.category ?? null;
+      const weakCards = await cardRepo.getWeakVocabularyForWriting('user_local', contextCategory, 16);
+      if (weakCards.length > 0) {
+        const pool: TargetWordItem[] = weakCards
+          .map((c) => ({
+            word: c.vocab?.word ?? '',
+            translationEs: c.vocab?.translationEs ?? '',
+            partOfSpeech: c.vocab?.partOfSpeech,
+            domainCategory: c.vocab?.domainCategory ?? undefined,
+            isUsed: false,
+            cardId: c.card.id,
+          }))
+          .filter((w) => w.word.trim().length > 0);
+
+        setAvailableWeakPool(pool);
+        if (useWritingStore.getState().targetWords.length === 0) {
+          const initialTargets = pool.slice(0, 5);
+          setTargetWords(initialTargets);
+          useWritingStore.getState().updateTargetWordUsage(draft1 || draft2);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load weak vocabulary for writing:', err);
+    }
+  }, [cardRepo, selectedReading, setAvailableWeakPool, setTargetWords, draft1, draft2]);
+
   useEffect(() => {
     if (isReady && writingRepo) {
       refreshHistory();
     }
   }, [isReady, writingRepo, refreshHistory]);
+
+  useEffect(() => {
+    if (isReady && cardRepo) {
+      refreshWeakVocabulary();
+    }
+  }, [isReady, cardRepo, refreshWeakVocabulary]);
+
+  // Real-time SRS target vocabulary usage detector
+  useEffect(() => {
+    const textToCheck = currentStage >= 2 ? draft2 || draft1 : draft1;
+    updateTargetWordUsage(textToCheck);
+  }, [draft1, draft2, currentStage, updateTargetWordUsage]);
 
   // Phase 1 -> Phase 2: Request Socratic Scaffolding
   const handleRequestSocratic = useCallback(async () => {
@@ -116,7 +170,7 @@ export function useWritingSession() {
         subId = await writingRepo.createSubmission({
           id: subId ?? undefined,
           userId: 'user_local',
-          promptId: selectedPrompt?.id ?? null,
+          promptId: null,
           submissionMode,
           userText: draft1,
           wordCount: words,
@@ -147,7 +201,6 @@ export function useWritingSession() {
     draft1,
     targetCefr,
     currentSubmissionId,
-    selectedPrompt,
     submissionMode,
     aiGateway,
     writingRepo,
@@ -166,13 +219,34 @@ export function useWritingSession() {
     setErrorMessage(null);
 
     try {
-      // 1. Call AI Gateway for final evaluation
-      const response = await aiGateway.evaluateFinalPhase2(draft1, draft2, targetCefr);
+      // 1. Contextual information for AI
+      const contextualInfo = {
+        readingContext: selectedReading?.readingTextEn,
+        targetWords: targetWords.map((t) => t.word),
+      };
+
+      // 2. Call AI Gateway for final evaluation
+      const response = await aiGateway.evaluateFinalPhase2(draft1, draft2, targetCefr, contextualInfo);
+
+      // 3. Guarantee every correction has a practice drill
+      const enrichedCorrections = response.corrections.map((corr) => ({
+        ...corr,
+        drill:
+          corr.drill ??
+          synthesizeErrorDrillFallback({
+            error_span: corr.error_span,
+            native_reformulation: corr.native_reformulation,
+            explanation_es: corr.explanation_es,
+            sentence_context: draft2,
+          }),
+      }));
+      response.corrections = enrichedCorrections;
+
       setEvalResult(response);
       setSelectedQuizOption(null);
       setQuizSubmitted(false);
 
-      // 2. Save in database if writingRepo is available
+      // 4. Save in database if writingRepo is available
       const subId = currentSubmissionId;
       if (writingRepo && subId) {
         // Record revision 2
@@ -192,11 +266,14 @@ export function useWritingSession() {
           evaluation: response,
         });
 
+        // Record detailed error taxonomy log
+        await writingRepo.logWritingErrors(subId, response.corrections, 'user_local');
+
         // Refresh submissions history in background
         refreshHistory();
       }
 
-      // 3. Update habits daily quest & streak
+      // 5. Update habits daily quest & streak
       updateQuestProgress('WRITING_SUBMISSION', 1);
       updateStreak();
 
@@ -210,6 +287,8 @@ export function useWritingSession() {
     draft1,
     draft2,
     targetCefr,
+    selectedReading,
+    targetWords,
     currentSubmissionId,
     socraticResult,
     aiGateway,
@@ -225,27 +304,6 @@ export function useWritingSession() {
     setCurrentStage,
   ]);
 
-  // Micro-challenge answer
-  const handleAnswerQuiz = useCallback(
-    (index: number, challengeIdx = 0) => {
-      if (!evalResult) return;
-      if (challengeIdx === 0) {
-        if (quizSubmitted) return;
-        setSelectedQuizOption(index);
-        setQuizSubmitted(true);
-      }
-
-      const allChallenges =
-        evalResult.micro_challenges && evalResult.micro_challenges.length > 0
-          ? evalResult.micro_challenges
-          : [evalResult.micro_challenge];
-
-      const challenge = allChallenges[challengeIdx] ?? evalResult.micro_challenge;
-      const isCorrect = index === challenge.correct_option_index;
-      audioService.playFeedback(isCorrect);
-    },
-    [quizSubmitted, evalResult, setSelectedQuizOption, setQuizSubmitted, audioService],
-  );
 
   // Play audio TTS for full text or phrases
   const handlePlayTts = useCallback(
@@ -352,15 +410,20 @@ export function useWritingSession() {
     currentStage,
     currentSubmissionId,
     submissionMode,
-    selectedPrompt,
+    selectedReading,
+    selectedMission,
     draft1,
     draft2,
     targetCefr,
+    targetWords,
+    availableWeakPool,
     isLoading,
     socraticResult,
     evalResult,
     selectedQuizOption,
     quizSubmitted,
+    activeErrorIndex,
+    errorDrillsCompleted,
     historySubmissions,
     isLoadingHistory,
     selectedHistoryItem,
@@ -370,20 +433,24 @@ export function useWritingSession() {
     setActiveTab,
     setCurrentStage,
     setSubmissionMode,
-    setSelectedPrompt,
+    setSelectedReading,
+    setSelectedMission,
     setDraft1,
     setDraft2,
     setTargetCefr,
+    setTargetWords,
     setErrorMessage,
     setSelectedHistoryItem,
-    selectPromptAndApply,
+    setActiveErrorIndex,
+    replaceTargetWord,
+    selectReadingAndApply,
     loadSubmissionIntoStudio,
     handleRequestSocratic,
     handleEvaluateFinal,
-    handleAnswerQuiz,
     handlePlayTts,
     handleAddCorrectionToSrs,
     refreshHistory,
+    refreshWeakVocabulary,
     resetWriting,
   };
 }

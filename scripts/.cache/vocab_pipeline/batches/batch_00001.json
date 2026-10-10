@@ -1,0 +1,264 @@
+[
+  {
+    "word": "be",
+    "grammaticalDimension": "FUNCTION",
+    "frequencyBand": "TOP_500",
+    "ipaGeneralAmerican": "biː",
+    "ipaReceivedPronunciation": "biː",
+    "ipaWeakForm": "bi",
+    "phoneticEdEnding": null,
+    "verbTenses": {
+      "infinitive": "be",
+      "thirdPersonPresent": "is",
+      "pastSimple": "was / were",
+      "pastParticiple": "been",
+      "gerund": "being",
+      "isIrregular": true
+    },
+    "isFalseFriend": false,
+    "falseFriendNote": null,
+    "register": "NEUTRAL",
+    "senses": [
+      {
+        "senseId": "sense_1",
+        "contextualHint": "existir, tener identidad o características",
+        "partOfSpeech": "VERB",
+        "definitionEn": "Used to show what someone or something is, or to indicate existence.",
+        "translationEs": "ser, estar",
+        "cefrLevel": "A1",
+        "grammarPattern": null,
+        "countability": null,
+        "connotation": "NEUTRAL",
+        "collocations": [],
+        "graduatedExamples": {
+          "sentenceBasicEn": "She is a very talented doctor.",
+          "sentenceBasicEs": "Ella es una doctora muy talentosa.",
+          "clozeTargetBasic": "is",
+          "sentenceAdvancedEn": "To be successful in this industry requires persistent dedication.",
+          "sentenceAdvancedEs": "Ser exitoso en esta industria requiere dedicación constante.",
+          "clozeTargetAdvanced": "To be"
+        }
+      }
+    ],
+    "phrasalVerbs": [
+      {
+        "text": "be back",
+        "meaningEs": "volver, regresar",
+        "type": "TYPE_1_INTRANSITIVE",
+        "pronounMustSplit": false,
+        "cefrLevel": "A1",
+        "example1": "I will be back in five minutes.",
+        "example2": "When will you be back from London?"
+      },
+      {
+        "text": "be over",
+        "meaningEs": "haber terminado, haberse acabado",
+        "type": "TYPE_1_INTRANSITIVE",
+        "pronounMustSplit": false,
+        "cefrLevel": "A2",
+        "example1": "The meeting is finally over.",
+        "example2": "The storm was over by morning."
+      }
+    ]
+  },
+  {
+    "word": "and",
+    "grammaticalDimension": "FUNCTION",
+    "frequencyBand": "TOP_500",
+    "ipaGeneralAmerican": "ænd",
+    "ipaReceivedPronunciation": "ænd",
+    "ipaWeakForm": "ənd",
+    "phoneticEdEnding": null,
+    "verbTenses": null,
+    "isFalseFriend": false,
+    "falseFriendNote": null,
+    "register": "NEUTRAL",
+    "senses": [
+      {
+        "senseId": "sense_1",
+        "contextualHint": "conectar palabras, frases u oraciones",
+        "partOfSpeech": "CONJUNCTION",
+        "definitionEn": "Used to connect words, phrases, or clauses together.",
+        "translationEs": "y",
+        "cefrLevel": "A1",
+        "grammarPattern": null,
+        "countability": null,
+        "connotation": "NEUTRAL",
+        "collocations": [],
+        "graduatedExamples": {
+          "sentenceBasicEn": "I like apples and bananas.",
+          "sentenceBasicEs": "Me gustan las manzanas y los plátanos.",
+          "clozeTargetBasic": "and",
+          "sentenceAdvancedEn": "He analyzed the data and presented his findings to the board.",
+          "sentenceAdvancedEs": "Analizó los datos y presentó sus hallazgos a la junta.",
+          "clozeTargetAdvanced": "and"
+        }
+      }
+    ],
+    "phrasalVerbs": []
+  },
+  {
+    "word": "of",
+    "grammaticalDimension": "FUNCTION",
+    "frequencyBand": "TOP_500",
+    "ipaGeneralAmerican": "ʌv",
+    "ipaReceivedPronunciation": "ɒv",
+    "ipaWeakForm": "əv",
+    "phoneticEdEnding": null,
+    "verbTenses": null,
+    "isFalseFriend": false,
+    "falseFriendNote": null,
+    "register": "NEUTRAL",
+    "senses": [
+      {
+        "senseId": "sense_1",
+        "contextualHint": "indicar posesión, procedencia o relación",
+        "partOfSpeech": "PREPOSITION",
+        "definitionEn": "Used to show belonging, connection, or relation between things.",
+        "translationEs": "de",
+        "cefrLevel": "A1",
+        "grammarPattern": null,
+        "countability": null,
+        "connotation": "NEUTRAL",
+        "collocations": [],
+        "graduatedExamples": {
+          "sentenceBasicEn": "This is the capital city of France.",
+          "sentenceBasicEs": "Esta es la capital de Francia.",
+          "clozeTargetBasic": "of",
+          "sentenceAdvancedEn": "The core of the problem lies in poor communication.",
+          "sentenceAdvancedEs": "El núcleo del problema radica en una mala comunicación.",
+          "clozeTargetAdvanced": "of"
+        }
+      }
+    ],
+    "phrasalVerbs": []
+  },
+  {
+    "word": "to",
+    "grammaticalDimension": "FUNCTION",
+    "frequencyBand": "TOP_500",
+    "ipaGeneralAmerican": "tuː",
+    "ipaReceivedPronunciation": "tuː",
+    "ipaWeakForm": "tə",
+    "phoneticEdEnding": null,
+    "verbTenses": null,
+    "isFalseFriend": false,
+    "falseFriendNote": null,
+    "register": "NEUTRAL",
+    "senses": [
+      {
+        "senseId": "sense_1",
+        "contextualHint": "indicar dirección o destino",
+        "partOfSpeech": "PREPOSITION",
+        "definitionEn": "Used to indicate direction, destination, or a point reached.",
+        "translationEs": "a, hacia",
+        "cefrLevel": "A1",
+        "grammarPattern": null,
+        "countability": null,
+        "connotation": "NEUTRAL",
+        "collocations": [],
+        "graduatedExamples": {
+          "sentenceBasicEn": "We are going to the supermarket.",
+          "sentenceBasicEs": "Vamos al supermercado.",
+          "clozeTargetBasic": "to",
+          "sentenceAdvancedEn": "She dedicated her entire career to scientific research.",
+          "sentenceAdvancedEs": "Ella dedicó toda su carrera a la investigación científica.",
+          "clozeTargetAdvanced": "to"
+        }
+      },
+      {
+        "senseId": "sense_2",
+        "contextualHint": "marcador de infinitivo verbal",
+        "partOfSpeech": "ARTICLE_DETERMINER",
+        "definitionEn": "Used before a verb to indicate the infinitive form.",
+        "translationEs": "(marca de infinitivo)",
+        "cefrLevel": "A1",
+        "grammarPattern": "verb + to + infinitive",
+        "countability": null,
+        "connotation": "NEUTRAL",
+        "collocations": [],
+        "graduatedExamples": {
+          "sentenceBasicEn": "I want to learn English.",
+          "sentenceBasicEs": "Quiero aprender inglés.",
+          "clozeTargetBasic": "to learn",
+          "sentenceAdvancedEn": "It is essential to understand the underlying principles.",
+          "sentenceAdvancedEs": "Es esencial comprender los principios subyacentes.",
+          "clozeTargetAdvanced": "to understand"
+        }
+      }
+    ],
+    "phrasalVerbs": []
+  },
+  {
+    "word": "a",
+    "grammaticalDimension": "FUNCTION",
+    "frequencyBand": "TOP_500",
+    "ipaGeneralAmerican": "eɪ",
+    "ipaReceivedPronunciation": "eɪ",
+    "ipaWeakForm": "ə",
+    "phoneticEdEnding": null,
+    "verbTenses": null,
+    "isFalseFriend": false,
+    "falseFriendNote": null,
+    "register": "NEUTRAL",
+    "senses": [
+      {
+        "senseId": "sense_1",
+        "contextualHint": "artículo indefinido ante consonante",
+        "partOfSpeech": "ARTICLE_DETERMINER",
+        "definitionEn": "Used before countable nouns when mentioning them for the first time or not specifying a particular one.",
+        "translationEs": "un, una",
+        "cefrLevel": "A1",
+        "grammarPattern": "a + singular countable noun",
+        "countability": null,
+        "connotation": "NEUTRAL",
+        "collocations": [],
+        "graduatedExamples": {
+          "sentenceBasicEn": "I saw a cat in the garden.",
+          "sentenceBasicEs": "Vi un gato en el jardín.",
+          "clozeTargetBasic": "a",
+          "sentenceAdvancedEn": "Establishing a strong foundation requires time and patience.",
+          "sentenceAdvancedEs": "Establecer una base sólida requiere tiempo y paciencia.",
+          "clozeTargetAdvanced": "a"
+        }
+      }
+    ],
+    "phrasalVerbs": []
+  },
+  {
+    "word": "in",
+    "grammaticalDimension": "FUNCTION",
+    "frequencyBand": "TOP_500",
+    "ipaGeneralAmerican": "ɪn",
+    "ipaReceivedPronunciation": "ɪn",
+    "ipaWeakForm": "ɪn",
+    "phoneticEdEnding": null,
+    "verbTenses": null,
+    "isFalseFriend": false,
+    "falseFriendNote": null,
+    "register": "NEUTRAL",
+    "senses": [
+      {
+        "senseId": "sense_1",
+        "contextualHint": "ubicación dentro de un espacio o contenedor",
+        "partOfSpeech": "PREPOSITION",
+        "definitionEn": "Inside or within a space, place, or period of time.",
+        "translationEs": "en, dentro de",
+        "cefrLevel": "A1",
+        "grammarPattern": null,
+        "countability": null,
+        "connotation": "NEUTRAL",
+        "collocations": [],
+        "graduatedExamples": {
+          "sentenceBasicEn": "My keys are in the bag.",
+          "sentenceBasicEs": "Mis llaves están en el bolso.",
+          "clozeTargetBasic": "in",
+          "sentenceAdvancedEn": "The discovery resulted in a major breakthrough in medicine.",
+          "sentenceAdvancedEs": "El descubrimiento resultó en un gran avance en la medicina.",
+          "clozeTargetAdvanced": "in"
+        }
+      }
+    ],
+    "phrasalVerbs": []
+  }
+]

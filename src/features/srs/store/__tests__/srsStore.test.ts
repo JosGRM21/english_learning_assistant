@@ -27,6 +27,8 @@ describe('useSrsStore.addVocabItem', () => {
     partOfSpeech: 'ADJECTIVE',
     grammaticalDimension: 'CONTENT',
     isFalseFriend: false,
+    isCore: true,
+    masteryStatus: 'LEARNING',
     createdAt: new Date().toISOString(),
   };
 
@@ -67,6 +69,8 @@ describe('useSrsStore.addVocabItem', () => {
       partOfSpeech: 'ADJECTIVE',
       grammaticalDimension: 'CONTENT',
       isFalseFriend: false,
+      isCore: true,
+      masteryStatus: 'LEARNING',
       createdAt: new Date().toISOString(),
     };
 
@@ -78,11 +82,14 @@ describe('useSrsStore.addVocabItem', () => {
         userId: 'user_local',
         targetType: 'VOCAB',
         targetId: existingVocab.id,
+        srsProfile: 'VOCAB_AGILE',
         state: 'REVIEW',
         stability: 3.5,
         difficulty: 4.8,
         reps: 2,
         lapses: 0,
+        consecutiveLapses: 0,
+        isLeech: false,
         lastReviewedAt: null,
         scheduledFor: new Date().toISOString(),
         createdAt: new Date().toISOString(),

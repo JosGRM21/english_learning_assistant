@@ -96,5 +96,11 @@ describe('GeminiAiGateway - No Automatic Model Failover', () => {
     expect(logs[0].status).toBe('SUCCESS');
     expect(logs[0].modelId).toBe('gemini-3.8-flash');
     expect(logs[0].apiKeyId).toBe('key_1');
+
+    // Verify responseSchema was provided in generation config
+    const callConfig = mockGenerateContent.mock.calls[0][0].config;
+    expect(callConfig.responseMimeType).toBe('application/json');
+    expect(callConfig.responseSchema).toBeDefined();
+    expect(callConfig.responseSchema.type).toBe('object');
   });
 });

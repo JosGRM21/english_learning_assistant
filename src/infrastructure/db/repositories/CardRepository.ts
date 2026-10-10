@@ -1,7 +1,17 @@
 import { Kysely, Selectable } from 'kysely';
 import { DatabaseSchema, SrsCardsTable } from '../../../core/types/database';
-import { ICardRepository, DeckStatistics } from '../../../core/repositories/ICardRepository';
-import { SrsCard, ReviewLog, CardWithTarget, CardState, TargetType, FsrsGrade } from '../../../core/types/srs';
+import { ICardRepository, DeckStatistics, CreateCardInput } from '../../../core/repositories/ICardRepository';
+import {
+  SrsCard,
+  ReviewLog,
+  CardWithTarget,
+  CardState,
+  TargetType,
+  FsrsGrade,
+  SrsProfile,
+  PositiveDrillData,
+  PositiveDrillFormat,
+} from '../../../core/types/srs';
 import { CefrLevel, GrammaticalDimension, PartOfSpeech, ChunkType, PhrasalVerbType, VocabContextExample, VerbTenses, StructuredWordFamily, VocabSense } from '../../../core/types/vocab';
 
 export class CardRepository implements ICardRepository {
@@ -13,11 +23,14 @@ export class CardRepository implements ICardRepository {
       userId: row.user_id,
       targetType: row.target_type as TargetType,
       targetId: row.target_id,
+      srsProfile: (row.srs_profile as SrsProfile) ?? 'VOCAB_AGILE',
       state: row.state as CardState,
       stability: row.stability,
       difficulty: row.difficulty,
       reps: row.reps,
       lapses: row.lapses,
+      consecutiveLapses: row.consecutive_lapses ?? 0,
+      isLeech: Boolean(row.is_leech),
       lastReviewedAt: row.last_reviewed_at,
       scheduledFor: row.scheduled_for,
       createdAt: row.created_at,
@@ -33,13 +46,19 @@ export class CardRepository implements ICardRepository {
     }
   }
 
-  async getDueCards(userId: string, limit = 50): Promise<SrsCard[]> {
+  async getDueCards(userId: string, limit = 50, srsProfile?: SrsProfile): Promise<SrsCard[]> {
     const now = new Date().toISOString();
-    const rows = await this.db
+    let query = this.db
       .selectFrom('srs_cards')
       .selectAll()
       .where('user_id', '=', userId)
-      .where('scheduled_for', '<=', now)
+      .where('scheduled_for', '<=', now);
+
+    if (srsProfile) {
+      query = query.where('srs_profile', '=', srsProfile);
+    }
+
+    const rows = await query
       .orderBy('scheduled_for', 'asc')
       .limit(limit)
       .execute();
@@ -68,7 +87,7 @@ export class CardRepository implements ICardRepository {
     return row ? this.toDomain(row) : null;
   }
 
-  async createCard(card: Omit<SrsCard, 'createdAt'>): Promise<SrsCard> {
+  async createCard(card: CreateCardInput): Promise<SrsCard> {
     // Prevent duplicate cards for the exact same target
     const existing = await this.getCardByTargetId(card.targetId, card.targetType);
     if (existing) {
@@ -84,11 +103,14 @@ export class CardRepository implements ICardRepository {
         user_id: card.userId,
         target_type: card.targetType,
         target_id: card.targetId,
+        srs_profile: card.srsProfile ?? 'VOCAB_AGILE',
         state: card.state,
         stability: card.stability,
         difficulty: card.difficulty,
         reps: card.reps,
         lapses: card.lapses,
+        consecutive_lapses: card.consecutiveLapses ?? 0,
+        is_leech: card.isLeech ? 1 : 0,
         last_reviewed_at: card.lastReviewedAt,
         scheduled_for: card.scheduledFor,
         created_at: createdAt,
@@ -97,6 +119,9 @@ export class CardRepository implements ICardRepository {
 
     return {
       ...card,
+      srsProfile: card.srsProfile ?? 'VOCAB_AGILE',
+      consecutiveLapses: card.consecutiveLapses ?? 0,
+      isLeech: card.isLeech ?? false,
       createdAt,
     };
   }
@@ -110,10 +135,24 @@ export class CardRepository implements ICardRepository {
         difficulty: card.difficulty,
         reps: card.reps,
         lapses: card.lapses,
+        consecutive_lapses: card.consecutiveLapses ?? 0,
+        is_leech: card.isLeech ? 1 : 0,
+        srs_profile: card.srsProfile ?? 'VOCAB_AGILE',
         last_reviewed_at: card.lastReviewedAt,
         scheduled_for: card.scheduledFor,
       })
       .where('id', '=', card.id)
+      .execute();
+  }
+
+  async resetLeechStatus(cardId: string): Promise<void> {
+    await this.db
+      .updateTable('srs_cards')
+      .set({
+        is_leech: 0,
+        consecutive_lapses: 0,
+      })
+      .where('id', '=', cardId)
       .execute();
   }
 
@@ -183,6 +222,11 @@ export class CardRepository implements ICardRepository {
                 ipaGeneralAmerican: vocabRow.ipa_general_american,
                 ipaReceivedPronunciation: vocabRow.ipa_received_pronunciation,
                 cefrLevel: vocabRow.cefr_level as CefrLevel,
+                frequencyBand: (vocabRow.frequency_band as any) ?? 'TOP_3000',
+                isCore: Boolean(vocabRow.is_core),
+                masteryStatus: (vocabRow.mastery_status as any) ?? 'INACTIVE',
+                collocationsJson: this.parseJsonSafe<string[]>(vocabRow.collocations_json, []),
+                phoneticEdEnding: (vocabRow.phonetic_ed_ending as any) ?? null,
                 isFalseFriend: Boolean(vocabRow.is_false_friend),
                 falseFriendNote: vocabRow.false_friend_note,
                 morphologicalFamilyJson: this.parseJsonSafe<string[]>(
@@ -254,6 +298,8 @@ export class CardRepository implements ICardRepository {
               ipaGeneralAmerican: '',
               cefrLevel: phraseRow.cefr_level as CefrLevel,
               isFalseFriend: false,
+              isCore: false,
+              masteryStatus: 'NEW',
               createdAt: phraseRow.created_at,
             },
             allContexts: contexts,
@@ -299,6 +345,11 @@ export class CardRepository implements ICardRepository {
                   ipaGeneralAmerican: vocabRow.ipa_general_american,
                   ipaReceivedPronunciation: vocabRow.ipa_received_pronunciation,
                   cefrLevel: vocabRow.cefr_level as CefrLevel,
+                  frequencyBand: (vocabRow.frequency_band as any) ?? 'TOP_3000',
+                  isCore: Boolean(vocabRow.is_core),
+                  masteryStatus: (vocabRow.mastery_status as any) ?? 'INACTIVE',
+                  collocationsJson: this.parseJsonSafe<string[]>(vocabRow.collocations_json, []),
+                  phoneticEdEnding: (vocabRow.phonetic_ed_ending as any) ?? null,
                   isFalseFriend: Boolean(vocabRow.is_false_friend),
                   falseFriendNote: vocabRow.false_friend_note,
                   morphologicalFamilyJson: this.parseJsonSafe<string[]>(
@@ -325,6 +376,59 @@ export class CardRepository implements ICardRepository {
             currentContext: contexts[0],
           });
         }
+      } else if (card.targetType === 'WRITING_ERROR') {
+        const errorRow = await this.db
+          .selectFrom('writing_error_logs')
+          .selectAll()
+          .where((eb) =>
+            eb.or([
+              eb('id', '=', card.targetId),
+              eb('srs_card_id', '=', card.id),
+            ]),
+          )
+          .executeTakeFirst();
+
+        if (errorRow) {
+          const drillData = this.parseJsonSafe<PositiveDrillData>(
+            errorRow.drill_data_json,
+            {
+              format: (errorRow.drill_format as PositiveDrillFormat) ?? 'CONTEXTUAL_CLOZE',
+              explanationEs: errorRow.explanation_es,
+              sentenceContext: errorRow.expanded_context || errorRow.original_sentence || '',
+            },
+          );
+
+          results.push({
+            card,
+            writingError: {
+              id: errorRow.id,
+              submissionId: errorRow.submission_id,
+              userId: errorRow.user_id,
+              errorSpan: errorRow.error_span,
+              errorType: errorRow.error_type,
+              taxonomyCode: errorRow.taxonomy_code,
+              isL1SpanishTransfer: Boolean(errorRow.is_l1_spanish_transfer),
+              explanationEs: errorRow.explanation_es,
+              nativeReformulation: errorRow.native_reformulation,
+              originalSentence: errorRow.original_sentence || '',
+              expandedContext: errorRow.expanded_context || '',
+              drillFormat: (errorRow.drill_format as PositiveDrillFormat) ?? 'CONTEXTUAL_CLOZE',
+              drillData,
+              srsCardId: errorRow.srs_card_id,
+              masteryStatus: (errorRow.mastery_status as 'LEARNING' | 'INTERNALIZED' | 'RECIDIVIST') ?? 'LEARNING',
+              isFossilizedAlert: Boolean(errorRow.is_fossilized_alert),
+              timesRecidivist: errorRow.times_recidivist ?? 0,
+              createdAt: errorRow.created_at,
+              srsCard: card,
+            },
+            allContexts: [],
+          });
+        } else {
+          results.push({
+            card,
+            allContexts: [],
+          });
+        }
       } else {
         // Fallback for any other custom target type
         results.push({
@@ -337,19 +441,25 @@ export class CardRepository implements ICardRepository {
     return results;
   }
 
-  async getCardsWithDetails(userId: string, limit = 50): Promise<CardWithTarget[]> {
-    const cards = await this.getDueCards(userId, limit);
+  async getCardsWithDetails(userId: string, limit = 50, srsProfile?: SrsProfile): Promise<CardWithTarget[]> {
+    const cards = await this.getDueCards(userId, limit, srsProfile);
     return this.populateCardDetails(cards);
   }
 
-  async getDueCardsWithDetails(userId: string, limit = 50): Promise<CardWithTarget[]> {
+  async getDueCardsWithDetails(userId: string, limit = 50, srsProfile?: SrsProfile): Promise<CardWithTarget[]> {
     const now = new Date().toISOString();
-    const rows = await this.db
+    let query = this.db
       .selectFrom('srs_cards')
       .selectAll()
       .where('user_id', '=', userId)
       .where('state', '!=', 'NEW')
-      .where('scheduled_for', '<=', now)
+      .where('scheduled_for', '<=', now);
+
+    if (srsProfile) {
+      query = query.where('srs_profile', '=', srsProfile);
+    }
+
+    const rows = await query
       .orderBy('scheduled_for', 'asc')
       .limit(limit)
       .execute();
@@ -358,14 +468,20 @@ export class CardRepository implements ICardRepository {
     return this.populateCardDetails(cards);
   }
 
-  async getNewCardsWithDetails(userId: string, limit = 50): Promise<CardWithTarget[]> {
+  async getNewCardsWithDetails(userId: string, limit = 50, srsProfile?: SrsProfile): Promise<CardWithTarget[]> {
     const now = new Date().toISOString();
-    const rows = await this.db
+    let query = this.db
       .selectFrom('srs_cards')
       .selectAll()
       .where('user_id', '=', userId)
       .where('state', '=', 'NEW')
-      .where('scheduled_for', '<=', now)
+      .where('scheduled_for', '<=', now);
+
+    if (srsProfile) {
+      query = query.where('srs_profile', '=', srsProfile);
+    }
+
+    const rows = await query
       .orderBy('created_at', 'asc')
       .limit(limit)
       .execute();
@@ -374,11 +490,17 @@ export class CardRepository implements ICardRepository {
     return this.populateCardDetails(cards);
   }
 
-  async getAllCardsWithDetails(userId: string, limit = 200): Promise<CardWithTarget[]> {
-    const rows = await this.db
+  async getAllCardsWithDetails(userId: string, limit = 200, srsProfile?: SrsProfile): Promise<CardWithTarget[]> {
+    let query = this.db
       .selectFrom('srs_cards')
       .selectAll()
-      .where('user_id', '=', userId)
+      .where('user_id', '=', userId);
+
+    if (srsProfile) {
+      query = query.where('srs_profile', '=', srsProfile);
+    }
+
+    const rows = await query
       .orderBy('scheduled_for', 'asc')
       .limit(limit)
       .execute();
@@ -387,20 +509,30 @@ export class CardRepository implements ICardRepository {
     return this.populateCardDetails(cards);
   }
 
-  async getDeckStatistics(userId: string): Promise<DeckStatistics> {
+  async getDeckStatistics(userId: string, srsProfile?: SrsProfile): Promise<DeckStatistics> {
     const now = new Date().toISOString();
-    const all = await this.db
+    let query = this.db
       .selectFrom('srs_cards')
       .selectAll()
-      .where('user_id', '=', userId)
-      .execute();
+      .where('user_id', '=', userId);
+
+    if (srsProfile) {
+      query = query.where('srs_profile', '=', srsProfile);
+    }
+
+    const all = await query.execute();
 
     let newCount = 0;
     let dueCount = 0;
     let learningCount = 0;
     let reviewCount = 0;
+    let leechCount = 0;
 
     for (const row of all) {
+      if (row.is_leech) {
+        leechCount++;
+      }
+
       if (row.state === 'NEW') {
         newCount++;
       } else {
@@ -421,6 +553,7 @@ export class CardRepository implements ICardRepository {
       learningCount,
       reviewCount,
       totalCount: all.length,
+      leechCount,
     };
   }
 
@@ -444,5 +577,44 @@ export class CardRepository implements ICardRepository {
       elapsedMs: r.elapsed_ms,
       reviewedAt: r.reviewed_at,
     }));
+  }
+
+  async getWeakVocabularyForWriting(
+    userId: string,
+    contextDomain?: string | null,
+    limit = 12,
+  ): Promise<CardWithTarget[]> {
+    const rows = await this.db
+      .selectFrom('srs_cards')
+      .selectAll()
+      .where('user_id', '=', userId)
+      .where((eb) =>
+        eb.or([
+          eb('state', 'in', ['NEW', 'LEARNING', 'RELEARNING']),
+          eb('stability', '<', 3.0),
+          eb('lapses', '>', 0),
+        ]),
+      )
+      .orderBy('stability', 'asc')
+      .orderBy('lapses', 'desc')
+      .orderBy('created_at', 'desc')
+      .limit(limit * 2)
+      .execute();
+
+    const domainCards = rows.map((r) => this.toDomain(r));
+    const populated = await this.populateCardDetails(domainCards);
+
+    const valid = populated.filter((item) => item.vocab && item.vocab.word.trim().length > 0);
+
+    if (contextDomain) {
+      const cleanDomain = contextDomain.toLowerCase();
+      valid.sort((a, b) => {
+        const aMatches = a.vocab?.domainCategory?.toLowerCase().includes(cleanDomain) ? 1 : 0;
+        const bMatches = b.vocab?.domainCategory?.toLowerCase().includes(cleanDomain) ? 1 : 0;
+        return bMatches - aMatches;
+      });
+    }
+
+    return valid.slice(0, limit);
   }
 }

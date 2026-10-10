@@ -18,6 +18,8 @@ describe('SrsReviewSession Component Integration', () => {
       partOfSpeech: 'NOUN',
       grammaticalDimension: 'CONTENT',
       isFalseFriend: false,
+      isCore: true,
+      masteryStatus: 'LEARNING',
       createdAt: new Date().toISOString(),
     };
 
@@ -26,11 +28,14 @@ describe('SrsReviewSession Component Integration', () => {
       userId: 'user_local',
       targetType: 'VOCAB',
       targetId: vocab.id,
+      srsProfile: 'VOCAB_AGILE',
       state: 'REVIEW',
       stability: 2.0,
       difficulty: 5.0,
       reps: 1,
       lapses: 0,
+      consecutiveLapses: 0,
+      isLeech: false,
       lastReviewedAt: new Date().toISOString(),
       scheduledFor: new Date().toISOString(),
       createdAt: new Date().toISOString(),
@@ -47,6 +52,7 @@ describe('SrsReviewSession Component Integration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
     vi.spyOn(audioHook, 'useAudio').mockReturnValue({
       audioService: mockAudioService as any,
     });

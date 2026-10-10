@@ -59,6 +59,7 @@ export function AddVocabModal({
   const [domainCategory, setDomainCategory] = useState('Uso General');
   const [exampleSentenceEn, setExampleSentenceEn] = useState('');
   const [exampleSentenceEs, setExampleSentenceEs] = useState('');
+  const [additionalExamples, setAdditionalExamples] = useState<{ sentenceEn: string; sentenceEs: string }[]>([]);
   const [isFalseFriend, setIsFalseFriend] = useState(false);
   const [falseFriendNote, setFalseFriendNote] = useState('');
 
@@ -98,6 +99,7 @@ export function AddVocabModal({
     setDomainCategory('Uso General');
     setExampleSentenceEn('');
     setExampleSentenceEs('');
+    setAdditionalExamples([]);
     setIsFalseFriend(false);
     setFalseFriendNote('');
     setVerbTenses(null);
@@ -148,6 +150,7 @@ export function AddVocabModal({
       setDomainCategory(data.domainCategory || 'Uso General');
       setExampleSentenceEn(data.exampleSentenceEn);
       setExampleSentenceEs(data.exampleSentenceEs);
+      setAdditionalExamples(data.additionalExamples || []);
       setIsFalseFriend(data.isFalseFriend);
       setFalseFriendNote(data.falseFriendNote || '');
       setVerbTenses(data.verbTenses ?? null);
@@ -208,7 +211,8 @@ export function AddVocabModal({
 
     const matchingIds = senses
       .filter((s) => (CEFR_ORDER[s.cefrLevel] || 3) <= maxRank)
-      .map((s) => s.id);
+      .map((s) => s.id || '')
+      .filter(Boolean);
     setSelectedSenseIds(matchingIds);
   };
 
@@ -223,7 +227,7 @@ export function AddVocabModal({
       setSelectedSenseIds([]);
     } else {
       setIncludePrimarySense(true);
-      setSelectedSenseIds(senses.map((s) => s.id));
+      setSelectedSenseIds(senses.map((s) => s.id || '').filter(Boolean));
     }
   };
 
@@ -298,7 +302,7 @@ export function AddVocabModal({
       }
 
       // Check if user selected multiple senses to save
-      const selectedAlternateSenses = curSenses.filter((s) => selectedSenseIds.includes(s.id));
+      const selectedAlternateSenses = curSenses.filter((s) => s.id && selectedSenseIds.includes(s.id));
 
       const payloadsToCreate: NewVocabPayload[] = [];
 
@@ -315,6 +319,7 @@ export function AddVocabModal({
           domainCategory: curDomain,
           exampleSentenceEn: curExEn || undefined,
           exampleSentenceEs: curExEs || undefined,
+          additionalExamples: additionalExamples,
           isFalseFriend: curIsFalseFriend,
           falseFriendNote: curIsFalseFriend ? curFalseNote : undefined,
           verbTenses: curVerbTenses,
@@ -337,6 +342,7 @@ export function AddVocabModal({
           domainCategory: sense.domainCategory,
           exampleSentenceEn: sense.exampleSentenceEn,
           exampleSentenceEs: sense.exampleSentenceEs,
+          additionalExamples: sense.additionalExamples || [],
           isFalseFriend: curIsFalseFriend,
           falseFriendNote: curIsFalseFriend ? curFalseNote : undefined,
           verbTenses: curVerbTenses,
@@ -871,11 +877,12 @@ export function AddVocabModal({
 
                         {/* Alternate Senses */}
                         {senses.map((sense, idx) => {
-                          const isSelected = selectedSenseIds.includes(sense.id);
+                          const senseId = sense.id || `alt_${idx}`;
+                          const isSelected = selectedSenseIds.includes(senseId);
                           return (
                             <div
-                              key={sense.id}
-                              onClick={() => toggleSenseSelection(sense.id)}
+                              key={senseId}
+                              onClick={() => toggleSenseSelection(senseId)}
                               className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 ${
                                 isSelected
                               ? 'bg-white dark:bg-[#10131D] border-indigo-300 dark:border-indigo-700 shadow-xs'

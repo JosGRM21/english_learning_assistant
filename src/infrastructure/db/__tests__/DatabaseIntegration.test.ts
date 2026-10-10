@@ -5,7 +5,7 @@ import { createTestDatabase } from '../database';
 import { CardRepository } from '../repositories/CardRepository';
 import { VocabRepository } from '../repositories/VocabRepository';
 import { FsrsScheduler } from '../../../core/srs/FsrsScheduler';
-import { SrsCard } from '../../../core/types/srs';
+import { CreateCardInput } from '../../../core/repositories/ICardRepository';
 
 async function insertTestFixtures(db: Kysely<DatabaseSchema>) {
   await db
@@ -85,13 +85,14 @@ describe('Database Integration & Repositories', () => {
     await db.destroy();
   });
 
-  it('successfully initializes all 15 tables with a clean zero-record state', async () => {
+  it('successfully initializes all 15 tables with seeded core vocab and clean zero-card state', async () => {
     const vocabCount = await db
       .selectFrom('vocab_items')
       .select((eb) => eb.fn.count('id').as('count'))
       .executeTakeFirst();
 
-    expect(Number(vocabCount?.count)).toBe(0);
+    // The master core corpus (20 words currently) is automatically seeded
+    expect(Number(vocabCount?.count)).toBeGreaterThanOrEqual(20);
 
     const cardsCount = await db
       .selectFrom('srs_cards')
@@ -125,7 +126,7 @@ describe('Database Integration & Repositories', () => {
 
     // 1. Create an SRS card for 'depend'
     const userId = 'user_test_01';
-    const newCardData: Omit<SrsCard, 'createdAt'> = {
+    const newCardData: CreateCardInput = {
       id: 'card_test_01',
       userId,
       targetType: 'VOCAB',
@@ -341,5 +342,38 @@ describe('Database Integration & Repositories', () => {
     const checkC2 = await cardRepo.getCardById(`card_${v2.id}`);
     expect(checkC1).toBeNull();
     expect(checkC2).toBeNull();
+  });
+
+  it('initializes database successfully even if pre-existing DB has legacy vocab_items missing is_core', async () => {
+    const { SqlJsDialect } = await import('../dialects/SqlJsDialect');
+    const { sql } = await import('kysely');
+    const { initializeDatabase } = await import('../database');
+
+    const rawDb = new Kysely<DatabaseSchema>({ dialect: new SqlJsDialect() });
+
+    // Simulate old app version that created vocab_items before Phase 1-6 columns were added
+    await sql.raw(`
+      CREATE TABLE vocab_items (
+        id TEXT PRIMARY KEY,
+        word TEXT NOT NULL,
+        grammatical_dimension TEXT NOT NULL,
+        part_of_speech TEXT NOT NULL,
+        definition_en TEXT NOT NULL,
+        translation_es TEXT NOT NULL,
+        ipa_general_american TEXT NOT NULL,
+        cefr_level TEXT NOT NULL
+      )
+    `).execute(rawDb);
+
+    // Initializing the database must succeed and not throw "no such column: is_core"
+    await expect(initializeDatabase(rawDb)).resolves.not.toThrow();
+
+    // Verify is_core is present after initialization
+    const info = await sql<{ name: string }>`PRAGMA table_info(vocab_items)`.execute(rawDb);
+    const cols = info.rows.map((r: any) => r.name.toLowerCase());
+    expect(cols).toContain('is_core');
+    expect(cols).toContain('mastery_status');
+
+    await rawDb.destroy();
   });
 });

@@ -16,6 +16,8 @@ describe('SrsDeckDrawer Component', () => {
       partOfSpeech: 'NOUN',
       grammaticalDimension: 'CONTENT',
       isFalseFriend: false,
+      isCore: true,
+      masteryStatus: 'LEARNING',
       createdAt: new Date().toISOString(),
     };
 
@@ -24,11 +26,14 @@ describe('SrsDeckDrawer Component', () => {
       userId: 'user_local',
       targetType: 'VOCAB',
       targetId: vocab.id,
+      srsProfile: 'VOCAB_AGILE',
       state,
       stability: state === 'NEW' ? 0 : 2.5,
       difficulty: 5.0,
       reps: state === 'NEW' ? 0 : 1,
       lapses: 0,
+      consecutiveLapses: 0,
+      isLeech: false,
       lastReviewedAt: null,
       scheduledFor: new Date().toISOString(),
       createdAt: new Date().toISOString(),

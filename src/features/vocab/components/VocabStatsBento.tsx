@@ -1,26 +1,35 @@
-import { BookMarked, Layers, AlertTriangle, Sparkles, Filter } from 'lucide-react';
+import { BookMarked, Layers, AlertTriangle, Sparkles, Filter, BookmarkCheck, CheckCircle2 } from 'lucide-react';
 import { CefrLevel } from '@/core/types/vocab';
+import { CoreCorpusCoverage } from '@/core/repositories/IVocabRepository';
 
 export interface VocabStatsBentoProps {
   totalCount: number;
-  filteredCount: number;
-  falseFriendsCount: number;
+  filteredCount?: number;
+  falseFriendsCount?: number;
   cefrCounts: Record<string, number>;
   selectedCefr: string;
-  onlyFalseFriends: boolean;
+  onlyFalseFriends?: boolean;
   onSelectCefr: (cefr: string) => void;
-  onToggleFalseFriends: () => void;
+  onToggleFalseFriends?: () => void;
+  showFalseFriends?: boolean;
+  coverageStats?: CoreCorpusCoverage | null;
+  masteryStatusFilter?: string;
+  onSelectMasteryStatus?: (status: string) => void;
 }
 
 export function VocabStatsBento({
   totalCount,
   filteredCount,
-  falseFriendsCount,
+  falseFriendsCount = 0,
   cefrCounts,
   selectedCefr,
-  onlyFalseFriends,
+  onlyFalseFriends = false,
   onSelectCefr,
   onToggleFalseFriends,
+  showFalseFriends,
+  coverageStats,
+  masteryStatusFilter,
+  onSelectMasteryStatus,
 }: VocabStatsBentoProps) {
   const cefrLevels: CefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
@@ -33,37 +42,79 @@ export function VocabStatsBento({
     C2: { bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-600 dark:text-amber-400', bar: 'bg-amber-500' },
   };
 
+  const shouldShowFalseFriends = showFalseFriends ?? Boolean(onToggleFalseFriends);
+  const effectiveFilteredCount = filteredCount ?? totalCount;
+
+  const totalCore = coverageStats?.totalCore ?? 3500;
+  const activeCore = coverageStats?.activeCore ?? 0;
+  const coveragePercent = totalCore > 0 ? Math.round((activeCore / totalCore) * 100) : 0;
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-      {/* 1. Total Words Bento Card */}
-      <div className="group relative overflow-hidden rounded-2xl bg-white dark:bg-[#121622] p-4 border border-gray-200/80 dark:border-white/[0.08] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-all duration-300">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-            Inventario Léxico
-          </span>
-          <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
-            <BookMarked className="w-4 h-4" />
+    <div
+      className={`grid grid-cols-1 ${
+        shouldShowFalseFriends
+          ? 'sm:grid-cols-2 lg:grid-cols-4'
+          : 'md:grid-cols-3'
+      } gap-3.5`}
+    >
+      {/* 1. Inventario Léxico Bento Card */}
+      <div className="group relative overflow-hidden rounded-2xl bg-white dark:bg-[#121622] p-4.5 sm:p-5 border border-gray-200/80 dark:border-white/[0.08] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-all duration-300 flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              Inventario Léxico
+            </span>
+            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
+              <BookMarked className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-black tracking-tight text-gray-900 dark:text-white font-sans">
+              {totalCount}
+            </span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">términos registrados</span>
           </div>
         </div>
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-2xl font-black tracking-tight text-gray-900 dark:text-white font-sans">
-            {totalCount}
-          </span>
-          <span className="text-xs text-gray-400 dark:text-gray-500">términos registrados</span>
-        </div>
-        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          <span>{filteredCount === totalCount ? 'Todos los términos activos' : `${filteredCount} mostrados según filtros`}</span>
-        </div>
+
+        {coverageStats ? (
+          <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-white/[0.04] space-y-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-gray-500 dark:text-gray-400 font-medium">Cobertura Core Corpus</span>
+              <span className="font-bold text-indigo-600 dark:text-indigo-400">{coveragePercent}%</span>
+            </div>
+            <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+              <div
+                style={{ width: `${Math.min(100, Math.max(2, coveragePercent))}%` }}
+                className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all duration-500"
+              />
+            </div>
+            <p className="text-[10px] text-gray-400 truncate">
+              {activeCore} de {totalCore} lemas de alta frecuencia activos
+            </p>
+          </div>
+        ) : (
+          <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-white/[0.04] flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span className="truncate">
+              {effectiveFilteredCount === totalCount
+                ? 'Todos los términos activos'
+                : `${effectiveFilteredCount} mostrados según filtros`}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* 2. CEFR Spectrum Bento Card */}
-      <div className="sm:col-span-2 relative overflow-hidden rounded-2xl bg-white dark:bg-[#121622] p-4 border border-gray-200/80 dark:border-white/[0.08] shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
+      {/* 2. Distribución por Nivel CEFR Bento Card */}
+      <div
+        className={`${
+          shouldShowFalseFriends ? 'sm:col-span-2' : 'md:col-span-2'
+        } relative overflow-hidden rounded-2xl bg-white dark:bg-[#121622] p-4.5 sm:p-5 border border-gray-200/80 dark:border-white/[0.08] shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between`}
+      >
         <div>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400">
-                <Layers className="w-3.5 h-3.5" />
+                <Layers className="w-4 h-4" />
               </div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 Distribución por Nivel CEFR
@@ -73,7 +124,7 @@ export function VocabStatsBento({
               <button
                 type="button"
                 onClick={() => onSelectCefr('ALL')}
-                className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
+                className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
               >
                 <Filter className="w-3 h-3" />
                 <span>Ver todos</span>
@@ -100,7 +151,7 @@ export function VocabStatsBento({
         </div>
 
         {/* Level click pills */}
-        <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+        <div className="mt-4 flex items-center gap-2 flex-wrap">
           {cefrLevels.map((lvl) => {
             const count = cefrCounts[lvl] ?? 0;
             const isSelected = selectedCefr === lvl;
@@ -110,50 +161,102 @@ export function VocabStatsBento({
                 key={lvl}
                 type="button"
                 onClick={() => onSelectCefr(isSelected ? 'ALL' : lvl)}
-                className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold transition-all cursor-pointer border ${
+                className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer border ${
                   isSelected
                     ? 'ring-2 ring-indigo-500 shadow-xs ' + style.bg + ' ' + style.text + ' border-transparent'
                     : 'bg-gray-50 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 border-gray-200/60 dark:border-gray-700/60 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
-                {lvl} <span className="opacity-70 font-sans">({count})</span>
+                {lvl} <span className="opacity-75 font-sans">({count})</span>
               </button>
             );
           })}
         </div>
+
+        {/* Mastery funnel quick filters if handler supplied */}
+        {onSelectMasteryStatus && (
+          <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-white/[0.04] flex items-center gap-1.5 flex-wrap text-[10px]">
+            <span className="text-gray-400 font-semibold mr-1">Dominio:</span>
+            <button
+              type="button"
+              onClick={() => onSelectMasteryStatus(masteryStatusFilter === 'NEW' ? 'ALL' : 'NEW')}
+              className={`px-2 py-0.5 rounded-full transition-colors flex items-center gap-1 cursor-pointer ${
+                masteryStatusFilter === 'NEW'
+                  ? 'bg-blue-600 text-white font-bold'
+                  : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100'
+              }`}
+            >
+              <Sparkles className="w-2.5 h-2.5" />
+              <span>Por Aprender</span>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onSelectMasteryStatus(masteryStatusFilter === 'RECEPTIVE_MASTERY' ? 'ALL' : 'RECEPTIVE_MASTERY')
+              }
+              className={`px-2 py-0.5 rounded-full transition-colors flex items-center gap-1 cursor-pointer ${
+                masteryStatusFilter === 'RECEPTIVE_MASTERY'
+                  ? 'bg-emerald-600 text-white font-bold'
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100'
+              }`}
+            >
+              <BookmarkCheck className="w-2.5 h-2.5" />
+              <span>Receptivo ({coverageStats?.receptiveMastery ?? 0})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onSelectMasteryStatus(masteryStatusFilter === 'PRODUCTIVE_MASTERY' ? 'ALL' : 'PRODUCTIVE_MASTERY')
+              }
+              className={`px-2 py-0.5 rounded-full transition-colors flex items-center gap-1 cursor-pointer ${
+                masteryStatusFilter === 'PRODUCTIVE_MASTERY'
+                  ? 'bg-purple-600 text-white font-bold'
+                  : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100'
+              }`}
+            >
+              <CheckCircle2 className="w-2.5 h-2.5" />
+              <span>Productivo ({coverageStats?.productiveMastery ?? 0})</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* 3. False Friends / L1 Alert Bento Card */}
-      <button
-        type="button"
-        onClick={onToggleFalseFriends}
-        className={`group text-left relative overflow-hidden rounded-2xl p-4 border transition-all duration-300 cursor-pointer ${
-          onlyFalseFriends
-            ? 'bg-amber-500/10 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700/60 shadow-[0_4px_16px_rgba(245,158,11,0.15)] ring-2 ring-amber-500/30'
-            : 'bg-white dark:bg-[#121622] border-gray-200/80 dark:border-white/[0.08] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-amber-300 dark:hover:border-amber-700/60'
-        }`}
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-            Falsos Amigos
-          </span>
-          <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform">
-            <AlertTriangle className="w-4 h-4" />
+      {/* 3. False Friends / L1 Alert Bento Card (optional, only when enabled) */}
+      {shouldShowFalseFriends && (
+        <button
+          type="button"
+          onClick={onToggleFalseFriends}
+          className={`group text-left relative overflow-hidden rounded-2xl p-4.5 sm:p-5 border transition-all duration-300 cursor-pointer flex flex-col justify-between ${
+            onlyFalseFriends
+              ? 'bg-amber-500/10 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700/60 shadow-[0_4px_16px_rgba(245,158,11,0.15)] ring-2 ring-amber-500/30'
+              : 'bg-white dark:bg-[#121622] border-gray-200/80 dark:border-white/[0.08] shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:border-amber-300 dark:hover:border-amber-700/60'
+          }`}
+        >
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                Falsos Amigos
+              </span>
+              <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-black tracking-tight text-amber-600 dark:text-amber-400 font-sans">
+                {falseFriendsCount}
+              </span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">trampas léxicas</span>
+            </div>
           </div>
-        </div>
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-2xl font-black tracking-tight text-amber-600 dark:text-amber-400 font-sans">
-            {falseFriendsCount}
-          </span>
-          <span className="text-xs text-gray-400 dark:text-gray-500">trampas léxicas</span>
-        </div>
-        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-          <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
-          <span className="truncate">
-            {onlyFalseFriends ? 'Filtro activo (clic para ver todos)' : 'Clic para filtrar falsos amigos'}
-          </span>
-        </div>
-      </button>
+
+          <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-white/[0.04] flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span className="truncate">
+              {onlyFalseFriends ? 'Filtro activo (clic para ver todos)' : 'Clic para filtrar falsos amigos'}
+            </span>
+          </div>
+        </button>
+      )}
     </div>
   );
 }

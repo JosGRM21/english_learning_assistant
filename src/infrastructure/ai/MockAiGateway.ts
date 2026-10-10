@@ -109,14 +109,16 @@ export class MockAiGateway implements IAiGateway {
       });
     }
 
+    const limitedClues = clues.slice(0, 3);
+
     const result: SocraticFeedbackResponse = {
       overall_impression_es:
-        clues.length > 1
-          ? `¡Gran esfuerzo! Tu mensaje es comprensible y comunicativo. Hemos detectado ${clues.length} puntos donde la influencia directa del español puede mejorarse. Lee las pistas reflexivas e intenta auto-corregir tu texto.`
-          : '¡Excelente redacción! Tu mensaje es claro y fluido.',
+        limitedClues.length > 1
+          ? `Gran esfuerzo en tu redacción. Hemos identificado ${limitedClues.length} puntos clave para refinar la precisión en inglés. Revisa las pistas e intenta auto-corregir tu texto.`
+          : 'Excelente redacción. Tu mensaje es claro y fluido.',
       error_count: clues.length,
       allow_self_correction: true,
-      scaffolded_clues: clues,
+      scaffolded_clues: limitedClues,
     };
 
     return SocraticFeedbackResponseSchema.parse(result);
@@ -126,6 +128,7 @@ export class MockAiGateway implements IAiGateway {
     draft1: string,
     draft2: string,
     cefrTarget = 'B1',
+    contextualInfo?: { readingContext?: string; targetWords?: string[] },
   ): Promise<WritingEvaluationResponse> {
     await new Promise((r) => setTimeout(r, 60));
 
@@ -159,66 +162,139 @@ export class MockAiGateway implements IAiGateway {
       });
     }
 
+    const sentenceWithDepend = draft2.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('depend')) || draft2;
     if (lower2.includes('depends of') || lower2.includes('depend of')) {
       corrections.push({
         error_span: lower2.includes('depends of') ? 'depends of' : 'depend of',
         error_type: 'PREPOSITION',
-        taxonomy_code: 'L1_PREP_DEPEND_ON',
+        taxonomy_code: 'PREPOSITION',
         is_l1_spanish_transfer: true,
         explanation_es:
           "En español decimos 'depende de', pero en inglés el verbo 'depend' rige obligatoriamente la preposición 'on'.",
         native_reformulation: lower2.includes('depends of') ? 'depends on' : 'depend on',
+        original_sentence: sentenceWithDepend,
+        expanded_context: sentenceWithDepend,
+        drill: {
+          format: 'CONTEXTUAL_CLOZE',
+          cloze_sentence: 'Success will depend [ ___ ] our consistent effort.',
+          expected_token: 'on',
+          hint_es: 'Preposición que rige depend/rely',
+          explanation_es: "¡Correcto! En inglés decimos 'depend on', nunca 'depend of'.",
+          transfer_prompt_es: "Escribe una oración sobre algo que dependa del tiempo o del esfuerzo.",
+        },
       });
     }
 
+    const sentenceWithAgree = draft2.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('agree')) || draft2;
     if (lower2.includes('am agree') || lower2.includes('are agree')) {
       corrections.push({
         error_span: lower2.includes('am agree') ? 'am agree' : 'are agree',
-        error_type: 'GRAMMAR',
-        taxonomy_code: 'L1_SYNTAX_AM_AGREE',
+        error_type: 'AGREEMENT',
+        taxonomy_code: 'AGREEMENT',
         is_l1_spanish_transfer: true,
         explanation_es:
-          "En español usamos 'estar de acuerdo', pero en inglés 'agree' ya funciona como verbo sin auxiliar 'to be'.",
+          "En español usamos 'estar de acuerdo', pero en inglés 'agree' ya funciona como verbo pleno sin auxiliar 'to be'.",
         native_reformulation: lower2.includes('am agree') ? 'agree' : 'agree',
+        original_sentence: sentenceWithAgree,
+        expanded_context: sentenceWithAgree,
+        drill: {
+          format: 'SENTENCE_REWRITE',
+          prompt_instruction_es: 'Reescribe la oración utilizando el verbo agree directamente sin verbo to be',
+          source_sentence: 'I am agree with your proposed strategy.',
+          mandatory_keyword: 'agree',
+          model_solution: 'I agree with your proposed strategy.',
+          explanation_es: "'agree' es un verbo pleno; no lleva 'am' ni 'is'.",
+          transfer_prompt_es: "Escribe una oración expresando tu acuerdo con una idea.",
+        },
       });
     }
 
+    const sentenceWithActually = draft2.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('actually')) || draft2;
     if (lower2.includes('actually')) {
       corrections.push({
         error_span: 'actually',
         error_type: 'FALSE_FRIEND',
-        taxonomy_code: 'LEX_FALSE_FRIEND_ACTUALLY',
+        taxonomy_code: 'FALSE_FRIEND',
         is_l1_spanish_transfer: true,
         explanation_es:
           "'Actually' significa 'en realidad' o 'de hecho'. Para decir 'en estos momentos' usa 'currently' o 'right now'.",
-        native_reformulation: 'currently / at present',
+        native_reformulation: 'currently',
+        original_sentence: sentenceWithActually,
+        expanded_context: sentenceWithActually,
+        drill: {
+          format: 'C_TEST',
+          sentence_with_prefix: 'Cu[___], we are developing the next major version.',
+          c_test_prefix: 'Cu',
+          expected_token: 'Currently',
+          expected_length: 9,
+          explanation_es: "'Currently' significa actualmente en el tiempo presente.",
+          transfer_prompt_es: "Escribe una oración sobre en qué estás trabajando actualmente.",
+        },
       });
     }
+
+    const target_words_feedback = (contextualInfo?.targetWords || []).map((word) => {
+      const isUsed = lower2.includes(word.toLowerCase());
+      return {
+        word,
+        used: isUsed,
+        is_natural: true,
+        feedback_es: isUsed
+          ? `¡Excelente! Incorporaste la palabra objetivo "${word}" de forma contextualmente adecuada.`
+          : `La palabra "${word}" no fue detectada en tu borrador final.`,
+      };
+    });
 
     const estimatedCefr = (['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].includes(cefrTarget)
       ? cefrTarget
       : 'B1') as WritingEvaluationResponse['estimated_cefr'];
 
+    const cleanStructural = draft2
+      .replace(/\bdepends? of\b/gi, 'depends on')
+      .replace(/\bam agree\b/gi, 'agree')
+      .replace(/\bactually\b/gi, 'currently');
+
+    const nativeRecast =
+      'I completely agree with the proposed approach, and our outcomes naturally depend on rigorous execution; currently, we are making steady progress.';
+
+    const noticingContrasts = [
+      {
+        user_fragment: 'it depend of',
+        native_fragment: 'our outcomes naturally depend on',
+        noticing_note_es: 'En inglés nativo el verbo "depend" rige obligatoriamente la preposición "on", enriquecido con el adverbio natural "naturally".',
+      },
+      {
+        user_fragment: 'actually I work',
+        native_fragment: 'currently, we are making steady progress',
+        noticing_note_es: '"Currently" denota tiempo presente sin la ambigüedad del falso amigo "actually".',
+      },
+    ];
+
     const result: WritingEvaluationResponse = {
       overall_feedback_es:
         corrections.length === 0
-          ? '¡Felicitaciones! Has corregido exitosamente todas las observaciones de tu borrador. Tu texto final suena natural y gramaticalmente preciso.'
+          ? 'Has corregido exitosamente las observaciones de tu borrador. Tu texto final suena natural y gramaticalmente preciso.'
           : 'Buen avance en tu segundo borrador. Observa el desglose comparativo y la reformulación nativa para consolidar las diferencias con el español.',
-      estimated_cefr: estimatedCefr,
+      clean_structural_version: cleanStructural,
+      native_recast_version: nativeRecast,
+      noticing_the_gap_contrasts: noticingContrasts,
+      rubric_scores: {
+        accuracy: corrections.length === 0 ? 9.5 : 7.5,
+        range_and_precision: 8.5,
+        cohesion_and_flow: 8.5,
+        pragmatics_and_complexity: 8.0,
+      },
       scores: {
         grammar: corrections.length === 0 ? 9.5 : 7.0,
         vocabulary: 8.0,
         coherence: 8.5,
       },
+      estimated_cefr: estimatedCefr,
+      qualitative_recommendations_es:
+        'Continúa practicando regímenes preposicionales fijos y conectores de transición para consolidar fluidez C1.',
       successful_repairs,
       corrections,
-      micro_challenge: {
-        question_es: "¿Cuál es la preposición correcta que acompaña al verbo 'depend'?",
-        sentence_with_blank: 'Our future success will depend ___ our dedication.',
-        options: ['of', 'on', 'in', 'from'],
-        correct_option_index: 1,
-        explanation_es: "¡Exacto! En inglés siempre decimos 'depend on' o 'rely on'.",
-      },
+      target_words_feedback,
     };
 
     return WritingEvaluationResponseSchema.parse(result);

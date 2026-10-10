@@ -391,7 +391,7 @@ export class AudioService implements IAudioService {
     if (signal.aborted) return;
 
     // 3. Fallback: Web Speech API
-    await this.speakWebSpeech(trimmed, rate, signal);
+    await this.speakWebSpeech(trimmed, rate, signal, voice);
   }
 
   /**
@@ -526,7 +526,7 @@ export class AudioService implements IAudioService {
   /**
    * Fallback TTS using browser's speechSynthesis.
    */
-  private async speakWebSpeech(text: string, rate: number, signal?: AbortSignal): Promise<void> {
+  private async speakWebSpeech(text: string, rate: number, signal?: AbortSignal, voice?: string): Promise<void> {
     if (
       typeof window === 'undefined' ||
       !('speechSynthesis' in window) ||
@@ -540,16 +540,20 @@ export class AudioService implements IAudioService {
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US';
+      const isUk = Boolean(voice && (voice.startsWith('bf_') || voice.startsWith('bm_') || voice.toLowerCase().includes('uk') || voice.toLowerCase().includes('gb')));
+      utterance.lang = isUk ? 'en-GB' : 'en-US';
       utterance.rate = Math.max(0.5, Math.min(2.0, rate));
 
       const voices = window.speechSynthesis.getVoices();
+      const targetLang = isUk ? 'en-GB' : 'en-US';
       const englishVoice =
         voices.find(
           (v) =>
-            v.lang.startsWith('en-US') &&
+            v.lang.startsWith(targetLang) &&
             (v.name.includes('Natural') || v.name.includes('Neural') || v.name.includes('Google')),
-        ) || voices.find((v) => v.lang.startsWith('en'));
+        ) ||
+        voices.find((v) => v.lang.startsWith(targetLang)) ||
+        voices.find((v) => v.lang.startsWith('en'));
 
       if (englishVoice) {
         utterance.voice = englishVoice;

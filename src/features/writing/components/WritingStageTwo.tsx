@@ -9,8 +9,12 @@ import {
   Eye,
   RotateCcw,
   Sparkle,
+  BookOpen,
+  Target,
 } from 'lucide-react';
 import { SocraticFeedbackResponse, SocraticClue } from '@/infrastructure/ai/schemas';
+import { ReadingItem } from '@/data/reading-to-write-catalog';
+import { TargetWordItem } from '../store/writingStore';
 import {
   findSnippetMatches,
   sliceTextWithHighlights,
@@ -21,6 +25,8 @@ export interface WritingStageTwoProps {
   socraticResult: SocraticFeedbackResponse;
   draft1: string;
   draft2: string;
+  selectedReading?: ReadingItem | null;
+  targetWords?: TargetWordItem[];
   isLoading: boolean;
   onDraftChange: (text: string) => void;
   onBackToStageOne: () => void;
@@ -31,6 +37,8 @@ export function WritingStageTwo({
   socraticResult,
   draft1,
   draft2,
+  selectedReading,
+  targetWords = [],
   isLoading,
   onDraftChange,
   onBackToStageOne,
@@ -38,9 +46,10 @@ export function WritingStageTwo({
 }: WritingStageTwoProps) {
   const [activeHighlightClue, setActiveHighlightClue] = useState<SocraticClue | null>(null);
   const [showDraft1Ref, setShowDraft1Ref] = useState(true);
+  const [showReadingRef, setShowReadingRef] = useState(false);
 
-  // Filter visible clues to top 4 items for cognitive ease
-  const visibleClues = socraticResult.scaffolded_clues.slice(0, 4);
+  // Filter visible clues to top 3 items for cognitive ease (RF-WRT-06)
+  const visibleClues = socraticResult.scaffolded_clues.slice(0, 3);
 
   // Render draft1 with non-destructive highlights preserving paragraph structure
   const renderHighlightedDraft1 = () => {
@@ -149,8 +158,8 @@ export function WritingStageTwo({
         {/* Right Column: Draft 2 Editor & Reference (7 cols) */}
         <section aria-label="Editor de revisión" className="lg:col-span-7 space-y-4 sticky top-6">
           <div className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-gray-200/90 dark:border-gray-800 shadow-xs space-y-4">
-            {/* Header & Toggle Draft 1 Reference */}
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800/80">
+            {/* Header & Toggle Draft 1 / Reading Reference */}
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800/80 flex-wrap gap-2">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                   Editor de Revisión
@@ -161,6 +170,17 @@ export function WritingStageTwo({
               </div>
 
               <div className="flex items-center gap-2">
+                {selectedReading && (
+                  <button
+                    type="button"
+                    onClick={() => setShowReadingRef((prev) => !prev)}
+                    className="px-2.5 py-1 rounded-xl text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>{showReadingRef ? 'Ocultar Lectura' : 'Ver Lectura'}</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => setShowDraft1Ref((prev) => !prev)}
@@ -181,6 +201,23 @@ export function WritingStageTwo({
               </div>
             </div>
 
+            {/* Reading Reference Box (If toggled) */}
+            {selectedReading && showReadingRef && (
+              <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 text-xs leading-relaxed space-y-2 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-900 dark:text-indigo-200">
+                    Lectura: {selectedReading.title}
+                  </span>
+                  <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400">
+                    Nivel {selectedReading.cefrLevel}
+                  </span>
+                </div>
+                <p className="font-editorial text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line max-h-[180px] overflow-y-auto custom-scrollbar pr-1">
+                  {selectedReading.readingTextEn}
+                </p>
+              </div>
+            )}
+
             {/* Draft 1 Reference Box */}
             {showDraft1Ref && (
               <div className="p-4 rounded-2xl bg-gray-50/80 dark:bg-[#181D2A] border border-gray-200/80 dark:border-gray-800 text-xs leading-relaxed space-y-1.5 animate-in fade-in duration-150">
@@ -190,6 +227,28 @@ export function WritingStageTwo({
                 <div>
                   {renderHighlightedDraft1()}
                 </div>
+              </div>
+            )}
+
+            {/* Target Words Tracker in Draft 2 */}
+            {targetWords.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap text-xs pt-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                  <Target className="w-3 h-3 text-indigo-500" />
+                  <span>Objetivos:</span>
+                </span>
+                {targetWords.map((tw, idx) => (
+                  <span
+                    key={idx}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-mono font-bold border ${
+                      tw.isUsed
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 text-emerald-700 dark:text-emerald-300'
+                        : 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500'
+                    }`}
+                  >
+                    {tw.word} {tw.isUsed && '✓'}
+                  </span>
+                ))}
               </div>
             )}
 
@@ -214,7 +273,7 @@ export function WritingStageTwo({
                   </span>
                 </div>
                 <span className="text-[11px]">
-                  Al confirmar, recibirás el análisis diferencial, CEFR y el micro-reto
+                  Al confirmar, recibirás el diagnóstico y evaluación final
                 </span>
               </div>
             </div>

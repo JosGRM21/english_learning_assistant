@@ -6,10 +6,17 @@ import {
   CreateSubmissionInput,
   RecordRevisionInput,
   RecordEvaluationInput,
+  WritingErrorStat,
 } from '../../../core/repositories/IWritingRepository';
+import {
+  WritingErrorSrsItem,
+  PositiveDrillData,
+  PositiveDrillFormat,
+} from '../../../core/types/srs';
 import {
   SocraticFeedbackResponse,
   WritingEvaluationResponse,
+  CorrectionItem,
 } from '../../ai/schemas';
 
 export class WritingRepository implements IWritingRepository {
@@ -18,18 +25,6 @@ export class WritingRepository implements IWritingRepository {
   async createSubmission(input: CreateSubmissionInput): Promise<string> {
     const id = input.id ?? `sub_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const userId = input.userId ?? 'user_local';
-
-    let validPromptId: string | null = null;
-    if (input.promptId) {
-      const existingPrompt = await this.db
-        .selectFrom('writing_prompts')
-        .select('id')
-        .where('id', '=', input.promptId)
-        .executeTakeFirst();
-      if (existingPrompt) {
-        validPromptId = existingPrompt.id;
-      }
-    }
 
     if (input.id) {
       const existing = await this.db
@@ -43,8 +38,8 @@ export class WritingRepository implements IWritingRepository {
           .updateTable('writing_submissions')
           .set({
             user_id: userId,
-            prompt_id: validPromptId,
-            submission_mode: input.submissionMode ?? 'GUIDED',
+            prompt_id: null,
+            submission_mode: input.submissionMode ?? 'FREE',
             user_text: input.userText,
             word_count: input.wordCount,
             status: input.status ?? 'DRAFT',
@@ -61,8 +56,8 @@ export class WritingRepository implements IWritingRepository {
       .values({
         id,
         user_id: userId,
-        prompt_id: validPromptId,
-        submission_mode: input.submissionMode ?? 'GUIDED',
+        prompt_id: null,
+        submission_mode: input.submissionMode ?? 'FREE',
         user_text: input.userText,
         word_count: input.wordCount,
         status: input.status ?? 'DRAFT',
@@ -117,18 +112,33 @@ export class WritingRepository implements IWritingRepository {
       .where('submission_id', '=', input.submissionId)
       .executeTakeFirst();
 
+    const rubric = input.evaluation.rubric_scores ?? {
+      accuracy: input.evaluation.scores.grammar,
+      range_and_precision: input.evaluation.scores.vocabulary,
+      cohesion_and_flow: input.evaluation.scores.coherence,
+      pragmatics_and_complexity: 8.0,
+    };
+
     if (existing) {
       await this.db
         .updateTable('writing_evaluations')
         .set({
           model_used: input.modelUsed ?? 'gemini-3.8-flash',
           estimated_cefr: input.evaluation.estimated_cefr,
+          clean_structural_version: input.evaluation.clean_structural_version || '',
+          native_recast_version: input.evaluation.native_recast_version || '',
+          noticing_the_gap_json: JSON.stringify(input.evaluation.noticing_the_gap_contrasts || []),
           grammar_score: input.evaluation.scores.grammar,
           vocabulary_score: input.evaluation.scores.vocabulary,
           coherence_score: input.evaluation.scores.coherence,
+          accuracy_score: rubric.accuracy,
+          range_precision_score: rubric.range_and_precision,
+          cohesion_flow_score: rubric.cohesion_and_flow,
+          pragmatics_complexity_score: rubric.pragmatics_and_complexity,
           overall_feedback_es: input.evaluation.overall_feedback_es,
+          qualitative_recommendations_es: input.evaluation.qualitative_recommendations_es || '',
           corrections_json: JSON.stringify(input.evaluation.corrections),
-          micro_challenge_json: JSON.stringify(input.evaluation.micro_challenge),
+          micro_challenge_json: input.evaluation.micro_challenge ? JSON.stringify(input.evaluation.micro_challenge) : null,
           successful_repairs_json: JSON.stringify(input.evaluation.successful_repairs ?? []),
         })
         .where('id', '=', existing.id)
@@ -143,12 +153,20 @@ export class WritingRepository implements IWritingRepository {
           submission_id: input.submissionId,
           model_used: input.modelUsed ?? 'gemini-3.8-flash',
           estimated_cefr: input.evaluation.estimated_cefr,
+          clean_structural_version: input.evaluation.clean_structural_version || '',
+          native_recast_version: input.evaluation.native_recast_version || '',
+          noticing_the_gap_json: JSON.stringify(input.evaluation.noticing_the_gap_contrasts || []),
           grammar_score: input.evaluation.scores.grammar,
           vocabulary_score: input.evaluation.scores.vocabulary,
           coherence_score: input.evaluation.scores.coherence,
+          accuracy_score: rubric.accuracy,
+          range_precision_score: rubric.range_and_precision,
+          cohesion_flow_score: rubric.cohesion_and_flow,
+          pragmatics_complexity_score: rubric.pragmatics_and_complexity,
           overall_feedback_es: input.evaluation.overall_feedback_es,
+          qualitative_recommendations_es: input.evaluation.qualitative_recommendations_es || '',
           corrections_json: JSON.stringify(input.evaluation.corrections),
-          micro_challenge_json: JSON.stringify(input.evaluation.micro_challenge),
+          micro_challenge_json: input.evaluation.micro_challenge ? JSON.stringify(input.evaluation.micro_challenge) : null,
           successful_repairs_json: JSON.stringify(input.evaluation.successful_repairs ?? []),
         })
         .execute();
@@ -208,22 +226,34 @@ export class WritingRepository implements IWritingRepository {
       let evaluation: WritingEvaluationResponse | null = null;
       if (evalRow) {
         try {
-          evaluation = {
-            overall_feedback_es: evalRow.overall_feedback_es,
-            estimated_cefr: evalRow.estimated_cefr as WritingEvaluationResponse['estimated_cefr'],
-            scores: {
-              grammar: evalRow.grammar_score,
-              vocabulary: evalRow.vocabulary_score,
-              coherence: evalRow.coherence_score,
-            },
-            successful_repairs: evalRow.successful_repairs_json
-              ? JSON.parse(evalRow.successful_repairs_json)
-              : [],
-            corrections: JSON.parse(evalRow.corrections_json),
-            micro_challenge: evalRow.micro_challenge_json
-              ? JSON.parse(evalRow.micro_challenge_json)
-              : null,
-          };
+            evaluation = {
+              overall_feedback_es: evalRow.overall_feedback_es,
+              clean_structural_version: evalRow.clean_structural_version ?? '',
+              native_recast_version: evalRow.native_recast_version ?? '',
+              noticing_the_gap_contrasts: evalRow.noticing_the_gap_json
+                ? JSON.parse(evalRow.noticing_the_gap_json)
+                : [],
+              rubric_scores: {
+                accuracy: evalRow.accuracy_score ?? evalRow.grammar_score,
+                range_and_precision: evalRow.range_precision_score ?? evalRow.vocabulary_score,
+                cohesion_and_flow: evalRow.cohesion_flow_score ?? evalRow.coherence_score,
+                pragmatics_and_complexity: evalRow.pragmatics_complexity_score ?? 8.0,
+              },
+              scores: {
+                grammar: evalRow.grammar_score,
+                vocabulary: evalRow.vocabulary_score,
+                coherence: evalRow.coherence_score,
+              },
+              estimated_cefr: evalRow.estimated_cefr as WritingEvaluationResponse['estimated_cefr'],
+              qualitative_recommendations_es: evalRow.qualitative_recommendations_es ?? '',
+              successful_repairs: evalRow.successful_repairs_json
+                ? JSON.parse(evalRow.successful_repairs_json)
+                : [],
+              corrections: JSON.parse(evalRow.corrections_json),
+              micro_challenge: evalRow.micro_challenge_json
+                ? JSON.parse(evalRow.micro_challenge_json)
+                : null,
+            };
         } catch {
           evaluation = null;
         }
@@ -284,12 +314,24 @@ export class WritingRepository implements IWritingRepository {
       try {
         evaluation = {
           overall_feedback_es: evalRow.overall_feedback_es,
-          estimated_cefr: evalRow.estimated_cefr as WritingEvaluationResponse['estimated_cefr'],
+          clean_structural_version: evalRow.clean_structural_version ?? '',
+          native_recast_version: evalRow.native_recast_version ?? '',
+          noticing_the_gap_contrasts: evalRow.noticing_the_gap_json
+            ? JSON.parse(evalRow.noticing_the_gap_json)
+            : [],
+          rubric_scores: {
+            accuracy: evalRow.accuracy_score ?? evalRow.grammar_score,
+            range_and_precision: evalRow.range_precision_score ?? evalRow.vocabulary_score,
+            cohesion_and_flow: evalRow.cohesion_flow_score ?? evalRow.coherence_score,
+            pragmatics_and_complexity: evalRow.pragmatics_complexity_score ?? 8.0,
+          },
           scores: {
             grammar: evalRow.grammar_score,
             vocabulary: evalRow.vocabulary_score,
             coherence: evalRow.coherence_score,
           },
+          estimated_cefr: evalRow.estimated_cefr as WritingEvaluationResponse['estimated_cefr'],
+          qualitative_recommendations_es: evalRow.qualitative_recommendations_es ?? '',
           successful_repairs: evalRow.successful_repairs_json
             ? JSON.parse(evalRow.successful_repairs_json)
             : [],
@@ -324,4 +366,204 @@ export class WritingRepository implements IWritingRepository {
       .where('id', '=', id)
       .execute();
   }
+
+  private toDomainErrorLog(row: any): WritingErrorSrsItem {
+    let drillData: PositiveDrillData;
+    try {
+      drillData = row.drill_data_json
+        ? JSON.parse(row.drill_data_json)
+        : {
+            format: (row.drill_format as PositiveDrillFormat) ?? 'CONTEXTUAL_CLOZE',
+            explanationEs: row.explanation_es,
+            sentenceContext: row.expanded_context || row.original_sentence || '',
+          };
+    } catch {
+      drillData = {
+        format: (row.drill_format as PositiveDrillFormat) ?? 'CONTEXTUAL_CLOZE',
+        explanationEs: row.explanation_es,
+        sentenceContext: row.expanded_context || row.original_sentence || '',
+      };
+    }
+
+    return {
+      id: row.id,
+      submissionId: row.submission_id,
+      userId: row.user_id,
+      errorSpan: row.error_span,
+      errorType: row.error_type,
+      taxonomyCode: row.taxonomy_code,
+      isL1SpanishTransfer: Boolean(row.is_l1_spanish_transfer),
+      explanationEs: row.explanation_es,
+      nativeReformulation: row.native_reformulation,
+      originalSentence: row.original_sentence || '',
+      expandedContext: row.expanded_context || '',
+      drillFormat: (row.drill_format as PositiveDrillFormat) ?? 'CONTEXTUAL_CLOZE',
+      drillData,
+      srsCardId: row.srs_card_id,
+      masteryStatus: (row.mastery_status as 'LEARNING' | 'INTERNALIZED' | 'RECIDIVIST') ?? 'LEARNING',
+      isFossilizedAlert: Boolean(row.is_fossilized_alert),
+      timesRecidivist: row.times_recidivist ?? 0,
+      createdAt: row.created_at,
+    };
+  }
+
+  async logWritingErrors(
+    submissionId: string,
+    corrections: CorrectionItem[],
+    userId = 'user_local',
+    contextText = '',
+  ): Promise<void> {
+    if (!corrections || corrections.length === 0) return;
+
+    for (const corr of corrections) {
+      const id = `err_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const cardId = `card_err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const now = new Date().toISOString();
+
+      // Check previous occurrences
+      const recidivism = await this.checkRecidivism(userId, corr.taxonomy_code);
+      const timesRecidivist = recidivism.count + 1;
+      const isFossilized = timesRecidivist >= 2;
+
+      // Positive Drill format
+      const drillFormat: PositiveDrillFormat = 'CONTEXTUAL_CLOZE';
+      const drillData: PositiveDrillData = {
+        format: drillFormat,
+        clozeSentence: corr.drill?.cloze_sentence || contextText,
+        expectedToken: corr.drill?.expected_token || corr.native_reformulation,
+        explanationEs: corr.explanation_es,
+        sentenceContext: contextText || corr.drill?.cloze_sentence || '',
+      };
+
+      // Create isolated SRS card with WRITING_ERROR_REFLECTIVE profile
+      await this.db
+        .insertInto('srs_cards')
+        .values({
+          id: cardId,
+          user_id: userId,
+          target_type: 'WRITING_ERROR',
+          target_id: id,
+          srs_profile: 'WRITING_ERROR_REFLECTIVE',
+          state: 'NEW',
+          stability: 0.0,
+          difficulty: isFossilized ? 0.8 : 0.0,
+          reps: 0,
+          lapses: 0,
+          consecutive_lapses: 0,
+          is_leech: 0,
+          last_reviewed_at: null,
+          scheduled_for: now,
+          created_at: now,
+        })
+        .execute();
+
+      await this.db
+        .insertInto('writing_error_logs')
+        .values({
+          id,
+          submission_id: submissionId,
+          user_id: userId,
+          error_span: corr.error_span,
+          error_type: corr.error_type,
+          taxonomy_code: corr.taxonomy_code,
+          is_l1_spanish_transfer: corr.is_l1_spanish_transfer ? 1 : 0,
+          explanation_es: corr.explanation_es,
+          native_reformulation: corr.native_reformulation,
+          original_sentence: corr.drill?.cloze_sentence || contextText,
+          expanded_context: contextText,
+          drill_format: drillFormat,
+          drill_data_json: JSON.stringify(drillData),
+          srs_card_id: cardId,
+          mastery_status: isFossilized ? 'RECIDIVIST' : 'LEARNING',
+          is_fossilized_alert: isFossilized ? 1 : 0,
+          times_recidivist: timesRecidivist,
+          is_resolved: 0,
+        })
+        .execute();
+    }
+  }
+
+  async checkRecidivism(userId: string, taxonomyCode: string): Promise<{ isRecidivist: boolean; count: number }> {
+    const existing = await this.db
+      .selectFrom('writing_error_logs')
+      .select((eb) => eb.fn.count('id').as('count'))
+      .where('user_id', '=', userId)
+      .where('taxonomy_code', '=', taxonomyCode)
+      .executeTakeFirst();
+
+    const count = Number(existing?.count ?? 0);
+    return {
+      isRecidivist: count >= 2,
+      count,
+    };
+  }
+
+  async getFossilizedErrors(userId = 'user_local'): Promise<WritingErrorSrsItem[]> {
+    const rows = await this.db
+      .selectFrom('writing_error_logs')
+      .selectAll()
+      .where('user_id', '=', userId)
+      .where((eb) =>
+        eb.or([
+          eb('is_fossilized_alert', '=', 1),
+          eb('times_recidivist', '>=', 2),
+          eb('mastery_status', '=', 'RECIDIVIST'),
+        ]),
+      )
+      .orderBy('times_recidivist', 'desc')
+      .execute();
+
+    return rows.map((r) => this.toDomainErrorLog(r));
+  }
+
+  async getAllWritingErrors(userId = 'user_local'): Promise<WritingErrorSrsItem[]> {
+    const rows = await this.db
+      .selectFrom('writing_error_logs')
+      .selectAll()
+      .where('user_id', '=', userId)
+      .orderBy('created_at', 'desc')
+      .execute();
+
+    return rows.map((r) => this.toDomainErrorLog(r));
+  }
+
+  async updateErrorMastery(id: string, status: 'LEARNING' | 'INTERNALIZED' | 'RECIDIVIST'): Promise<void> {
+    await this.db
+      .updateTable('writing_error_logs')
+      .set({
+        mastery_status: status,
+        is_resolved: status === 'INTERNALIZED' ? 1 : 0,
+      })
+      .where('id', '=', id)
+      .execute();
+  }
+
+  async getErrorById(id: string): Promise<WritingErrorSrsItem | null> {
+    const row = await this.db
+      .selectFrom('writing_error_logs')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+
+    return row ? this.toDomainErrorLog(row) : null;
+  }
+
+  async getWritingErrorStats(userId = 'user_local', limit = 10): Promise<WritingErrorStat[]> {
+    const rows = await this.db
+      .selectFrom('writing_error_logs')
+      .select(['taxonomy_code', 'error_type'])
+      .select((eb) => eb.fn.count('id').as('count'))
+      .where('user_id', '=', userId)
+      .groupBy(['taxonomy_code', 'error_type'])
+      .orderBy('count', 'desc')
+      .limit(limit)
+      .execute();
+
+    return rows.map((r) => ({
+      taxonomyCode: r.taxonomy_code,
+      errorType: r.error_type,
+      count: Number(r.count),
+    }));
+  }
 }
+

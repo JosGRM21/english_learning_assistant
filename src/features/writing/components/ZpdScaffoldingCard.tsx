@@ -29,7 +29,7 @@ const CLUE_TYPE_LABELS_ES: Record<string, string> = {
   COLLOCATION: 'Combinación léxica natural',
   WORD_ORDER: 'Orden de palabras sintáctico',
   WORD_CHOICE: 'Selección de vocabulario',
-  SPELLING: 'Ortografía y puntuación',
+  SPELLING: 'Ortografía',
 };
 
 export function ZpdScaffoldingCard({

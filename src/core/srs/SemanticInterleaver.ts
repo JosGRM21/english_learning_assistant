@@ -2,6 +2,8 @@ export interface QueueItem {
   cardId: string;
   taxonomyCode?: string;
   semanticClusterId?: string;
+  primaryClusterId?: string;
+  secondaryClusterId?: string;
   [key: string]: unknown;
 }
 
@@ -13,7 +15,7 @@ export class SemanticInterleaver {
   }
 
   /**
-   * Reorders a review queue so items with the same semanticClusterId
+   * Reorders a review queue so items with the same semanticClusterId or cluster IDs
    * are spaced out by at least minSeparation items whenever alternative items are available.
    */
   public interleaveQueue<T extends QueueItem>(queue: T[]): T[] {
@@ -30,11 +32,30 @@ export class SemanticInterleaver {
 
         // Check recent cards placed within minSeparation
         const recentSlice = result.slice(-this.minSeparation);
-        const hasConflict =
-          Boolean(candidate.semanticClusterId) &&
-          recentSlice.some(
-            (item) => item.semanticClusterId && item.semanticClusterId === candidate.semanticClusterId,
-          );
+        const hasConflict = recentSlice.some((item) => {
+          if (
+            candidate.semanticClusterId &&
+            item.semanticClusterId &&
+            candidate.semanticClusterId === item.semanticClusterId
+          ) {
+            return true;
+          }
+          if (
+            candidate.primaryClusterId &&
+            item.primaryClusterId &&
+            candidate.primaryClusterId === item.primaryClusterId
+          ) {
+            return true;
+          }
+          if (
+            candidate.secondaryClusterId &&
+            item.secondaryClusterId &&
+            candidate.secondaryClusterId === item.secondaryClusterId
+          ) {
+            return true;
+          }
+          return false;
+        });
 
         if (!hasConflict) {
           result.push(candidate);

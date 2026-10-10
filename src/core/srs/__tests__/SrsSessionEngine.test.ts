@@ -15,6 +15,8 @@ describe('SrsSessionEngine', () => {
       partOfSpeech: 'NOUN',
       grammaticalDimension: 'CONTENT',
       isFalseFriend: false,
+      isCore: true,
+      masteryStatus: 'LEARNING',
       createdAt: new Date().toISOString(),
     };
 
@@ -23,11 +25,14 @@ describe('SrsSessionEngine', () => {
       userId: 'user_local',
       targetType: 'VOCAB',
       targetId: vocab.id,
+      srsProfile: 'VOCAB_AGILE',
       state: 'REVIEW',
       stability: 2.5,
       difficulty: 5.0,
       reps: 1,
       lapses: 0,
+      consecutiveLapses: 0,
+      isLeech: false,
       lastReviewedAt: null,
       scheduledFor: new Date().toISOString(),
       createdAt: new Date().toISOString(),

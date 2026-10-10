@@ -5,7 +5,7 @@ interface HomeEmptyViewProps {
   onNavigateTab: (tab: AppTab) => void;
 }
 
-export function HomeEmptyView({ onNavigateTab }: HomeEmptyViewProps) {
+export function HomeView({ onNavigateTab }: HomeEmptyViewProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[68vh] text-center px-4 max-w-2xl mx-auto animate-in fade-in zoom-in-95 duration-300">
       <div className="relative mb-6">

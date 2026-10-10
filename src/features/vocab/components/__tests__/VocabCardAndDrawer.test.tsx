@@ -18,6 +18,8 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
     partOfSpeech: 'ADJECTIVE',
     grammaticalDimension: 'CONTENT',
     isFalseFriend: false,
+    isCore: true,
+    masteryStatus: 'LEARNING',
     morphologicalFamilyJson: ['resilience', 'resiliently'],
     createdAt: new Date().toISOString(),
   };
@@ -33,6 +35,8 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
     grammaticalDimension: 'CONTENT',
     isFalseFriend: true,
     falseFriendNote: 'No significa actualmente, sino en realidad.',
+    isCore: true,
+    masteryStatus: 'LEARNING',
     createdAt: new Date().toISOString(),
   };
 
@@ -103,11 +107,12 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
       expect(mockAudioService.speak).toHaveBeenCalledWith('resilient', 1.0);
     });
 
-    it('displays the false friend warning indicator on false friend words', () => {
+    it('does not display clutter badges like false friend on card header, keeping only CEFR level', () => {
       render(<VocabCard vocab={mockFalseFriendVocab} />);
 
       expect(screen.getByText('actually')).toBeDefined();
-      expect(screen.getByText('Falso Amigo')).toBeDefined();
+      expect(screen.getByText('B1')).toBeDefined();
+      expect(screen.queryByText('Falso Amigo')).toBeNull();
       expect(screen.queryByText(/No significa actualmente/i)).toBeNull();
     });
 
@@ -150,9 +155,10 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
 
       render(<VocabCard vocab={mockVerbVocab} />);
 
-      // Word and Irregular verb badge in top meta row must be present
+      // Word and CEFR level beside it must be present; no top meta clutter badges
       expect(screen.getByText('run')).toBeDefined();
-      expect(screen.getByText('Verbo Irreg.')).toBeDefined();
+      expect(screen.getByText('B2')).toBeDefined();
+      expect(screen.queryByText('Verbo Irreg.')).toBeNull();
 
       // Bottom clutter chips must NOT be rendered
       expect(screen.queryByText(/\+1 acepciones/i)).toBeNull();
@@ -201,19 +207,91 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
         />
       );
 
-      expect(screen.getByText('Inspector Léxico')).toBeDefined();
+      // In the new polysemic redesign, all senses are rendered as dictionary entries
+      expect(screen.getByText(/capacidad de recuperación/i)).toBeDefined();
+
+      // Switch to Gramática y Formas tab to view morphological family
+      fireEvent.click(screen.getByText(/Gramática y Formas/i));
       expect(screen.getByText('resilience')).toBeDefined();
       expect(screen.getByText('resiliently')).toBeDefined();
-      expect(screen.getByText('Psicología')).toBeDefined();
 
-      // The drawer must focus strictly on its own word and NOT bundle other senses
-      expect(screen.queryByText(/Otras Acepciones y Contextos/i)).toBeNull();
-      expect(screen.queryByText(/capacidad de recuperación/i)).toBeNull();
+      // Switch to Retención FSRS tab to view FSRS metrics
+      fireEvent.click(screen.getByText(/Retención FSRS/i));
 
       await waitFor(() => {
-        expect(screen.getByText('Estado de Retención FSRS')).toBeDefined();
+        expect(screen.getByText(/Estado del Algoritmo FSRS 5.0/i)).toBeDefined();
         expect(screen.getByText('4.5d')).toBeDefined();
       });
+    });
+
+    it('allows navigating to or creating independent cards for senses from the drawer, and does not render phrasal verbs inside the drawer', () => {
+      const onSelectWordMock = vi.fn();
+      const onCreateCardFromSenseMock = vi.fn().mockResolvedValue(null);
+
+      const existingSenseCard: VocabItem = {
+        ...mockVocab,
+        id: 'voc_sense_card',
+        word: 'resilient',
+        translationEs: 'capacidad de recuperación',
+        domainCategory: 'Psicología',
+      };
+
+      const vocabWithSensesAndPv: VocabItem = {
+        ...mockVocab,
+        alternateSensesJson: [
+          {
+            id: 'alt_1',
+            translationEs: 'capacidad de recuperación',
+            definitionEn: 'Mental elasticity.',
+            partOfSpeech: 'NOUN',
+            domainCategory: 'Psicología',
+            cefrLevel: 'C1',
+          },
+          {
+            id: 'alt_2',
+            translationEs: 'elástico / flexible',
+            definitionEn: 'Physical flexibility.',
+            partOfSpeech: 'ADJECTIVE',
+            domainCategory: 'Física',
+            cefrLevel: 'B2',
+          },
+        ],
+        phrasalVerbsJson: [
+          {
+            text: 'bounce back',
+            meaningEs: 'recuperarse rápidamente',
+            type: 'TYPE_1_INTRANSITIVE',
+            cefrLevel: 'B2',
+            example1: 'He bounced back from defeat.',
+          },
+        ],
+      };
+
+      render(
+        <VocabDetailDrawer
+          vocab={vocabWithSensesAndPv}
+          isOpen={true}
+          onClose={vi.fn()}
+          allWords={[mockVocab, existingSenseCard]}
+          onSelectWord={onSelectWordMock}
+          onCreateCardFromSense={onCreateCardFromSenseMock}
+        />
+      );
+
+      // Phrasal verbs must NOT appear inside the drawer
+      expect(screen.queryByText('bounce back')).toBeNull();
+
+      // Sense with existing card shows "Ver Tarjeta"
+      const verTarjetaButtons = screen.getAllByText(/Ver Tarjeta/i);
+      expect(verTarjetaButtons.length).toBeGreaterThan(0);
+      fireEvent.click(verTarjetaButtons[0]);
+      expect(onSelectWordMock).toHaveBeenCalledWith(existingSenseCard);
+
+      // Alternate sense without card shows "Crear Tarjeta"
+      const crearTarjetaButtons = screen.getAllByText(/Crear Tarjeta/i);
+      expect(crearTarjetaButtons.length).toBeGreaterThan(0);
+      fireEvent.click(crearTarjetaButtons[0]);
+      expect(onCreateCardFromSenseMock).toHaveBeenCalled();
     });
 
     it('navigates to previous and next word via buttons and keyboard arrows', () => {
@@ -263,6 +341,99 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
       expect(mockAudioService.speak).toHaveBeenCalledWith('resilient', 0.75);
     });
 
+    it('progressively discloses context examples when there are more than 2 examples', () => {
+      const threeExamples: VocabContextExample[] = [
+        { id: 'ex_1', vocabId: 'voc_test_1', sentenceEn: 'Sentence One.', sentenceEs: 'Oración Uno.', clozeTarget: 'test', cefrLevel: 'B1', createdAt: '' },
+        { id: 'ex_2', vocabId: 'voc_test_1', sentenceEn: 'Sentence Two.', sentenceEs: 'Oración Dos.', clozeTarget: 'test', cefrLevel: 'B1', createdAt: '' },
+        { id: 'ex_3', vocabId: 'voc_test_1', sentenceEn: 'Sentence Three.', sentenceEs: 'Oración Tres.', clozeTarget: 'test', cefrLevel: 'B1', createdAt: '' },
+      ];
+
+      render(
+        <VocabDetailDrawer
+          vocab={mockVocab}
+          isOpen={true}
+          onClose={vi.fn()}
+          examples={threeExamples}
+        />
+      );
+
+      // Initially only 2 sentences should be rendered in the document
+      expect(screen.getByText(/“Sentence One.”/i)).toBeDefined();
+      expect(screen.getByText(/“Sentence Two.”/i)).toBeDefined();
+      expect(screen.queryByText(/“Sentence Three.”/i)).toBeNull();
+
+      // Show more button exists
+      const showMoreBtn = screen.getByText(/Mostrar 1 oraciones más/i);
+      expect(showMoreBtn).toBeDefined();
+
+      // Click to expand
+      fireEvent.click(showMoreBtn);
+
+      // Now all 3 sentences are visible
+      expect(screen.getByText(/“Sentence Three.”/i)).toBeDefined();
+    });
+
+    it('does not duplicate primary sense examples at the bottom of the drawer', () => {
+      const vocabWithGraduatedExamples: VocabItem = {
+        ...mockVocab,
+        sensesJson: [
+          {
+            translationEs: 'resiliente',
+            definitionEn: 'Able to withstand or recover quickly.',
+            partOfSpeech: 'ADJECTIVE',
+            cefrLevel: 'B2',
+            graduatedExamples: {
+              sentenceBasicEn: 'She is resilient under pressure.',
+              sentenceBasicEs: 'Ella es resiliente bajo presión.',
+              sentenceAdvancedEn: 'Resilient organizations adapt rapidly to systemic shifts.',
+              sentenceAdvancedEs: 'Las organizaciones resilientes se adaptan rápidamente.',
+            },
+          },
+        ],
+      };
+
+      const examplesFromDb: VocabContextExample[] = [
+        {
+          id: 'ctx_dup_1',
+          vocabId: 'voc_test_1',
+          sentenceEn: 'She is resilient under pressure.',
+          sentenceEs: 'Ella es resiliente bajo presión.',
+          clozeTarget: 'resilient',
+          cefrLevel: 'B2',
+          createdAt: '',
+        },
+        {
+          id: 'ctx_dup_2',
+          vocabId: 'voc_test_1',
+          sentenceEn: 'Resilient organizations adapt rapidly to systemic shifts.',
+          sentenceEs: 'Las organizaciones resilientes se adaptan rápidamente.',
+          clozeTarget: 'Resilient',
+          cefrLevel: 'B2',
+          createdAt: '',
+        },
+      ];
+
+      render(
+        <VocabDetailDrawer
+          vocab={vocabWithGraduatedExamples}
+          isOpen={true}
+          onClose={vi.fn()}
+          examples={examplesFromDb}
+        />
+      );
+
+      // The sentences should appear in the primary sense block
+      const basicMatches = screen.getAllByText(/“She is resilient under pressure.”/i);
+      expect(basicMatches).toHaveLength(1);
+
+      const advMatches = screen.getAllByText(/“Resilient organizations adapt rapidly to systemic shifts.”/i);
+      expect(advMatches).toHaveLength(1);
+
+      // Only 1 "ORACIONES EN CONTEXTO" header exists (inside SenseBlock), not duplicated at the bottom
+      const headers = screen.getAllByText(/ORACIONES EN CONTEXTO/i);
+      expect(headers).toHaveLength(1);
+    });
+
     it('calls onDeleteWord after confirming deletion prompt', async () => {
       const onDeleteMock = vi.fn().mockResolvedValue(true);
       const onCloseMock = vi.fn();
@@ -280,7 +451,7 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
       fireEvent.click(screen.getByText(/Eliminar término/i));
 
       // Confirm prompt appears
-      expect(screen.getByText(/¿Eliminar resilient\?/i)).toBeDefined();
+      expect(screen.getByText(/¿Seguro\?/i)).toBeDefined();
 
       // Click confirm
       fireEvent.click(screen.getByText(/Sí, eliminar/i));

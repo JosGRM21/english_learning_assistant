@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { BookOpen, Search, X } from 'lucide-react';
+import { BookOpen, Search, X, AlertTriangle } from 'lucide-react';
 import { CardWithTarget } from '@/core/types/srs';
 import { PART_OF_SPEECH_LABELS_ES } from '@/core/types/vocab';
 
@@ -19,7 +19,7 @@ export function SrsDeckDrawer({
   onSelectCard,
 }: SrsDeckDrawerProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterState, setFilterState] = useState<'ALL' | 'NEW' | 'DUE' | 'REVIEW'>('ALL');
+  const [filterState, setFilterState] = useState<'ALL' | 'NEW' | 'DUE' | 'REVIEW' | 'LEECH'>('ALL');
 
   const filteredCards = useMemo(() => {
     const now = new Date().toISOString();
@@ -31,6 +31,7 @@ export function SrsDeckDrawer({
         if (!isDue) return false;
       }
       if (filterState === 'REVIEW' && item.card.state !== 'REVIEW') return false;
+      if (filterState === 'LEECH' && !item.card.isLeech) return false;
 
       // Filter by search query
       if (searchQuery.trim()) {
@@ -50,16 +51,24 @@ export function SrsDeckDrawer({
 
   if (!isOpen) return null;
 
-  const getStateBadge = (state: string, scheduledFor: string) => {
+  const getStateBadge = (card: CardWithTarget['card']) => {
     const now = new Date().toISOString();
-    if (state === 'NEW') {
+    if (card.isLeech) {
+      return (
+        <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/50 flex items-center gap-1">
+          <AlertTriangle className="w-2.5 h-2.5 text-amber-500" />
+          <span>Sangijuela</span>
+        </span>
+      );
+    }
+    if (card.state === 'NEW') {
       return (
         <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/50">
           Nueva
         </span>
       );
     }
-    if (scheduledFor <= now) {
+    if (card.scheduledFor <= now) {
       return (
         <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/50">
           Para Hoy
@@ -72,6 +81,8 @@ export function SrsDeckDrawer({
       </span>
     );
   };
+
+  const leechCount = deckCards.filter((c) => c.card.isLeech).length;
 
   return (
     <div
@@ -158,6 +169,19 @@ export function SrsDeckDrawer({
             >
               En Repaso
             </button>
+            {leechCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterState('LEECH')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer shrink-0 ${
+                  filterState === 'LEECH'
+                    ? 'bg-amber-700 text-white shadow-xs'
+                    : 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/50'
+                }`}
+              >
+                Leeches ({leechCount})
+              </button>
+            )}
           </div>
 
           {/* Cards list */}
@@ -202,7 +226,7 @@ export function SrsDeckDrawer({
                             {item.vocab.cefrLevel}
                           </span>
                         )}
-                        {getStateBadge(item.card.state, item.card.scheduledFor)}
+                        {getStateBadge(item.card)}
                       </div>
                       <p className="text-[11px] text-gray-600 dark:text-gray-300 flex items-baseline gap-1.5 flex-wrap">
                         <strong className="font-semibold text-gray-900 dark:text-gray-100">

@@ -84,18 +84,19 @@ class DelegatingAiGateway implements IAiGateway {
     }
   }
 
-  async evaluateSocraticPhase1(userText: string, _cefrTarget?: string): Promise<SocraticFeedbackResponse> {
+  async evaluateSocraticPhase1(userText: string, cefrTarget?: string): Promise<SocraticFeedbackResponse> {
     this.assertActiveKey();
-    return await this.geminiGateway.evaluateSocraticPhase1(userText);
+    return await this.geminiGateway.evaluateSocraticPhase1(userText, cefrTarget);
   }
 
   async evaluateFinalPhase2(
     draft1: string,
     draft2: string,
     cefrTarget?: string,
+    contextualInfo?: { readingContext?: string; targetWords?: string[] },
   ): Promise<WritingEvaluationResponse> {
     this.assertActiveKey();
-    return await this.geminiGateway.evaluateFinalPhase2(draft1, draft2, cefrTarget);
+    return await this.geminiGateway.evaluateFinalPhase2(draft1, draft2, cefrTarget, contextualInfo);
   }
 
   async lookupVocabWord(word: string): Promise<VocabEnrichmentResponse> {

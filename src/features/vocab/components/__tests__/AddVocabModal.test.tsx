@@ -30,6 +30,8 @@ describe('AddVocabModal Component', () => {
     ipaGeneralAmerican: 'bæŋk',
     cefrLevel: 'A2',
     isFalseFriend: false,
+    isCore: true,
+    masteryStatus: 'LEARNING',
     createdAt: new Date().toISOString(),
   };
 

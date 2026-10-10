@@ -43,7 +43,7 @@ describe('MockAiGateway', () => {
   });
 
   describe('evaluateFinalPhase2', () => {
-    it('generates full CEFR evaluation, diffable corrections and micro-challenge', async () => {
+    it('generates full CEFR evaluation, double recast, Noticing the Gap, and 4-axis rubric (RF-WRT-07/08/09)', async () => {
       const draft1 = 'I am agree and it depend of the situation.';
       const draft2 = 'I agree and it depends on the situation.';
 
@@ -53,18 +53,19 @@ describe('MockAiGateway', () => {
       expect(() => WritingEvaluationResponseSchema.parse(response)).not.toThrow();
 
       expect(response.estimated_cefr).toBe('B2');
+      expect(response.clean_structural_version).toBeTruthy();
+      expect(response.native_recast_version).toBeTruthy();
+      expect(response.noticing_the_gap_contrasts.length).toBeGreaterThanOrEqual(1);
+      expect(response.rubric_scores.accuracy).toBeGreaterThan(0);
+      expect(response.rubric_scores.range_and_precision).toBeGreaterThan(0);
+      expect(response.rubric_scores.cohesion_and_flow).toBeGreaterThan(0);
+      expect(response.rubric_scores.pragmatics_and_complexity).toBeGreaterThan(0);
       expect(response.scores.grammar).toBeGreaterThan(0);
       expect(response.scores.vocabulary).toBeGreaterThan(0);
       expect(response.scores.coherence).toBeGreaterThan(0);
-
-      // Micro challenge must have 4 options and valid answer index
-      expect(response.micro_challenge.options).toHaveLength(4);
-      expect(response.micro_challenge.correct_option_index).toBeGreaterThanOrEqual(0);
-      expect(response.micro_challenge.correct_option_index).toBeLessThan(4);
-      expect(response.micro_challenge.sentence_with_blank).toContain('___');
     });
 
-    it('identifies uncorrected L1 transfer errors in draft2', async () => {
+    it('identifies uncorrected L1 transfer errors with positive production drills (RF-ERR-02)', async () => {
       const draft1 = 'It depend of money.';
       const draft2 = 'It still depend of money actually.';
 
@@ -75,11 +76,25 @@ describe('MockAiGateway', () => {
       expect(prepError).toBeDefined();
       expect(prepError?.is_l1_spanish_transfer).toBe(true);
       expect(prepError?.native_reformulation).toContain('depend on');
+      expect(prepError?.drill).toBeDefined();
+      expect(prepError?.drill?.format).toBe('CONTEXTUAL_CLOZE');
+      expect(prepError?.drill?.expected_token).toBe('on');
+      // No options / zero negative priming
+      expect((prepError?.drill as any)?.options).toBeUndefined();
     });
 
     it('gracefully normalizes and parses corrections with diverse or non-standard error_types', () => {
       const rawPayload = {
         overall_feedback_es: 'Buen intento.',
+        clean_structural_version: 'I have lived here for 2 years and people are happy.',
+        native_recast_version: 'Having resided here for two years, I notice the general contentment.',
+        noticing_the_gap_contrasts: [],
+        rubric_scores: {
+          accuracy: 7.0,
+          range_and_precision: 7.5,
+          cohesion_and_flow: 8.0,
+          pragmatics_and_complexity: 7.5,
+        },
         estimated_cefr: 'B1',
         scores: { grammar: 7.0, vocabulary: 7.5, coherence: 8.0 },
         corrections: [
@@ -116,20 +131,31 @@ describe('MockAiGateway', () => {
             native_reformulation: 'fixed',
           },
         ],
-        micro_challenge: {
-          question_es: '¿Forma correcta?',
-          sentence_with_blank: 'People ___ happy.',
-          options: ['is', 'are', 'was', 'be'],
-          correct_option_index: 1,
-          explanation_es: 'Are es plural.',
-        },
       };
 
       const parsed = WritingEvaluationResponseSchema.parse(rawPayload);
       expect(parsed.corrections[0].error_type).toBe('TENSE_ASPECT');
       expect(parsed.corrections[1].error_type).toBe('AGREEMENT');
       expect(parsed.corrections[2].error_type).toBe('TENSE_ASPECT');
-      expect(parsed.corrections[3].error_type).toBe('GRAMMAR'); // fallback
+      expect(parsed.corrections[3].error_type).toBe('AGREEMENT'); // fallback
+    });
+
+    it('gracefully accepts qualitative_recommendations_es as array of strings or single string', () => {
+      const payloadWithArray = {
+        overall_feedback_es: 'Buen trabajo.',
+        estimated_cefr: 'B1',
+        scores: { grammar: 8, vocabulary: 8, coherence: 8 },
+        corrections: [],
+        qualitative_recommendations_es: [
+          'Presta atención a las preposiciones dependientes.',
+          'Practica el uso de conectores discursivos.',
+        ],
+      };
+
+      const parsed = WritingEvaluationResponseSchema.parse(payloadWithArray);
+      expect(typeof parsed.qualitative_recommendations_es).toBe('string');
+      expect(parsed.qualitative_recommendations_es).toContain('Presta atención');
+      expect(parsed.qualitative_recommendations_es).toContain('Practica el uso');
     });
   });
 

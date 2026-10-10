@@ -4,13 +4,22 @@ import {
   Volume2,
   Volume1,
   AlertTriangle,
-  BookOpen,
   Brain,
   Trash2,
   Edit3,
   Check,
   ChevronLeft,
   ChevronRight,
+  PlusCircle,
+  BookOpen,
+  Calendar,
+  Layers,
+  GraduationCap,
+  Sparkles,
+  Clock,
+  Gauge,
+  Activity,
+  Zap,
 } from 'lucide-react';
 import {
   Drawer,
@@ -20,20 +29,20 @@ import {
   DrawerDialog,
   DrawerHeader,
   DrawerBody,
-  DrawerFooter,
   Button,
 } from '@heroui/react';
 import {
   VocabItem,
   VocabContextExample,
   CefrLevel,
+  VocabSense,
   PART_OF_SPEECH_LABELS_ES,
-  GRAMMATICAL_DIMENSION_LABELS_ES,
 } from '@/core/types/vocab';
 import { SrsCard } from '@/core/types/srs';
 import { useAudio } from '@/shared/hooks/useAudio';
 import { useDatabase } from '@/shared/hooks/useDatabase';
-import { VerbTensesCard } from './VerbTensesCard';
+import { SenseBlock } from './SenseBlock';
+import { VerbTensesTable } from './VerbTensesTable';
 import { StructuredFamilyCard } from './StructuredFamilyCard';
 
 export interface VocabDetailDrawerProps {
@@ -41,30 +50,60 @@ export interface VocabDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   examples?: VocabContextExample[];
+  allWords?: VocabItem[];
+  onSelectWord?: (vocab: VocabItem) => void;
+  onCreateCardFromSense?: (sense: VocabSense, baseWord: VocabItem) => Promise<VocabItem | null>;
   onDeleteWord?: (id: string) => Promise<boolean>;
   onUpdateWord?: (id: string, updates: Partial<VocabItem>) => Promise<VocabItem | null>;
+  onActivateWord?: (id: string) => Promise<VocabItem | null>;
   onNavigateWord?: (direction: 'prev' | 'next') => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  accentPreference?: 'US' | 'UK';
 }
+
+const REGISTER_LABELS: Record<string, string> = {
+  FORMAL: 'Formal',
+  INFORMAL: 'Informal',
+  NEUTRAL: 'Neutral',
+  ACADEMIC: 'Académico',
+  SLANG: 'Slang / Coloquial',
+};
 
 export function VocabDetailDrawer({
   vocab,
   isOpen,
   onClose,
   examples = [],
+  allWords = [],
+  onSelectWord,
+  onCreateCardFromSense,
   onDeleteWord,
   onUpdateWord,
+  onActivateWord,
   onNavigateWord,
   hasPrev = false,
   hasNext = false,
+  accentPreference = 'US',
 }: VocabDetailDrawerProps) {
   const { audioService } = useAudio();
   const { cardRepo } = useDatabase();
 
+  const [activeTab, setActiveTab] = useState<'senses' | 'grammar' | 'srs'>('senses');
   const [isPlayingNormal, setIsPlayingNormal] = useState(false);
   const [isPlayingSlow, setIsPlayingSlow] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
   const [playingExampleId, setPlayingExampleId] = useState<string | null>(null);
+
+  const handleSpeakExample = async (id: string, text: string) => {
+    if (playingExampleId) return;
+    try {
+      setPlayingExampleId(id);
+      await audioService.speak(text, 0.95);
+    } finally {
+      setPlayingExampleId(null);
+    }
+  };
 
   const [srsCard, setSrsCard] = useState<SrsCard | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -78,8 +117,10 @@ export function VocabDetailDrawer({
   const [editCefr, setEditCefr] = useState<CefrLevel>('B1');
   const [editIsFalseFriend, setEditIsFalseFriend] = useState(false);
   const [editFalseFriendNote, setEditFalseFriendNote] = useState('');
+  const [showAllExamples, setShowAllExamples] = useState(false);
+  const [creatingSenseKey, setCreatingSenseKey] = useState<string | null>(null);
 
-  // Keep last non-null vocab during closing transition
+  // Keep last non-null vocab during closing animation
   const [lastVocab, setLastVocab] = useState<VocabItem | null>(vocab);
   useEffect(() => {
     if (vocab) {
@@ -89,7 +130,35 @@ export function VocabDetailDrawer({
 
   const currentVocab = vocab ?? lastVocab;
 
-  // Fetch SRS Card details when vocab changes
+  const findMatchingSenseCard = (sense: VocabSense, isPrimary: boolean) => {
+    if (!currentVocab) return null;
+    if (isPrimary) {
+      return currentVocab;
+    }
+    const cleanWord = currentVocab.word.trim().toLowerCase();
+    const cleanTrans = sense.translationEs.trim().toLowerCase();
+
+    return allWords.find((w) => {
+      if (w.word.trim().toLowerCase() !== cleanWord) return false;
+      if (w.id === currentVocab.id) return false;
+      const transMatch = w.translationEs.trim().toLowerCase() === cleanTrans;
+      const domainMatch = Boolean(sense.domainCategory && w.domainCategory === sense.domainCategory);
+      return transMatch || domainMatch;
+    });
+  };
+
+  const handleCreateSenseCard = async (sense: VocabSense) => {
+    if (!onCreateCardFromSense || !currentVocab) return;
+    const key = sense.id || sense.translationEs;
+    try {
+      setCreatingSenseKey(key);
+      await onCreateCardFromSense(sense, currentVocab);
+    } finally {
+      setCreatingSenseKey(null);
+    }
+  };
+
+  // Fetch SRS Card details
   useEffect(() => {
     if (!currentVocab || !cardRepo) {
       setSrsCard(null);
@@ -115,10 +184,11 @@ export function VocabDetailDrawer({
       setEditFalseFriendNote(vocab.falseFriendNote || '');
       setIsEditing(false);
       setShowDeleteConfirm(false);
+      setActiveTab('senses');
     }
   }, [vocab]);
 
-  // Keyboard navigation: Escape to close, Left/Right arrows to navigate
+  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
@@ -154,6 +224,11 @@ export function VocabDetailDrawer({
 
   if (!currentVocab) return null;
 
+  const isPhrasalVerb =
+    currentVocab.subcategory === 'PHRASAL_VERB' ||
+    currentVocab.domainCategory === 'Phrasal Verb' ||
+    (currentVocab.grammaticalDimension === 'CHUNK' && currentVocab.partOfSpeech === 'VERB');
+
   const handleSpeak = async (speed: 'normal' | 'slow') => {
     const isSlow = speed === 'slow';
     if (isSlow ? isPlayingSlow : isPlayingNormal) return;
@@ -168,13 +243,13 @@ export function VocabDetailDrawer({
     }
   };
 
-  const handleSpeakExample = async (example: VocabContextExample) => {
-    if (playingExampleId === example.id) return;
+  const handleActivate = async () => {
+    if (!onActivateWord || isActivating) return;
     try {
-      setPlayingExampleId(example.id);
-      await audioService.speak(example.sentenceEn, 0.95);
+      setIsActivating(true);
+      await onActivateWord(currentVocab.id);
     } finally {
-      setPlayingExampleId(null);
+      setIsActivating(false);
     }
   };
 
@@ -208,21 +283,60 @@ export function VocabDetailDrawer({
     }
   };
 
-  const getCefrBadgeStyle = (level: string) => {
-    switch (level) {
-      case 'A1':
-      case 'A2':
-        return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80';
-      case 'B1':
-      case 'B2':
-        return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/80';
-      case 'C1':
-      case 'C2':
-        return 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800/80';
-      default:
-        return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+  // Build list of senses
+  const sensesList: VocabSense[] =
+    currentVocab.sensesJson && currentVocab.sensesJson.length > 0
+      ? currentVocab.sensesJson
+      : [
+          {
+            translationEs: currentVocab.translationEs,
+            definitionEn: currentVocab.definitionEn,
+            partOfSpeech: currentVocab.partOfSpeech,
+            cefrLevel: currentVocab.cefrLevel,
+            collocations: currentVocab.collocationsJson || [],
+          },
+          ...(currentVocab.alternateSensesJson || []),
+        ];
+
+  // Collect sentence texts already rendered inside any sense block
+  const displayedSentenceTexts = new Set<string>();
+  for (const sense of sensesList) {
+    if (sense.graduatedExamples?.sentenceBasicEn) {
+      displayedSentenceTexts.add(sense.graduatedExamples.sentenceBasicEn.trim().toLowerCase());
     }
-  };
+    if (sense.graduatedExamples?.sentenceAdvancedEn) {
+      displayedSentenceTexts.add(sense.graduatedExamples.sentenceAdvancedEn.trim().toLowerCase());
+    }
+    if (sense.exampleSentenceEn) {
+      displayedSentenceTexts.add(sense.exampleSentenceEn.trim().toLowerCase());
+    }
+    if (sense.additionalExamples) {
+      for (const extra of sense.additionalExamples) {
+        if (extra?.sentenceEn) {
+          displayedSentenceTexts.add(extra.sentenceEn.trim().toLowerCase());
+        }
+      }
+    }
+  }
+
+  // Only consider context examples that are not already part of any rendered sense
+  const externalExamples = (examples || []).filter(
+    (ex) => Boolean(ex?.sentenceEn) && !displayedSentenceTexts.has(ex.sentenceEn.trim().toLowerCase()),
+  );
+
+  // Check if word has verb tenses or word family for Tab 2
+  const hasVerbTenses = Boolean(currentVocab.verbTensesJson);
+  const hasWordFamily = Boolean(
+    (currentVocab.structuredFamilyJson &&
+      (currentVocab.structuredFamilyJson.nouns?.length ||
+        currentVocab.structuredFamilyJson.verbs?.length ||
+        currentVocab.structuredFamilyJson.adjectives?.length ||
+        currentVocab.structuredFamilyJson.adverbs?.length)) ||
+      (currentVocab.morphologicalFamilyJson && currentVocab.morphologicalFamilyJson.length > 0),
+  );
+  const hasGrammarTab = hasVerbTenses || hasWordFamily;
+
+  const edEnding = currentVocab.phoneticEdEnding || currentVocab.verbTensesJson?.edPhoneticEnding;
 
   return (
     <Drawer
@@ -238,44 +352,46 @@ export function VocabDetailDrawer({
       <DrawerTrigger className="hidden" aria-hidden="true" />
       <DrawerBackdrop
         variant="transparent"
-        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs"
+        className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs transition-opacity duration-300"
       >
         <DrawerContent
           placement="right"
           className="fixed inset-0 z-50 flex justify-end pointer-events-none"
         >
           <DrawerDialog
-            aria-label={`Inspector Léxico: ${currentVocab.word}`}
-            className="relative pointer-events-auto p-0 m-0 w-full max-w-lg sm:max-w-xl lg:max-w-2xl bg-white dark:bg-[#0E111A] h-full shadow-2xl border-l border-y-0 border-r-0 border-gray-200/80 dark:border-white/[0.08] flex flex-col overflow-hidden outline-none rounded-none transition-all duration-300"
+            aria-label={`Ficha de Diccionario: ${currentVocab.word}`}
+            className="relative pointer-events-auto p-0 m-0 w-full max-w-lg sm:max-w-xl lg:max-w-2xl bg-white dark:bg-[#0D111A] h-full shadow-2xl border-l border-gray-200/80 dark:border-white/[0.08] flex flex-col overflow-hidden outline-none rounded-none transition-all duration-300 font-sans"
           >
-            {/* Drawer Header */}
-            <DrawerHeader className="p-4 px-6 border-b border-gray-100 dark:border-white/[0.06] flex flex-row items-center justify-between shrink-0 bg-gray-50/50 dark:bg-[#121622]/50 gap-0 mb-0">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shrink-0">
+            {/* Header: Glassmorphism bar with Category Pill, Navigation & Actions */}
+            <DrawerHeader className="p-3.5 px-6 border-b border-gray-100 dark:border-white/[0.06] flex flex-row items-center justify-between shrink-0 bg-white/80 dark:bg-[#0F1320]/80 backdrop-blur-md gap-0 mb-0 z-10">
+              <div className="flex items-center gap-2.5">
+                <span className="p-1.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0">
                   <BookOpen className="w-4 h-4" />
                 </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-600 dark:text-indigo-400">
-                      Inspector Léxico
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium truncate">
-                    Desglose fonético, semántico y retención
-                  </p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    Ficha de Diccionario
+                  </span>
+                  {currentVocab.domainCategory && currentVocab.domainCategory !== 'Uso General' && (
+                    <>
+                      <span className="text-gray-300 dark:text-gray-700">·</span>
+                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                        {currentVocab.domainCategory}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* Header Actions: Sequential Navigation & Edit & Close */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 {onNavigateWord && (
-                  <div className="flex items-center gap-0.5 mr-1 border-r border-gray-200 dark:border-white/[0.08] pr-1.5">
+                  <div className="flex items-center gap-1 mr-1 border-r border-gray-200 dark:border-white/[0.08] pr-2">
                     <button
                       type="button"
                       onClick={() => onNavigateWord('prev')}
                       disabled={!hasPrev}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-25 disabled:pointer-events-none transition-colors cursor-pointer"
-                      title="Palabra anterior (tecla ←)"
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800/70 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer"
+                      title="Palabra anterior (←)"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
@@ -283,8 +399,8 @@ export function VocabDetailDrawer({
                       type="button"
                       onClick={() => onNavigateWord('next')}
                       disabled={!hasNext}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-25 disabled:pointer-events-none transition-colors cursor-pointer"
-                      title="Palabra siguiente (tecla →)"
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800/70 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer"
+                      title="Palabra siguiente (→)"
                     >
                       <ChevronRight className="w-4 h-4" />
                     </button>
@@ -294,10 +410,10 @@ export function VocabDetailDrawer({
                 <button
                   type="button"
                   onClick={() => setIsEditing(!isEditing)}
-                  className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                  className={`p-2 rounded-xl transition-all cursor-pointer ${
                     isEditing
                       ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+                      : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800/70'
                   }`}
                   title={isEditing ? 'Cancelar edición' : 'Editar término'}
                 >
@@ -306,87 +422,135 @@ export function VocabDetailDrawer({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-2 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                  title="Cerrar inspector (Esc)"
+                  className="p-2 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors cursor-pointer"
+                  title="Cerrar ficha (Esc)"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </DrawerHeader>
 
-            {/* Scrollable Content */}
+            {/* Scrollable Dictionary Body */}
             <DrawerBody className="!mt-0 m-0 flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 text-inherit leading-normal">
-              {/* Main Word Section */}
-              <div className="space-y-3 pb-3 border-b border-gray-100 dark:border-white/[0.06]">
-                {/* Horizontal Categories Bar */}
-                <div className="flex items-center gap-2 flex-wrap">
+              {/* Activation Notice if Inactive */}
+              {currentVocab.masteryStatus === 'INACTIVE' && onActivateWord && (
+                <div className="p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/80 flex items-center justify-between gap-3 shadow-xs animate-in fade-in duration-200">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <p className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                        Término no activado en tu mazo de repaso
+                      </p>
+                    </div>
+                    <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
+                      Actívalo para comenzar a repasar con el algoritmo FSRS.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onPress={handleActivate}
+                    isDisabled={isActivating}
+                    className="h-8 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm shadow-indigo-500/20 cursor-pointer shrink-0"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>{isActivating ? 'Activando...' : 'Activar para estudio'}</span>
+                  </Button>
+                </div>
+              )}
+
+              {/* SECCIÓN A: HEADWORD HERO WITH ACOUSTIC SUITE */}
+              <div className="space-y-4 pb-5 border-b border-gray-100 dark:border-white/[0.06]">
+                {/* Lexical Hero Tags Row (Categorías arriba) */}
+                <div className="flex items-center gap-2 flex-wrap text-xs">
+                  {/* CEFR Level Chip */}
                   <span
-                    className={`px-2.5 py-0.5 rounded-md font-mono text-xs font-bold border shrink-0 ${getCefrBadgeStyle(
-                      currentVocab.cefrLevel,
-                    )}`}
+                    className={`px-3 py-1 rounded-xl font-mono text-xs font-semibold border ${
+                      currentVocab.cefrLevel === 'A1' || currentVocab.cefrLevel === 'A2'
+                        ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
+                        : currentVocab.cefrLevel === 'B1' || currentVocab.cefrLevel === 'B2'
+                        ? 'border-indigo-500/40 text-indigo-400 bg-indigo-500/10'
+                        : 'border-purple-500/40 text-purple-400 bg-purple-500/10'
+                    }`}
                   >
                     {currentVocab.cefrLevel}
                   </span>
 
-                  <span className="px-2.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300 font-medium shrink-0">
-                    {PART_OF_SPEECH_LABELS_ES[currentVocab.partOfSpeech] ?? currentVocab.partOfSpeech}
-                  </span>
-
-                  {currentVocab.domainCategory && (
-                    <span className="px-2.5 py-0.5 rounded-md font-sans text-xs font-bold bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 shrink-0">
-                      {currentVocab.domainCategory}
+                  {/* Part of Speech or Phrasal Verb Badge */}
+                  {isPhrasalVerb ? (
+                    <span className="px-3 py-1 rounded-xl font-medium text-xs bg-indigo-950/40 text-indigo-300 border border-indigo-500/40">
+                      Phrasal Verb
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 rounded-xl bg-[#141824] text-slate-300 font-medium text-xs border border-white/[0.08]">
+                      {PART_OF_SPEECH_LABELS_ES[currentVocab.partOfSpeech] ?? currentVocab.partOfSpeech}
                     </span>
                   )}
 
-                  <span className="px-2.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800/80 text-xs text-gray-600 dark:text-gray-400 font-medium shrink-0">
-                    {GRAMMATICAL_DIMENSION_LABELS_ES[currentVocab.grammaticalDimension] ?? currentVocab.grammaticalDimension}
+                  {/* Domain Category / Uso General */}
+                  <span className="px-3 py-1 rounded-xl bg-indigo-950/40 text-indigo-300 font-medium text-xs border border-indigo-500/40">
+                    {currentVocab.domainCategory || 'Uso General'}
                   </span>
 
-                  {currentVocab.subcategory && (
-                    <span className="px-2.5 py-0.5 rounded-md bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-medium border border-indigo-100 dark:border-indigo-900/40 shrink-0">
-                      {currentVocab.subcategory}
+                  {/* Grammatical Dimension / Contenido Léxico */}
+                  <span className="px-3 py-1 rounded-xl bg-[#141824] text-slate-400 font-medium text-xs border border-white/[0.08]">
+                    {currentVocab.grammaticalDimension === 'FUNCTION'
+                      ? 'Palabra Funcional'
+                      : currentVocab.grammaticalDimension === 'CHUNK'
+                      ? 'Expresión / Frase'
+                      : 'Contenido Léxico'}
+                  </span>
+
+                  {/* Register */}
+                  {currentVocab.register && (
+                    <span className="px-3 py-1 rounded-xl bg-[#141824] text-slate-400 font-medium text-xs border border-white/[0.08]">
+                      {REGISTER_LABELS[currentVocab.register] ?? currentVocab.register}
                     </span>
                   )}
                 </div>
 
-                {/* Word & Phonetics */}
-                <div>
-                  <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight font-sans">
+                {/* Headword & Phonetics */}
+                <div className="space-y-1.5">
+                  <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight font-sans">
                     {currentVocab.word}
                   </h1>
 
-                  {/* Phonetics row */}
-                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                  {/* Dual IPA transcription with regional flag badges */}
+                  <div className="flex items-center gap-3 flex-wrap text-sm pt-0.5">
                     {currentVocab.ipaGeneralAmerican && (
-                      <span
-                        className="font-phonetic text-base font-semibold text-indigo-600 dark:text-indigo-400 tracking-wide"
-                        title="General American IPA"
-                      >
-                        /{currentVocab.ipaGeneralAmerican}/
-                      </span>
+                      <div className={`flex items-center gap-1.5 text-indigo-400 font-phonetic font-medium tracking-wide text-sm ${
+                        accentPreference === 'US' ? 'opacity-100 font-semibold' : 'opacity-80'
+                      }`}>
+                        {currentVocab.ipaReceivedPronunciation && <span className="text-xs select-none">🇺🇸</span>}
+                        <span>//{currentVocab.ipaGeneralAmerican}//</span>
+                      </div>
                     )}
+
                     {currentVocab.ipaReceivedPronunciation && (
-                      <span
-                        className="font-phonetic text-xs text-purple-600 dark:text-purple-400 tracking-wide"
-                        title="Received Pronunciation (UK) IPA"
-                      >
-                        UK: /{currentVocab.ipaReceivedPronunciation}/
-                      </span>
+                      <>
+                        <span className="text-gray-300 dark:text-gray-700 select-none">·</span>
+                        <div className={`flex items-center gap-1.5 text-indigo-400 font-phonetic font-medium tracking-wide text-sm ${
+                          accentPreference === 'UK' ? 'opacity-100 font-semibold' : 'opacity-80'
+                        }`}>
+                          <span className="text-xs select-none">🇬🇧</span>
+                          <span>//{currentVocab.ipaReceivedPronunciation}//</span>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
 
-                {/* Pronunciation Audio Bar */}
-                <div className="flex items-center gap-2 pt-2">
+                {/* Audio Reproduction Buttons (1.0x & 0.75x Lento) */}
+                <div className="flex items-center gap-2.5 pt-1">
                   <button
                     type="button"
                     onClick={() => handleSpeak('normal')}
                     disabled={isPlayingNormal}
-                    className={`flex-1 py-2 px-3 rounded-xl border border-gray-200/80 dark:border-white/[0.08] bg-gray-50/80 dark:bg-[#161B28] hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:border-indigo-300 dark:hover:border-indigo-700/60 transition-all flex items-center justify-center gap-2 cursor-pointer text-xs font-semibold ${
-                      isPlayingNormal ? 'text-indigo-600 dark:text-indigo-400 ring-2 ring-indigo-500/30' : 'text-gray-700 dark:text-gray-200'
+                    className={`flex-1 h-11 px-4 rounded-xl border border-white/[0.08] bg-[#101422] hover:bg-[#161B2E] transition-all flex items-center justify-center gap-2 text-xs sm:text-sm font-medium text-slate-200 cursor-pointer shadow-xs ${
+                      isPlayingNormal ? 'ring-2 ring-indigo-500/50 bg-[#161B2E]' : ''
                     }`}
+                    title="Pronunciación normal (1.0x)"
                   >
-                    <Volume2 className={`w-4 h-4 ${isPlayingNormal ? 'animate-pulse text-indigo-600' : ''}`} />
+                    <Volume2 className={`w-4 h-4 text-slate-300 ${isPlayingNormal ? 'animate-pulse' : ''}`} />
                     <span>Pronunciación Normal (1.0x)</span>
                   </button>
 
@@ -394,23 +558,43 @@ export function VocabDetailDrawer({
                     type="button"
                     onClick={() => handleSpeak('slow')}
                     disabled={isPlayingSlow}
-                    className={`py-2 px-3 rounded-xl border border-gray-200/80 dark:border-white/[0.08] bg-gray-50/80 dark:bg-[#161B28] hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:border-purple-300 dark:border-purple-700/60 transition-all flex items-center justify-center gap-1.5 cursor-pointer text-xs font-semibold ${
-                      isPlayingSlow ? 'text-purple-600 dark:text-purple-400 ring-2 ring-purple-500/30' : 'text-gray-600 dark:text-gray-300'
+                    className={`h-11 px-4 rounded-xl border border-white/[0.08] bg-[#101422] hover:bg-[#161B2E] transition-all flex items-center justify-center gap-2 text-xs sm:text-sm font-medium text-slate-200 cursor-pointer shadow-xs shrink-0 ${
+                      isPlayingSlow ? 'ring-2 ring-purple-500/50 bg-[#161B2E]' : ''
                     }`}
-                    title="Escuchar a velocidad lenta (0.75x) para entrenamiento auditivo"
+                    title="Escuchar a velocidad lenta (0.75x)"
                   >
-                    <Volume1 className={`w-3.5 h-3.5 ${isPlayingSlow ? 'animate-pulse text-purple-600' : ''}`} />
+                    <Volume1 className={`w-4 h-4 text-slate-300 ${isPlayingSlow ? 'animate-pulse' : ''}`} />
                     <span>0.75x Lento</span>
                   </button>
                 </div>
+
+                {/* False Friend Alert Banner */}
+                {currentVocab.isFalseFriend && (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-300/80 dark:border-amber-700/60 space-y-1 shadow-2xs animate-in fade-in duration-200">
+                    <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 font-bold text-xs">
+                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>Alerta de Interferencia L1 (Falso Amigo)</span>
+                    </div>
+                    <p className="text-xs text-amber-900/90 dark:text-amber-200/90 leading-relaxed font-sans">
+                      {currentVocab.falseFriendNote ||
+                        'Este término se asemeja ortográficamente a una palabra en español con un significado completamente distinto.'}
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {/* Edit Form or Meanings Section */}
-              {isEditing ? (
-                <div className="p-4 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/50 space-y-3 animate-in fade-in duration-200">
-                  <h3 className="text-xs font-bold text-indigo-900 dark:text-indigo-200 uppercase tracking-wider">
-                    Editar Datos Léxicos
-                  </h3>
+              {/* Edit Mode Inline Panel */}
+              {isEditing && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-50/50 via-white to-purple-50/30 dark:from-[#131726] dark:via-[#111420] dark:to-[#171328] border border-indigo-200/80 dark:border-indigo-800/60 space-y-3.5 shadow-md animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Edit3 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      <h3 className="text-xs font-bold text-indigo-950 dark:text-indigo-200 uppercase tracking-wider">
+                        Editar Datos Léxicos
+                      </h3>
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-mono">Modo Edición</span>
+                  </div>
 
                   <div className="space-y-1">
                     <label className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
@@ -420,7 +604,7 @@ export function VocabDetailDrawer({
                       type="text"
                       value={editTranslation}
                       onChange={(e) => setEditTranslation(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-[#121622] border border-gray-300 dark:border-gray-700 text-xs font-semibold text-gray-900 dark:text-white"
+                      className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#151928] border border-gray-300 dark:border-gray-700 text-xs font-semibold text-gray-900 dark:text-white shadow-2xs focus:border-indigo-500 outline-none"
                     />
                   </div>
 
@@ -432,7 +616,7 @@ export function VocabDetailDrawer({
                       rows={2}
                       value={editDefinition}
                       onChange={(e) => setEditDefinition(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-[#121622] border border-gray-300 dark:border-gray-700 text-xs text-gray-900 dark:text-white"
+                      className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#151928] border border-gray-300 dark:border-gray-700 text-xs text-gray-900 dark:text-white shadow-2xs focus:border-indigo-500 outline-none"
                     />
                   </div>
 
@@ -443,7 +627,7 @@ export function VocabDetailDrawer({
                     <select
                       value={editCefr}
                       onChange={(e) => setEditCefr(e.target.value as CefrLevel)}
-                      className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-[#121622] border border-gray-300 dark:border-gray-700 text-xs text-gray-900 dark:text-white"
+                      className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#151928] border border-gray-300 dark:border-gray-700 text-xs text-gray-900 dark:text-white shadow-2xs focus:border-indigo-500 outline-none"
                     >
                       <option value="A1">A1</option>
                       <option value="A2">A2</option>
@@ -454,15 +638,15 @@ export function VocabDetailDrawer({
                     </select>
                   </div>
 
-                  <div className="pt-1">
+                  <div className="pt-1 space-y-2">
                     <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-700 dark:text-gray-300">
                       <input
                         type="checkbox"
                         checked={editIsFalseFriend}
                         onChange={(e) => setEditIsFalseFriend(e.target.checked)}
-                        className="rounded text-indigo-600"
+                        className="rounded text-indigo-600 focus:ring-indigo-500"
                       />
-                      <span>¿Es un Falso Amigo?</span>
+                      <span className="font-semibold">¿Es un Falso Amigo?</span>
                     </label>
                     {editIsFalseFriend && (
                       <input
@@ -470,226 +654,315 @@ export function VocabDetailDrawer({
                         value={editFalseFriendNote}
                         onChange={(e) => setEditFalseFriendNote(e.target.value)}
                         placeholder="Nota de advertencia (ej. no significa actualmente)"
-                        className="mt-1.5 w-full px-3 py-1.5 rounded-lg bg-white dark:bg-[#121622] border border-amber-300 dark:border-amber-700 text-xs text-amber-900 dark:text-amber-200"
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#151928] border border-amber-300 dark:border-amber-700 text-xs text-amber-900 dark:text-amber-200 shadow-2xs"
                       />
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 pt-2">
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-200/60 dark:border-white/[0.06]">
                     <button
                       type="button"
                       onClick={() => setIsEditing(false)}
-                      className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
                     >
                       Cancelar
                     </button>
                     <Button
                       onPress={handleSaveEdit}
                       isDisabled={isSavingEdit || !editTranslation.trim()}
-                      className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer"
+                      className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm shadow-indigo-500/20"
                     >
                       <Check className="w-3.5 h-3.5" />
                       <span>{isSavingEdit ? 'Guardando...' : 'Guardar Cambios'}</span>
                     </Button>
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Meaning in Spanish */}
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1">
-                      Traducción al Español
-                    </span>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">
-                      {currentVocab.translationEs}
-                    </p>
-                  </div>
-
-                  {/* Definition in English */}
-                  {currentVocab.definitionEn && (
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1">
-                        Definición en Inglés
-                      </span>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed font-sans">
-                        {currentVocab.definitionEn}
-                      </p>
-                    </div>
-                  )}
-                </div>
               )}
 
-              {/* False Friend Warning Banner */}
-              {currentVocab.isFalseFriend && (
-                <div className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 space-y-1.5">
-                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-bold text-xs">
-                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                    <span>Alerta de Interferencia L1 (Falso Amigo)</span>
-                  </div>
-                  <p className="text-xs text-amber-900 dark:text-amber-200/90 leading-relaxed">
-                    {currentVocab.falseFriendNote ||
-                      'Este término se asemeja ortográficamente a una palabra en español con un significado completamente distinto. Evita la traducción literal.'}
-                  </p>
-                </div>
-              )}
+              {/* SEGMENTED TAB NAVIGATION */}
+              <div className="flex items-center gap-1 bg-gray-100/80 dark:bg-[#141826] p-1 rounded-2xl border border-gray-200/60 dark:border-white/[0.05] shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('senses')}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    activeTab === 'senses'
+                      ? 'bg-white dark:bg-[#202638] text-indigo-600 dark:text-indigo-400 shadow-xs'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Acepciones y Ejemplos ({sensesList.length})</span>
+                </button>
 
-              {/* Authentic Context Examples */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="p-1 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
-                      <BookOpen className="w-3.5 h-3.5" />
-                    </span>
-                    <span className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
-                      Oraciones en Contexto ({examples.length})
-                    </span>
-                  </div>
-                </div>
+                {hasGrammarTab && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('grammar')}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      activeTab === 'grammar'
+                        ? 'bg-white dark:bg-[#202638] text-indigo-600 dark:text-indigo-400 shadow-xs'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <GraduationCap className="w-3.5 h-3.5" />
+                    <span>Gramática y Formas</span>
+                  </button>
+                )}
 
-                {examples.length === 0 ? (
-                  <p className="text-xs text-gray-400 italic">No hay oraciones registradas para este término.</p>
-                ) : (
-                  <div className="space-y-2.5">
-                    {examples.map((ex) => {
-                      const isPlayingEx = playingExampleId === ex.id;
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('srs')}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    activeTab === 'srs'
+                      ? 'bg-white dark:bg-[#202638] text-indigo-600 dark:text-indigo-400 shadow-xs'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Brain className="w-3.5 h-3.5" />
+                  <span>Retención FSRS</span>
+                </button>
+              </div>
+
+              {/* TAB 1: ACEPCIONES Y EJEMPLOS */}
+              {activeTab === 'senses' && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="space-y-4">
+                    {sensesList.map((sense, idx) => {
+                      const isPrimary = idx === 0;
+                      const matchingCard = findMatchingSenseCard(sense, isPrimary);
+                      const senseKey = sense.id || sense.translationEs;
+                      const isSelf = matchingCard?.id === currentVocab.id;
                       return (
-                        <div
-                          key={ex.id}
-                          className="group/ex p-3.5 rounded-2xl bg-gray-50/80 dark:bg-[#141824] border border-gray-200/60 dark:border-white/[0.06] space-y-1.5 transition-colors hover:border-indigo-200 dark:hover:border-indigo-800/60"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="font-editorial text-sm text-gray-900 dark:text-white italic leading-relaxed flex-1">
+                        <SenseBlock
+                          key={sense.id || sense.senseId || `sense_${idx}`}
+                          sense={sense}
+                          senseNumber={idx + 1}
+                          totalSenses={sensesList.length}
+                          matchingCard={isSelf ? null : matchingCard}
+                          onNavigateToCard={onSelectWord}
+                          onCreateIndependentCard={handleCreateSenseCard}
+                          isCreatingCard={creatingSenseKey === senseKey}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* External Context Examples if provided and not already rendered in senses */}
+                  {externalExamples && externalExamples.length > 0 && (
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                          <BookOpen className="w-3.5 h-3.5" />
+                        </span>
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                          Oraciones en Contexto ({externalExamples.length})
+                        </h3>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {(showAllExamples ? externalExamples : externalExamples.slice(0, 2)).map((ex) => (
+                          <div
+                            key={ex.id}
+                            className="relative p-3.5 pr-11 rounded-2xl bg-white dark:bg-[#141824] border border-gray-200/70 dark:border-white/[0.06] space-y-1 shadow-2xs"
+                          >
+                            <p className="font-editorial text-xs sm:text-sm text-gray-900 dark:text-white italic leading-relaxed">
                               &ldquo;{ex.sentenceEn}&rdquo;
                             </p>
+                            {ex.sentenceEs && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 font-sans">
+                                {ex.sentenceEs}
+                              </p>
+                            )}
                             <button
                               type="button"
-                              onClick={() => handleSpeakExample(ex)}
-                              disabled={isPlayingEx}
-                              className={`p-1.5 rounded-lg border border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:bg-white dark:hover:bg-gray-800 transition-colors cursor-pointer shrink-0 ${
-                                isPlayingEx ? 'text-indigo-600 animate-pulse' : 'text-gray-400 hover:text-indigo-600'
+                              onClick={() => handleSpeakExample(ex.id, ex.sentenceEn)}
+                              disabled={playingExampleId === ex.id}
+                              className={`absolute right-3.5 top-1/2 -translate-y-1/2 p-1.5 rounded-xl text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all cursor-pointer ${
+                                playingExampleId === ex.id ? 'text-indigo-500 animate-pulse' : ''
                               }`}
-                              title="Escuchar oración completa"
+                              title="Escuchar oración"
                             >
                               <Volume2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          {ex.sentenceEs && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {ex.sentenceEs}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                        ))}
+                      </div>
 
-              {/* Verb Tenses (for verbs) */}
-              {currentVocab.partOfSpeech === 'VERB' && currentVocab.verbTensesJson && (
-                <div className="pt-1">
-                  <VerbTensesCard tenses={currentVocab.verbTensesJson} />
+                      {externalExamples.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllExamples(!showAllExamples)}
+                          className="w-full py-2 px-3 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors cursor-pointer"
+                        >
+                          {showAllExamples
+                            ? 'Mostrar menos'
+                            : `Mostrar ${externalExamples.length - 2} oraciones más`}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Morphological Word Family */}
-              <StructuredFamilyCard
-                family={currentVocab.structuredFamilyJson}
-                legacyFamily={currentVocab.morphologicalFamilyJson}
-              />
-
-              {/* SRS Retention Status Box */}
-              <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#121622] border border-gray-200/80 dark:border-white/[0.08] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="p-1 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-                      <Brain className="w-3.5 h-3.5" />
-                    </span>
-                    <span className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
-                      Estado de Retención FSRS
-                    </span>
-                  </div>
-                  {srsCard && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-md font-mono font-bold bg-emerald-100/80 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                      {srsCard.state}
-                    </span>
+              {/* TAB 2: GRAMÁTICA Y FORMAS */}
+              {activeTab === 'grammar' && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  {/* Verb conjugations table */}
+                  {currentVocab.verbTensesJson && (
+                    <div className="space-y-2">
+                      <VerbTensesTable
+                        tenses={currentVocab.verbTensesJson}
+                        edEnding={edEnding}
+                      />
+                    </div>
                   )}
-                </div>
 
-                {srsCard ? (
-                  <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-                    <div className="p-2 rounded-xl bg-white dark:bg-[#161B28] border border-gray-100 dark:border-white/[0.04]">
-                      <span className="text-[10px] text-gray-400 block">Estabilidad</span>
-                      <span className="text-xs font-bold text-gray-800 dark:text-gray-200 font-mono">
-                        {srsCard.stability.toFixed(1)}d
+                  {/* Morphological Word Family */}
+                  <StructuredFamilyCard
+                    family={currentVocab.structuredFamilyJson}
+                    legacyFamily={currentVocab.morphologicalFamilyJson}
+                  />
+                </div>
+              )}
+
+              {/* TAB 3: RETENCIÓN FSRS (MEMORY INTELLIGENCE DASHBOARD) */}
+              {activeTab === 'srs' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-gray-50 via-white to-indigo-50/20 dark:from-[#131724] dark:via-[#10131E] dark:to-[#171328] border border-gray-200/80 dark:border-white/[0.08] space-y-5 shadow-xs">
+                    <div className="flex items-center justify-between pb-3.5 border-b border-gray-200/60 dark:border-white/[0.06]">
+                      <div className="flex items-center gap-3">
+                        <span className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs">
+                          <Brain className="w-5 h-5" />
+                        </span>
+                        <div>
+                          <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                            Estado del Algoritmo FSRS 5.0
+                          </h4>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                            Cálculo de intervalos de memoria y consolidación a largo plazo
+                          </p>
+                        </div>
+                      </div>
+
+                      <span className="px-3 py-1 rounded-xl text-xs font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 shadow-2xs">
+                        {currentVocab.masteryStatus}
                       </span>
                     </div>
-                    <div className="p-2 rounded-xl bg-white dark:bg-[#161B28] border border-gray-100 dark:border-white/[0.04]">
-                      <span className="text-[10px] text-gray-400 block">Dificultad</span>
-                      <span className="text-xs font-bold text-gray-800 dark:text-gray-200 font-mono">
-                        {srsCard.difficulty.toFixed(1)}/10
-                      </span>
+
+                    {/* Bento Metric Cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3.5 rounded-2xl bg-white dark:bg-[#191F2E] border border-gray-200/70 dark:border-white/[0.06] space-y-1 shadow-2xs">
+                        <div className="flex items-center justify-between text-gray-400">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider">
+                            Estabilidad
+                          </span>
+                          <Clock className="w-3 h-3 text-indigo-500" />
+                        </div>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white font-mono block">
+                          {srsCard ? `${srsCard.stability.toFixed(1)}d` : '—'}
+                        </span>
+                        <span className="text-[10px] text-gray-400 block">vida media memoria</span>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-white dark:bg-[#191F2E] border border-gray-200/70 dark:border-white/[0.06] space-y-1 shadow-2xs">
+                        <div className="flex items-center justify-between text-gray-400">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider">
+                            Dificultad
+                          </span>
+                          <Gauge className="w-3 h-3 text-amber-500" />
+                        </div>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white font-mono block">
+                          {srsCard ? `${srsCard.difficulty.toFixed(1)}/10` : '—'}
+                        </span>
+                        <span className="text-[10px] text-gray-400 block">curva de olvido</span>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-white dark:bg-[#191F2E] border border-gray-200/70 dark:border-white/[0.06] space-y-1 shadow-2xs">
+                        <div className="flex items-center justify-between text-gray-400">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider">
+                            Repasos
+                          </span>
+                          <Activity className="w-3 h-3 text-emerald-500" />
+                        </div>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white font-mono block">
+                          {srsCard ? srsCard.reps : 0}
+                        </span>
+                        <span className="text-[10px] text-gray-400 block">sesiones logradas</span>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-white dark:bg-[#191F2E] border border-gray-200/70 dark:border-white/[0.06] space-y-1 shadow-2xs">
+                        <div className="flex items-center justify-between text-gray-400">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider">
+                            Lapsos
+                          </span>
+                          <Sparkles className="w-3 h-3 text-rose-500" />
+                        </div>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white font-mono block">
+                          {srsCard ? srsCard.lapses : 0}
+                        </span>
+                        <span className="text-[10px] text-gray-400 block">repasos fallidos</span>
+                      </div>
                     </div>
-                    <div className="p-2 rounded-xl bg-white dark:bg-[#161B28] border border-gray-100 dark:border-white/[0.04]">
-                      <span className="text-[10px] text-gray-400 block">Repasos</span>
-                      <span className="text-xs font-bold text-gray-800 dark:text-gray-200 font-mono">
-                        {srsCard.reps}
-                      </span>
+
+                    {srsCard?.scheduledFor && (
+                      <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 pt-1 bg-white/60 dark:bg-[#161B2A]/60 p-3 rounded-2xl border border-gray-200/50 dark:border-white/[0.04]">
+                        <Calendar className="w-4 h-4 text-indigo-500 shrink-0" />
+                        <span>
+                          Próximo repaso agendado:{' '}
+                          <strong className="text-gray-900 dark:text-white">
+                            {new Date(srsCard.scheduledFor).toLocaleDateString()}
+                          </strong>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Danger Zone: Delete Word Action with Clean Card Presentation */}
+              <div className="pt-6 border-t border-gray-100 dark:border-white/[0.06]">
+                {showDeleteConfirm ? (
+                  <div className="p-4 rounded-2xl bg-red-500/10 dark:bg-red-950/40 border border-red-300 dark:border-red-900/60 space-y-2.5 animate-in fade-in duration-150 shadow-xs">
+                    <p className="text-xs font-bold text-red-900 dark:text-red-200">
+                      ¿Seguro? Esta acción no se puede deshacer.
+                    </p>
+                    <p className="text-[11px] text-red-700 dark:text-red-300">
+                      Se eliminará el término y su historial de repaso FSRS de tu catálogo personal.
+                    </p>
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="px-3.5 py-1.5 rounded-xl border border-gray-300 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <Button
+                        onPress={handleDelete}
+                        isDisabled={isDeleting}
+                        className="px-4 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-xs cursor-pointer shadow-sm shadow-red-500/20"
+                      >
+                        {isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
+                      </Button>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Esta palabra aún no cuenta con tarjeta asociada en el algoritmo de repetición espaciada.
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="text-xs font-semibold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Eliminar término del catálogo</span>
+                    </button>
+                    <span className="text-[11px] text-gray-400 dark:text-gray-400 hidden sm:inline">
+                      Presiona <kbd className="font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-[10px]">Esc</kbd> para cerrar
+                    </span>
+                  </div>
                 )}
               </div>
             </DrawerBody>
-
-            {/* Drawer Footer Actions */}
-            <DrawerFooter className="!mt-0 m-0 p-4 px-6 border-t border-gray-100 dark:border-white/[0.06] bg-gray-50/50 dark:bg-[#121622]/50 flex flex-row items-center justify-between shrink-0 gap-0">
-              {showDeleteConfirm ? (
-                <div className="flex items-center justify-between w-full gap-2">
-                  <span className="text-xs text-rose-600 dark:text-rose-400 font-semibold">
-                    ¿Eliminar {currentVocab.word}?
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-400 cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      disabled={isDeleting}
-                      className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold cursor-pointer"
-                    >
-                      {isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="text-xs text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Eliminar término</span>
-                  </button>
-
-                  <Button
-                    onPress={onClose}
-                    className="px-4 py-1.5 rounded-xl bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-semibold text-xs cursor-pointer"
-                  >
-                    Cerrar
-                  </Button>
-                </>
-              )}
-            </DrawerFooter>
           </DrawerDialog>
         </DrawerContent>
       </DrawerBackdrop>

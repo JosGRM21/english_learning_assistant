@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
 import {
   Volume2,
-  AlertCircle,
-  BookOpen,
-  ArrowRight,
+  ExternalLink,
   CheckSquare,
   Square,
+  Layers,
+  BookOpen,
 } from 'lucide-react';
 import {
   VocabItem,
   VocabContextExample,
-  PART_OF_SPEECH_LABELS_ES,
   GRAMMATICAL_DIMENSION_LABELS_ES,
 } from '@/core/types/vocab';
 import { useAudio } from '@/shared/hooks/useAudio';
@@ -19,22 +18,67 @@ export interface VocabCardProps {
   vocab: VocabItem;
   examples?: VocabContextExample[];
   onSelectWord?: (vocab: VocabItem) => void;
+  onActivateWord?: (id: string) => Promise<VocabItem | null>;
   isSelectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (vocab: VocabItem) => void;
+  accentPreference?: 'US' | 'UK';
 }
 
 export function VocabCard({
   vocab,
   examples,
   onSelectWord,
+  onActivateWord: _onActivateWord,
   isSelectionMode = false,
   isSelected = false,
   onToggleSelect,
+  accentPreference = 'US',
 }: VocabCardProps) {
   const { audioService } = useAudio();
   const [isPlayingWord, setIsPlayingWord] = useState(false);
   const [isPlayingExample, setIsPlayingExample] = useState(false);
+  const [currentAccent, setCurrentAccent] = useState<'US' | 'UK'>(accentPreference);
+
+  // Polysemic senses awareness
+  const primarySense =
+    vocab.sensesJson && vocab.sensesJson.length > 0
+      ? vocab.sensesJson[0]
+      : null;
+
+  const totalSensesCount =
+    vocab.sensesJson?.length ||
+    (vocab.alternateSensesJson ? vocab.alternateSensesJson.length + 1 : 1);
+
+  // Representative values for Primary Sense
+  const displayTranslation = primarySense?.translationEs || vocab.translationEs;
+  const displayDefinition = primarySense?.definitionEn || vocab.definitionEn;
+  const displayCefr = primarySense?.cefrLevel || vocab.cefrLevel;
+  const displayCollocations =
+    primarySense?.collocations && primarySense.collocations.length > 0
+      ? primarySense.collocations
+      : vocab.collocationsJson || [];
+
+  // Context graduated example from Sense 1 or fallback
+  const basicExampleEn =
+    primarySense?.graduatedExamples?.sentenceBasicEn ||
+    primarySense?.exampleSentenceEn ||
+    (examples && examples.length > 0 ? examples[0].sentenceEn : null);
+
+  const basicExampleEs =
+    primarySense?.graduatedExamples?.sentenceBasicEs ||
+    primarySense?.exampleSentenceEs ||
+    (examples && examples.length > 0 ? examples[0].sentenceEs : null);
+
+  const activeIpa =
+    currentAccent === 'UK' && vocab.ipaReceivedPronunciation
+      ? vocab.ipaReceivedPronunciation
+      : vocab.ipaGeneralAmerican;
+
+  const isPhrasalVerb =
+    vocab.subcategory === 'PHRASAL_VERB' ||
+    vocab.domainCategory === 'Phrasal Verb' ||
+    (vocab.grammaticalDimension === 'CHUNK' && vocab.partOfSpeech === 'VERB');
 
   const handleSpeakWord = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -62,25 +106,18 @@ export function VocabCard({
     switch (level) {
       case 'A1':
       case 'A2':
-        return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/60';
+        return 'bg-emerald-50 text-emerald-700 dark:bg-[#06281E] dark:text-emerald-400 border-emerald-200/80 dark:border-emerald-800/60';
       case 'B1':
+        return 'bg-indigo-50 text-indigo-700 dark:bg-[#1E1B4B] dark:text-[#A5B4FC] border-indigo-200/80 dark:border-indigo-800/60';
       case 'B2':
-        return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200/80 dark:border-indigo-800/60';
+        return 'bg-purple-50 text-purple-700 dark:bg-[#2E1065] dark:text-[#C084FC] border-purple-200/80 dark:border-purple-800/60';
       case 'C1':
       case 'C2':
-        return 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200/80 dark:border-purple-800/60';
+        return 'bg-amber-50 text-amber-700 dark:bg-[#381E04] dark:text-amber-400 border-amber-200/80 dark:border-amber-800/60';
       default:
         return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700';
     }
   };
-
-  const firstExample = examples && examples.length > 0 ? examples[0] : null;
-
-  // Smart Part of Speech label (shows if verb is irregular directly in the badge)
-  const partOfSpeechDisplay =
-    vocab.partOfSpeech === 'VERB' && vocab.verbTensesJson?.isIrregular
-      ? 'Verbo Irreg.'
-      : PART_OF_SPEECH_LABELS_ES[vocab.partOfSpeech] ?? vocab.partOfSpeech;
 
   const handleCardClick = () => {
     if (isSelectionMode && onToggleSelect) {
@@ -93,168 +130,181 @@ export function VocabCard({
   return (
     <div
       onClick={handleCardClick}
-      className={`group relative rounded-2xl border transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer ${
+      className={`group relative rounded-3xl border transition-all duration-200 flex flex-col justify-between overflow-hidden cursor-pointer ${
         isSelected
-          ? 'border-indigo-500 bg-indigo-50/30 dark:bg-indigo-950/20 ring-2 ring-indigo-500/50 shadow-md'
-          : 'border-gray-200/80 dark:border-white/[0.08] bg-white dark:bg-[#121622] hover:border-indigo-400/80 dark:hover:border-indigo-500/50 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_12px_32px_rgba(0,0,0,0.4)]'
+          ? 'border-indigo-500 bg-white dark:bg-[#131722] ring-2 ring-indigo-500/50 shadow-md'
+          : 'border-gray-200/90 dark:border-white/[0.08] bg-white dark:bg-[#131722] hover:border-indigo-400 dark:hover:border-indigo-500/40 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
       }`}
     >
       {/* Top ambient accent glow on hover */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-indigo-500/40 dark:via-indigo-400/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-      <div className="flex-1 flex flex-col justify-between">
-        {/* Card Header: 2-tier layout so badges never overlap or compress the headword */}
-        <div className="p-5 pb-3 space-y-2.5">
-          {/* Tier 1: Horizontal Meta Badges (Selection checkbox, CEFR, Part of Speech, Domain, False Friend) */}
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {/* Selection Checkbox */}
-              {(isSelectionMode || isSelected) && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleSelect?.(vocab);
-                  }}
-                  className={`p-0.5 rounded-md transition-colors cursor-pointer mr-0.5 ${
-                    isSelected
-                      ? 'text-indigo-600 dark:text-indigo-400'
-                      : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                  }`}
-                  title={isSelected ? 'Deseleccionar' : 'Seleccionar'}
-                >
-                  {isSelected ? (
-                    <CheckSquare className="w-4 h-4 fill-indigo-100 dark:fill-indigo-950/60" />
-                  ) : (
-                    <Square className="w-4 h-4" />
-                  )}
-                </button>
-              )}
-
-              <span
-                className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border shrink-0 ${getCefrBadgeStyle(
-                  vocab.cefrLevel,
-                )}`}
+      <div className="flex-1 flex flex-col justify-between p-5 pb-3.5 space-y-3">
+        {/* Headword Row: Word + Speaker Button + CEFR Level beside it */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Selection Checkbox */}
+            {(isSelectionMode || isSelected) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSelect?.(vocab);
+                }}
+                className={`p-0.5 rounded-md transition-colors cursor-pointer mr-0.5 shrink-0 ${
+                  isSelected
+                    ? 'text-indigo-600 dark:text-indigo-400'
+                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                }`}
+                title={isSelected ? 'Deseleccionar' : 'Seleccionar'}
               >
-                {vocab.cefrLevel}
-              </span>
-              <span className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800/80 text-[10px] text-gray-600 dark:text-gray-400 font-medium shrink-0">
-                {partOfSpeechDisplay}
-              </span>
-              {vocab.isFalseFriend && (
-                <span
-                  className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 text-[10px] font-semibold flex items-center gap-1 shrink-0"
-                  title="Falso Amigo (clic en la tarjeta para ver detalles)"
-                >
-                  <AlertCircle className="w-2.5 h-2.5" />
-                  <span>Falso Amigo</span>
-                </span>
-              )}
-            </div>
-
-            {vocab.domainCategory && (
-              <span className="px-2 py-0.5 rounded-md font-sans text-[10px] font-bold bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 max-w-[160px] truncate shrink-0">
-                {vocab.domainCategory}
-              </span>
+                {isSelected ? (
+                  <CheckSquare className="w-4 h-4 fill-indigo-100 dark:fill-indigo-950/60" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+              </button>
             )}
-          </div>
 
-          {/* Tier 2: Dedicated Headword Row (Full width, audio button, and phonetic IPA) */}
-          <div className="flex items-center justify-between gap-3 pt-0.5">
-            <div className="flex items-baseline gap-2.5 min-w-0 flex-wrap">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors font-sans">
-                {vocab.word}
-              </h3>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors font-sans truncate">
+              {vocab.word}
+            </h3>
 
-              {vocab.ipaGeneralAmerican && (
-                <span
-                  className="font-phonetic text-xs font-semibold text-indigo-600 dark:text-indigo-400/95 tracking-wide"
-                  style={{ fontFamily: 'var(--font-phonetic)' }}
-                >
-                  /{vocab.ipaGeneralAmerican}/
-                </span>
-              )}
-            </div>
-
-            {/* Audio Playback button */}
             <button
               type="button"
               onClick={handleSpeakWord}
               disabled={isPlayingWord}
-              className={`p-1.5 rounded-full border border-gray-200/70 dark:border-white/[0.08] bg-gray-50 dark:bg-gray-800/80 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-all cursor-pointer shrink-0 ${
-                isPlayingWord
-                  ? 'text-indigo-600 dark:text-indigo-400 ring-2 ring-indigo-500/30 animate-pulse'
-                  : ''
+              className={`p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer shrink-0 ${
+                isPlayingWord ? 'text-indigo-600 dark:text-indigo-400 animate-pulse' : ''
               }`}
               title="Escuchar pronunciación nativa"
             >
-              <Volume2 className="w-3.5 h-3.5" />
+              <Volume2 className="w-4 h-4" />
             </button>
           </div>
+
+          {/* CEFR Level Pill beside the word */}
+          <span
+            className={`px-2.5 py-0.5 rounded-lg font-mono text-[11px] font-bold border shrink-0 ${getCefrBadgeStyle(
+              displayCefr,
+            )}`}
+          >
+            {displayCefr}
+          </span>
         </div>
 
-        {/* Card Body */}
-        <div className="px-5 py-2 space-y-3 flex-1">
-          {/* Spanish Translation */}
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400 dark:text-gray-500 block mb-0.5">
+        {/* Phonetic IPA */}
+        {activeIpa && (
+          <div className="flex items-center gap-1.5 -mt-1.5">
+            <span
+              className="font-phonetic text-xs font-medium text-indigo-600 dark:text-indigo-400 tracking-wide"
+              style={{ fontFamily: 'var(--font-phonetic)' }}
+            >
+              /{activeIpa}/
+            </span>
+            {vocab.ipaReceivedPronunciation && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentAccent((prev) => (prev === 'US' ? 'UK' : 'US'));
+                }}
+                className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-gray-100 hover:bg-indigo-100 dark:bg-gray-800 dark:hover:bg-indigo-950 text-gray-500 hover:text-indigo-600 transition-colors cursor-pointer"
+                title={`Conmutar acento (actual: ${currentAccent})`}
+              >
+                {currentAccent}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Tier 3: Meaning & Polysemic Chip */}
+        <div className="space-y-1 pt-1.5 border-t border-gray-100 dark:border-white/[0.05]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-400">
               Traducción
             </span>
-            <p className="text-base font-semibold text-gray-900 dark:text-gray-100 leading-snug">
-              {vocab.translationEs}
-            </p>
+
+            {totalSensesCount > 1 && (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 shrink-0"
+                title={`${totalSensesCount} acepciones`}
+              >
+                <Layers className="w-2.5 h-2.5 text-indigo-500" />
+                <span>{totalSensesCount} acepciones</span>
+              </span>
+            )}
           </div>
 
-          {/* English Definition */}
-          {vocab.definitionEn && (
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-sans line-clamp-2">
-                {vocab.definitionEn}
-              </p>
-            </div>
-          )}
+          <p className="text-sm sm:text-base font-bold text-gray-900 dark:text-gray-100 leading-snug line-clamp-2">
+            {displayTranslation}
+          </p>
 
-          {/* Context Example */}
-          {firstExample && (
-            <div className="p-3 rounded-xl bg-gray-50/70 dark:bg-[#161B28]/60 border border-gray-100 dark:border-white/[0.04] text-xs space-y-1.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-indigo-600/90 dark:text-indigo-400/90">
-                  <BookOpen className="w-3 h-3" />
-                  <span>Ejemplo en Contexto</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={(e) => handleSpeakExample(e, firstExample.sentenceEn)}
-                  disabled={isPlayingExample}
-                  className={`p-1 rounded-md text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${
-                    isPlayingExample ? 'text-indigo-600 dark:text-indigo-400 animate-pulse' : ''
-                  }`}
-                  title="Escuchar oración"
-                >
-                  <Volume2 className="w-3 h-3" />
-                </button>
-              </div>
-              <p className="font-editorial text-xs text-gray-800 dark:text-gray-200 italic leading-relaxed">
-                &ldquo;{firstExample.sentenceEn}&rdquo;
-              </p>
-              {firstExample.sentenceEs && (
-                <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                  {firstExample.sentenceEs}
-                </p>
-              )}
-            </div>
+          {displayDefinition && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-sans line-clamp-2">
+              {displayDefinition}
+            </p>
           )}
         </div>
+
+        {/* Collocations Pills (if present) */}
+        {displayCollocations && displayCollocations.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap pt-1">
+            {displayCollocations.slice(0, 2).map((col, idx) => (
+              <span
+                key={idx}
+                className="px-2 py-0.5 rounded-md bg-gray-100/80 dark:bg-gray-800/80 text-[10px] text-gray-700 dark:text-gray-300 font-medium"
+              >
+                {col}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Tier 4: Minimalist Context Example */}
+        {basicExampleEn && (
+          <div className="p-3 rounded-2xl bg-gray-50/80 dark:bg-[#121626]/80 border border-gray-100 dark:border-white/[0.06] text-xs space-y-2">
+            <div className="flex items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
+                <BookOpen className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-semibold">
+                  Ejemplo en Contexto
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => handleSpeakExample(e, basicExampleEn)}
+                disabled={isPlayingExample}
+                className={`p-1 rounded-md text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer shrink-0 ${
+                  isPlayingExample ? 'text-indigo-600 dark:text-indigo-400 animate-pulse' : ''
+                }`}
+                title="Escuchar oración"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="font-editorial text-xs sm:text-[13px] font-bold text-gray-800 dark:text-slate-100 italic leading-snug line-clamp-2">
+              &ldquo;{basicExampleEn}&rdquo;
+            </p>
+            {basicExampleEs && (
+              <p className="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 line-clamp-1 font-sans">
+                {basicExampleEs}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Card Footer */}
-      <div className="px-5 py-2.5 border-t border-gray-100 dark:border-white/[0.06] flex items-center justify-between text-[11px] text-gray-400 bg-gray-50/50 dark:bg-[#10131B]/50 group-hover:bg-indigo-50/20 dark:group-hover:bg-indigo-950/20 transition-colors">
-        <span className="font-medium text-gray-500 dark:text-gray-400">
-          {GRAMMATICAL_DIMENSION_LABELS_ES[vocab.grammaticalDimension] ?? vocab.grammaticalDimension}
+      {/* Card Footer: Clean Dimension + Detalles */}
+      <div className="px-5 py-2.5 border-t border-gray-100 dark:border-white/[0.06] flex items-center justify-between text-[11px] text-gray-400 bg-gray-50/40 dark:bg-[#111520]/40 group-hover:bg-indigo-50/20 dark:group-hover:bg-indigo-950/20 transition-colors">
+        <span className="font-medium text-gray-500 dark:text-gray-400 truncate max-w-[140px]">
+          {isPhrasalVerb
+            ? 'Expresión / Frase'
+            : GRAMMATICAL_DIMENSION_LABELS_ES[vocab.grammaticalDimension] ?? vocab.grammaticalDimension}
         </span>
-        <div className="flex items-center gap-1 text-[11px] text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors font-semibold">
-          <span>Ver ficha</span>
-          <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+        <div className="flex items-center gap-1 text-[11px] text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors font-semibold shrink-0">
+          <span>Detalles</span>
+          <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
         </div>
       </div>
     </div>

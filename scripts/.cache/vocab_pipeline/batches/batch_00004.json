@@ -1,0 +1,105 @@
+[
+  {
+    "word": "i",
+    "grammaticalDimension": "FUNCTION",
+    "frequencyBand": "TOP_500",
+    "ipaGeneralAmerican": "aɪ",
+    "ipaReceivedPronunciation": "aɪ",
+    "ipaWeakForm": "aɪ",
+    "phoneticEdEnding": null,
+    "verbTenses": null,
+    "isFalseFriend": false,
+    "falseFriendNote": null,
+    "register": "NEUTRAL",
+    "senses": [
+      {
+        "senseId": "sense_1",
+        "contextualHint": "como sujeto de la oración",
+        "partOfSpeech": "NOUN",
+        "definitionEn": "Used by the speaker or writer to refer to himself or herself as the subject of a verb.",
+        "translationEs": "yo",
+        "cefrLevel": "A1",
+        "grammarPattern": null,
+        "countability": null,
+        "connotation": "NEUTRAL",
+        "collocations": [],
+        "graduatedExamples": {
+          "sentenceBasicEn": "I like learning English every day.",
+          "sentenceBasicEs": "Me gusta aprender inglés todos los días.",
+          "clozeTargetBasic": "I",
+          "sentenceAdvancedEn": "I would appreciate it if you could send me the report.",
+          "sentenceAdvancedEs": "Agradecería que pudiera enviarme el informe.",
+          "clozeTargetAdvanced": "I"
+        }
+      }
+    ],
+    "phrasalVerbs": []
+  },
+  {
+    "word": "do",
+    "grammaticalDimension": "CONTENT",
+    "frequencyBand": "TOP_500",
+    "ipaGeneralAmerican": "duː",
+    "ipaReceivedPronunciation": "duː",
+    "ipaWeakForm": "də",
+    "phoneticEdEnding": "/ɪd/",
+    "verbTenses": {
+      "infinitive": "do",
+      "thirdPersonPresent": "does",
+      "pastSimple": "did",
+      "pastParticiple": "done",
+      "gerund": "doing",
+      "isIrregular": true
+    },
+    "isFalseFriend": false,
+    "falseFriendNote": null,
+    "register": "NEUTRAL",
+    "senses": [
+      {
+        "senseId": "sense_1",
+        "contextualHint": "realizar una acción o tarea",
+        "partOfSpeech": "VERB",
+        "definitionEn": "To perform an action, activity, or task.",
+        "translationEs": "hacer",
+        "cefrLevel": "A1",
+        "grammarPattern": null,
+        "countability": null,
+        "connotation": "NEUTRAL",
+        "collocations": [
+          "do homework",
+          "do a good job",
+          "do research",
+          "do laundry"
+        ],
+        "graduatedExamples": {
+          "sentenceBasicEn": "I always do my homework after school.",
+          "sentenceBasicEs": "Siempre hago mis deberes después del colegio.",
+          "clozeTargetBasic": "do",
+          "sentenceAdvancedEn": "Scientists continue to do extensive research on renewable energy.",
+          "sentenceAdvancedEs": "Los científicos continúan haciendo una investigación exhaustiva sobre energías renovables.",
+          "clozeTargetAdvanced": "do"
+        }
+      }
+    ],
+    "phrasalVerbs": [
+      {
+        "text": "do away with",
+        "meaningEs": "eliminar, abolir, deshacerse de",
+        "type": "TYPE_3_INSEPARABLE",
+        "pronounMustSplit": false,
+        "cefrLevel": "C1",
+        "example1": "The company decided to do away with paper forms.",
+        "example2": "Many old regulations were done away with last year."
+      },
+      {
+        "text": "do over",
+        "meaningEs": "repetir, rehacer",
+        "type": "TYPE_2_SEPARABLE",
+        "pronounMustSplit": false,
+        "cefrLevel": "B1",
+        "example1": "You made a mistake, so you need to do it over.",
+        "example2": "We have to do the kitchen over next month."
+      }
+    ]
+  }
+]

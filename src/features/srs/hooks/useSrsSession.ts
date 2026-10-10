@@ -51,13 +51,13 @@ export function useSrsSession() {
       const userId = 'user_local';
 
       // 1. Fetch due cards (scheduled <= now and not NEW)
-      const due = await cardRepo.getDueCardsWithDetails(userId, 50);
+      const due = await cardRepo.getDueCardsWithDetails(userId, 50, 'VOCAB_AGILE');
 
       // 2. Fetch new cards (state === NEW and scheduled <= now)
-      let newCards = await cardRepo.getNewCardsWithDetails(userId, 30);
+      let newCards = await cardRepo.getNewCardsWithDetails(userId, 30, 'VOCAB_AGILE');
 
       // 3. Fetch all deck cards for the deck explorer
-      const allDeck = await cardRepo.getAllCardsWithDetails(userId, 200);
+      const allDeck = await cardRepo.getAllCardsWithDetails(userId, 200, 'VOCAB_AGILE');
       setDeckCards(allDeck);
 
       // Synchronize vocabList for dashboard/catalog helpers
@@ -93,7 +93,7 @@ export function useSrsSession() {
     try {
       setLastSessionStats(null);
       setIsLoadingSession(true);
-      const allDeck = await cardRepo.getAllCardsWithDetails('user_local', 200);
+      const allDeck = await cardRepo.getAllCardsWithDetails('user_local', 200, 'VOCAB_AGILE');
       setDeckCards(allDeck);
 
       // Build queue with all available cards

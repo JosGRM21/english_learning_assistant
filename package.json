@@ -1,7 +1,7 @@
 {
   "name": "english-learning-assistant",
   "private": true,
-  "version": "1.0.8",
+  "version": "1.0.9",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,11 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
+    "vocab:gen": "npx tsx scripts/vocab-generator/cli.ts",
+    "vocab:clean-cache": "npx tsx scripts/vocab-generator/cli.ts --clean-cache",
+    "vocab:reset": "npx tsx scripts/vocab-generator/cli.ts --reset-corpus",
+    "vocab:compile": "npx tsx scripts/vocab-generator/cli.ts --compile"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "5.3.0",

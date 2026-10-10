@@ -49,4 +49,44 @@ describe('ContextRotator', () => {
       expect(['ctx-2', 'ctx-3']).toContain(selected.id);
     }
   });
+
+  describe('selectGraduatedContext (RF-VOC-09 & RF-SRS-04)', () => {
+    const graduatedContexts: VocabContextExample[] = [
+      {
+        id: 'ctx-basic',
+        sentenceEn: 'I need to thrive in school.',
+        sentenceEs: 'Necesito prosperar en la escuela.',
+        clozeTarget: 'thrive',
+        cefrLevel: 'A2',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'ctx-advanced',
+        sentenceEn: 'Innovative tech startups thrive under competitive conditions.',
+        sentenceEs: 'Las startups tecnológicas innovadoras prosperan en condiciones competitivas.',
+        clozeTarget: 'thrive',
+        cefrLevel: 'B2',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    it('selects basic sentence (A2-B1) on even review repetitions', () => {
+      const selected = rotator.selectGraduatedContext(graduatedContexts, 0);
+      expect(selected.id).toBe('ctx-basic');
+      expect(selected.cefrLevel).toBe('A2');
+
+      const selectedRep2 = rotator.selectGraduatedContext(graduatedContexts, 2);
+      expect(selectedRep2.id).toBe('ctx-basic');
+    });
+
+    it('selects advanced sentence (B2+) on odd review repetitions', () => {
+      const selected = rotator.selectGraduatedContext(graduatedContexts, 1);
+      expect(selected.id).toBe('ctx-advanced');
+      expect(selected.cefrLevel).toBe('B2');
+
+      const selectedRep3 = rotator.selectGraduatedContext(graduatedContexts, 3);
+      expect(selectedRep3.id).toBe('ctx-advanced');
+    });
+  });
 });
+

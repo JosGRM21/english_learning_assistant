@@ -3,30 +3,30 @@ import {
   Award,
   AlertTriangle,
   ArrowRight,
-  BookOpen,
   Check,
-  X,
   RotateCcw,
   Volume2,
   BookmarkPlus,
   Trophy,
   GitCompare,
   CheckCircle2,
+  ShieldAlert,
 } from 'lucide-react';
-import { WritingEvaluationResponse, CorrectionItem } from '@/infrastructure/ai/schemas';
+import {
+  WritingEvaluationResponse,
+  CorrectionItem,
+} from '@/infrastructure/ai/schemas';
 import { DiffVisualizer } from './DiffVisualizer';
 
 export interface WritingStageThreeProps {
   evalResult: WritingEvaluationResponse;
   draft1: string;
   draft2: string;
-  selectedQuizOption: number | null;
-  quizSubmitted: boolean;
   isPlayingTts?: boolean;
   srsSuccessMessage?: string | null;
-  onAnswerQuiz: (idx: number, challengeIdx?: number) => void;
   onPlayTts?: (text: string) => void;
   onAddToSrs?: (correction: CorrectionItem, draftContext?: string) => void;
+  onNavigateToDefossilization?: () => void;
   onReset: () => void;
 }
 
@@ -36,47 +36,26 @@ export function WritingStageThree({
   evalResult,
   draft1,
   draft2,
-  selectedQuizOption,
-  quizSubmitted,
   isPlayingTts = false,
   srsSuccessMessage,
-  onAnswerQuiz,
   onPlayTts,
   onAddToSrs,
+  onNavigateToDefossilization,
   onReset,
 }: WritingStageThreeProps) {
   const [activeTab, setActiveTab] = useState<StageThreeViewTab>('DIFF');
   const [addedItems, setAddedItems] = useState<Record<string, boolean>>({});
-
-  // Multiple micro-challenges support
-  const allChallenges = [
-    evalResult.micro_challenge,
-    ...(evalResult.micro_challenges || []).filter(
-      (c) => c.sentence_with_blank !== evalResult.micro_challenge.sentence_with_blank,
-    ),
-  ];
-  const [activeChallengeIdx, setActiveChallengeIdx] = useState(0);
-  const [localQuizAnswers, setLocalQuizAnswers] = useState<Record<number, number>>({});
 
   const handleAddSrsCard = (corr: CorrectionItem) => {
     onAddToSrs?.(corr, draft2);
     setAddedItems((prev) => ({ ...prev, [corr.error_span]: true }));
   };
 
-  const currentChallenge = allChallenges[activeChallengeIdx] || evalResult.micro_challenge;
-  const isChallengeAnswered =
-    activeChallengeIdx === 0
-      ? quizSubmitted
-      : localQuizAnswers[activeChallengeIdx] !== undefined;
-  const selectedOptionForCurrent =
-    activeChallengeIdx === 0
-      ? selectedQuizOption
-      : localQuizAnswers[activeChallengeIdx] ?? null;
-
-  const handleSelectOption = (idx: number) => {
-    if (isChallengeAnswered) return;
-    onAnswerQuiz(idx, activeChallengeIdx);
-    setLocalQuizAnswers((prev) => ({ ...prev, [activeChallengeIdx]: idx }));
+  const rubric = evalResult.rubric_scores || {
+    accuracy: evalResult.scores?.grammar ?? 8,
+    range_and_precision: evalResult.scores?.vocabulary ?? 8,
+    cohesion_and_flow: evalResult.scores?.coherence ?? 8,
+    pragmatics_and_complexity: 8,
   };
 
   return (
@@ -90,7 +69,7 @@ export function WritingStageThree({
       )}
 
       {/* ========================================================================= */}
-      {/* HERO SCOREBOARD & CEFR MASTERY */}
+      {/* 1. HERO SCOREBOARD, CEFR & 4-AXIS RUBRIC */}
       {/* ========================================================================= */}
       <section aria-label="Resumen de evaluación" className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-8 border border-gray-200/90 dark:border-gray-800 shadow-xs space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -101,7 +80,7 @@ export function WritingStageThree({
               </div>
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                  Evaluación Final Completada
+                  Evaluación Final Socrática
                 </span>
                 <div className="flex items-center gap-3 mt-0.5">
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
@@ -119,74 +98,92 @@ export function WritingStageThree({
             </p>
           </div>
 
-          {/* Audio TTS Button */}
-          {onPlayTts && (
-            <button
-              type="button"
-              onClick={() => onPlayTts(draft2)}
-              disabled={isPlayingTts}
-              className="px-4 py-3 rounded-2xl border border-indigo-200/80 dark:border-indigo-900/60 bg-indigo-50/60 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 text-xs font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all inline-flex items-center gap-2 cursor-pointer self-start lg:self-center shadow-2xs"
-            >
-              <Volume2 className={`w-4 h-4 ${isPlayingTts ? 'animate-pulse text-indigo-500' : ''}`} />
-              <span>{isPlayingTts ? 'Reproduciendo audio...' : 'Escuchar Versión Final (TTS)'}</span>
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
+            {/* Direct Link to Defossilization */}
+            {onNavigateToDefossilization && evalResult.corrections.length > 0 && (
+              <button
+                type="button"
+                onClick={onNavigateToDefossilization}
+                className="px-4 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-md shadow-indigo-600/25 transition-all inline-flex items-center gap-2 cursor-pointer"
+              >
+                <ShieldAlert className="w-4 h-4" />
+                <span>Practicar en Corrector de Hábitos</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Visual Score Bars */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3 border-t border-gray-100 dark:border-gray-800/80">
-          {/* Grammar */}
+        {/* 4-Axis Rubric Score Bars (RF-WRT-08) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-4 border-t border-gray-100 dark:border-gray-800/80">
+          {/* Axis 1: Accuracy */}
           <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-100 dark:border-gray-800/80 space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-gray-700 dark:text-gray-300">Gramática</span>
+              <span className="font-bold text-gray-700 dark:text-gray-300">Precisión (Accuracy)</span>
               <span className="font-mono font-extrabold text-indigo-600 dark:text-indigo-400">
-                {evalResult.scores.grammar} / 10
+                {rubric.accuracy} / 10
               </span>
             </div>
             <div className="w-full h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-indigo-600 rounded-full transition-all duration-500"
-                style={{ width: `${evalResult.scores.grammar * 10}%` }}
+                style={{ width: `${rubric.accuracy * 10}%` }}
               />
             </div>
           </div>
 
-          {/* Vocabulary */}
+          {/* Axis 2: Range & Precision */}
           <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-100 dark:border-gray-800/80 space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-gray-700 dark:text-gray-300">Vocabulario</span>
+              <span className="font-bold text-gray-700 dark:text-gray-300">Rango Léxico (Range)</span>
               <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">
-                {evalResult.scores.vocabulary} / 10
+                {rubric.range_and_precision} / 10
               </span>
             </div>
             <div className="w-full h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-emerald-600 rounded-full transition-all duration-500"
-                style={{ width: `${evalResult.scores.vocabulary * 10}%` }}
+                style={{ width: `${rubric.range_and_precision * 10}%` }}
               />
             </div>
           </div>
 
-          {/* Coherence */}
+          {/* Axis 3: Cohesion & Flow */}
           <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-100 dark:border-gray-800/80 space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-gray-700 dark:text-gray-300">Coherencia & Cohesión</span>
+              <span className="font-bold text-gray-700 dark:text-gray-300">Cohesión & Fluidez</span>
               <span className="font-mono font-extrabold text-purple-600 dark:text-purple-400">
-                {evalResult.scores.coherence} / 10
+                {rubric.cohesion_and_flow} / 10
               </span>
             </div>
             <div className="w-full h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-purple-600 rounded-full transition-all duration-500"
-                style={{ width: `${evalResult.scores.coherence * 10}%` }}
+                style={{ width: `${rubric.cohesion_and_flow * 10}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Axis 4: Pragmatics & Complexity */}
+          <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-100 dark:border-gray-800/80 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-gray-700 dark:text-gray-300">Pragmática & Registro</span>
+              <span className="font-mono font-extrabold text-amber-600 dark:text-amber-400">
+                {rubric.pragmatics_and_complexity} / 10
+              </span>
+            </div>
+            <div className="w-full h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                style={{ width: `${rubric.pragmatics_and_complexity * 10}%` }}
               />
             </div>
           </div>
         </div>
       </section>
 
+
       {/* ========================================================================= */}
-      {/* LEARNER UPTAKE & SELF-REPAIR CELEBRATION */}
+      {/* 3. LEARNER UPTAKE & SELF-REPAIR CELEBRATION */}
       {/* ========================================================================= */}
       {evalResult.successful_repairs && evalResult.successful_repairs.length > 0 && (
         <section aria-label="Auto-correcciones exitosas" className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-emerald-200/90 dark:border-emerald-900/60 shadow-xs space-y-4">
@@ -233,8 +230,10 @@ export function WritingStageThree({
         </section>
       )}
 
+
+
       {/* ========================================================================= */}
-      {/* SEGMENTED DEEP-DIVE: DIFF VISUALIZER & L1 INTERFERENCES */}
+      {/* 6. SEGMENTED DEEP-DIVE: DIFF VISUALIZER & L1 INTERFERENCES */}
       {/* ========================================================================= */}
       <section aria-label="Análisis detallado" className="space-y-4">
         {/* Section Navigation Tabs */}
@@ -274,7 +273,12 @@ export function WritingStageThree({
         {/* Tab 1: Diff Visualizer */}
         {activeTab === 'DIFF' && (
           <div className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-gray-200/90 dark:border-gray-800 shadow-xs animate-in fade-in duration-150">
-            <DiffVisualizer original={draft1} updated={draft2} />
+            <DiffVisualizer
+              original={draft1}
+              updated={draft2}
+              onPlayTts={onPlayTts}
+              isPlayingTts={isPlayingTts}
+            />
           </div>
         )}
 
@@ -365,103 +369,6 @@ export function WritingStageThree({
         )}
       </section>
 
-      {/* ========================================================================= */}
-      {/* INTERACTIVE MICRO-CHALLENGE ARENA */}
-      {/* ========================================================================= */}
-      <section aria-label="Micro-reto" className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-gray-200/90 dark:border-gray-800 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
-              <BookOpen className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                Consolidación Inmediata
-              </span>
-              <h3 className="font-bold text-base text-gray-900 dark:text-white">
-                Micro-Reto Gramatical
-              </h3>
-            </div>
-          </div>
-
-          {allChallenges.length > 1 && (
-            <div className="flex items-center gap-1 bg-gray-100 dark:bg-[#181D2A] p-1 rounded-xl self-start sm:self-auto">
-              {allChallenges.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setActiveChallengeIdx(idx)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    activeChallengeIdx === idx
-                      ? 'bg-white dark:bg-[#121620] text-indigo-600 dark:text-indigo-400 shadow-2xs'
-                      : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
-                  }`}
-                >
-                  Reto {idx + 1}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          {currentChallenge.question_es}
-        </p>
-
-        <div className="p-5 rounded-2xl bg-gray-50/80 dark:bg-[#181D2A] border border-gray-200/80 dark:border-gray-800 text-center font-sans text-base sm:text-lg font-semibold text-gray-900 dark:text-white shadow-2xs">
-          "{currentChallenge.sentence_with_blank}"
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {currentChallenge.options.map((opt, idx) => {
-            const isSelected = selectedOptionForCurrent === idx;
-            const isCorrect = idx === currentChallenge.correct_option_index;
-
-            let btnStyle =
-              'bg-gray-50 dark:bg-[#181D2A] hover:bg-gray-100 dark:hover:bg-[#202738] border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200';
-
-            if (isChallengeAnswered) {
-              if (isCorrect) {
-                btnStyle =
-                  'bg-emerald-100 dark:bg-emerald-950/70 border-emerald-500 text-emerald-900 dark:text-emerald-100 font-bold';
-              } else if (isSelected && !isCorrect) {
-                btnStyle =
-                  'bg-rose-100 dark:bg-rose-950/70 border-rose-500 text-rose-900 dark:text-rose-100 font-bold';
-              } else {
-                btnStyle = 'opacity-40 border-gray-200 dark:border-gray-800';
-              }
-            }
-
-            return (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleSelectOption(idx)}
-                disabled={isChallengeAnswered}
-                className={`p-3.5 rounded-xl border text-center font-mono text-sm transition-all cursor-pointer flex items-center justify-center gap-1.5 ${btnStyle}`}
-              >
-                <span>{opt}</span>
-                {isChallengeAnswered && isCorrect && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
-                {isChallengeAnswered && isSelected && !isCorrect && (
-                  <X className="w-4 h-4 text-rose-600 shrink-0" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {isChallengeAnswered && (
-          <div
-            className={`p-4 rounded-2xl text-xs leading-relaxed animate-in fade-in duration-200 ${
-              selectedOptionForCurrent === currentChallenge.correct_option_index
-                ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                : 'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
-            }`}
-          >
-            {currentChallenge.explanation_es}
-          </div>
-        )}
-      </section>
 
       {/* Restart writing session CTA */}
       <div className="text-center pt-2">
