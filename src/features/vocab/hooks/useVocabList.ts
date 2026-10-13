@@ -71,7 +71,6 @@ export function useVocabList() {
   const [originFilter, setOriginFilter] = useState<'ALL' | 'CORE' | 'VAULT'>('ALL');
   const [frequencyBandFilter, setFrequencyBandFilter] = useState<string>('ALL');
   const [masteryStatusFilter, setMasteryStatusFilter] = useState<string>('ALL');
-  const [selectedRegister, setSelectedRegister] = useState<string>('ALL');
   const [selectedPartOfSpeech, setSelectedPartOfSpeech] = useState<string>('ALL');
   const [accentPreference, setAccentPreference] = useState<'US' | 'UK'>('US');
   const [sortBy, setSortBy] = useState<'RECENT' | 'ALPHA_ASC' | 'ALPHA_DESC' | 'CEFR_ASC'>('RECENT');
@@ -429,7 +428,6 @@ export function useVocabList() {
     setOriginFilter('ALL');
     setFrequencyBandFilter('ALL');
     setMasteryStatusFilter('ALL');
-    setSelectedRegister('ALL');
     setSelectedPartOfSpeech('ALL');
     setSortBy('RECENT');
   }, []);
@@ -462,9 +460,6 @@ export function useVocabList() {
 
       // Dimension Filter
       if (selectedDimension !== 'ALL' && w.grammaticalDimension !== selectedDimension) return false;
-
-      // Register Filter
-      if (selectedRegister !== 'ALL' && w.register !== selectedRegister) return false;
 
       // Part of Speech Filter (checks primary PoS or any sense's PoS)
       if (selectedPartOfSpeech !== 'ALL') {
@@ -534,6 +529,7 @@ export function useVocabList() {
     onlyFalseFriends,
     selectedCefr,
     selectedDimension,
+    selectedPartOfSpeech,
     searchQuery,
     sortBy,
   ]);
@@ -569,7 +565,6 @@ export function useVocabList() {
       originFilter !== 'ALL' ||
       frequencyBandFilter !== 'ALL' ||
       masteryStatusFilter !== 'ALL' ||
-      selectedRegister !== 'ALL' ||
       selectedPartOfSpeech !== 'ALL' ||
       onlyFalseFriends,
     [
@@ -579,7 +574,6 @@ export function useVocabList() {
       originFilter,
       frequencyBandFilter,
       masteryStatusFilter,
-      selectedRegister,
       selectedPartOfSpeech,
       onlyFalseFriends,
     ],
@@ -603,7 +597,6 @@ export function useVocabList() {
     originFilter,
     frequencyBandFilter,
     masteryStatusFilter,
-    selectedRegister,
     selectedPartOfSpeech,
     accentPreference,
     sortBy,
@@ -615,7 +608,6 @@ export function useVocabList() {
     setOriginFilter,
     setFrequencyBandFilter,
     setMasteryStatusFilter,
-    setSelectedRegister,
     setSelectedPartOfSpeech,
     setAccentPreference,
     setSortBy,

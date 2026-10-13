@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { CorrectionItem, ErrorPracticeDrill } from '@/infrastructure/ai/schemas';
 import { synthesizeErrorDrillFallback } from '@/core/text/WeakVocabMatcher';
+import { ErrorContrastCard } from '@/shared/ui/ErrorContrastCard';
 
 export interface ErrorDrillStationProps {
   corrections: CorrectionItem[];
@@ -150,27 +151,12 @@ export function ErrorDrillStation({
       </div>
 
       {/* Active Error Diagnosis */}
-      <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-200/80 dark:border-gray-800 space-y-2">
-        <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-mono font-bold line-through text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60">
-              "{currentCorrection.error_span}"
-            </span>
-            <ArrowRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-            <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60">
-              "{currentCorrection.native_reformulation}"
-            </span>
-          </div>
-
-          <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-gray-200/60 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-            {currentCorrection.taxonomy_code}
-          </span>
-        </div>
-
-        <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed font-sans">
-          {currentCorrection.explanation_es}
-        </p>
-      </div>
+      <ErrorContrastCard
+        errorSpan={currentCorrection.error_span}
+        nativeReformulation={currentCorrection.native_reformulation}
+        taxonomyCode={currentCorrection.taxonomy_code}
+        explanationEs={currentCorrection.explanation_es}
+      />
 
       {/* Interactive Cloze Exercise */}
       <div className="space-y-3">

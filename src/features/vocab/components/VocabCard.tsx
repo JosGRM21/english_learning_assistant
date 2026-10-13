@@ -130,11 +130,10 @@ export function VocabCard({
   return (
     <div
       onClick={handleCardClick}
-      className={`group relative rounded-3xl border transition-all duration-200 flex flex-col justify-between overflow-hidden cursor-pointer ${
-        isSelected
-          ? 'border-indigo-500 bg-white dark:bg-[#131722] ring-2 ring-indigo-500/50 shadow-md'
-          : 'border-gray-200/90 dark:border-white/[0.08] bg-white dark:bg-[#131722] hover:border-indigo-400 dark:hover:border-indigo-500/40 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
-      }`}
+      className={`group relative rounded-3xl border transition-all duration-200 flex flex-col justify-between overflow-hidden cursor-pointer ${isSelected
+        ? 'border-indigo-500 bg-white dark:bg-[#131722] ring-2 ring-indigo-500/50 shadow-md'
+        : 'border-gray-200/90 dark:border-white/[0.08] bg-white dark:bg-[#131722] hover:border-indigo-400 dark:hover:border-indigo-500/40 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
+        }`}
     >
       {/* Top ambient accent glow on hover */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-indigo-500/40 dark:via-indigo-400/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -151,11 +150,10 @@ export function VocabCard({
                   e.stopPropagation();
                   onToggleSelect?.(vocab);
                 }}
-                className={`p-0.5 rounded-md transition-colors cursor-pointer mr-0.5 shrink-0 ${
-                  isSelected
-                    ? 'text-indigo-600 dark:text-indigo-400'
-                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                }`}
+                className={`p-0.5 rounded-md transition-colors cursor-pointer mr-0.5 shrink-0 ${isSelected
+                  ? 'text-indigo-600 dark:text-indigo-400'
+                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                  }`}
                 title={isSelected ? 'Deseleccionar' : 'Seleccionar'}
               >
                 {isSelected ? (
@@ -174,9 +172,8 @@ export function VocabCard({
               type="button"
               onClick={handleSpeakWord}
               disabled={isPlayingWord}
-              className={`p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer shrink-0 ${
-                isPlayingWord ? 'text-indigo-600 dark:text-indigo-400 animate-pulse' : ''
-              }`}
+              className={`p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer shrink-0 ${isPlayingWord ? 'text-indigo-600 dark:text-indigo-400 animate-pulse' : ''
+                }`}
               title="Escuchar pronunciación nativa"
             >
               <Volume2 className="w-4 h-4" />
@@ -275,9 +272,8 @@ export function VocabCard({
                 type="button"
                 onClick={(e) => handleSpeakExample(e, basicExampleEn)}
                 disabled={isPlayingExample}
-                className={`p-1 rounded-md text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer shrink-0 ${
-                  isPlayingExample ? 'text-indigo-600 dark:text-indigo-400 animate-pulse' : ''
-                }`}
+                className={`p-1 rounded-md text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer shrink-0 ${isPlayingExample ? 'text-indigo-600 dark:text-indigo-400 animate-pulse' : ''
+                  }`}
                 title="Escuchar oración"
               >
                 <Volume2 className="w-3.5 h-3.5" />

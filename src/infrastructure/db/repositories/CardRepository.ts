@@ -13,6 +13,7 @@ import {
   PositiveDrillFormat,
 } from '../../../core/types/srs';
 import { CefrLevel, GrammaticalDimension, PartOfSpeech, ChunkType, PhrasalVerbType, VocabContextExample, VerbTenses, StructuredWordFamily, VocabSense } from '../../../core/types/vocab';
+import { mapVocabRowToDomain } from './VocabRepository';
 
 export class CardRepository implements ICardRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
@@ -210,45 +211,7 @@ export class CardRepository implements ICardRepository {
 
         results.push({
           card,
-          vocab: vocabRow
-            ? {
-                id: vocabRow.id,
-                word: vocabRow.word,
-                grammaticalDimension: vocabRow.grammatical_dimension as GrammaticalDimension,
-                partOfSpeech: vocabRow.part_of_speech as PartOfSpeech,
-                subcategory: vocabRow.subcategory,
-                definitionEn: vocabRow.definition_en,
-                translationEs: vocabRow.translation_es,
-                ipaGeneralAmerican: vocabRow.ipa_general_american,
-                ipaReceivedPronunciation: vocabRow.ipa_received_pronunciation,
-                cefrLevel: vocabRow.cefr_level as CefrLevel,
-                frequencyBand: (vocabRow.frequency_band as any) ?? 'TOP_3000',
-                isCore: Boolean(vocabRow.is_core),
-                masteryStatus: (vocabRow.mastery_status as any) ?? 'INACTIVE',
-                collocationsJson: this.parseJsonSafe<string[]>(vocabRow.collocations_json, []),
-                phoneticEdEnding: (vocabRow.phonetic_ed_ending as any) ?? null,
-                isFalseFriend: Boolean(vocabRow.is_false_friend),
-                falseFriendNote: vocabRow.false_friend_note,
-                morphologicalFamilyJson: this.parseJsonSafe<string[]>(
-                  vocabRow.morphological_family_json,
-                  [],
-                ),
-                verbTensesJson: this.parseJsonSafe<VerbTenses | null>(
-                  vocabRow.verb_tenses_json,
-                  null,
-                ),
-                structuredFamilyJson: this.parseJsonSafe<StructuredWordFamily | null>(
-                  vocabRow.structured_family_json,
-                  null,
-                ),
-                domainCategory: vocabRow.domain_category ?? null,
-                alternateSensesJson: this.parseJsonSafe<VocabSense[] | null>(
-                  vocabRow.alternate_senses_json,
-                  null,
-                ),
-                createdAt: vocabRow.created_at,
-              }
-            : undefined,
+          vocab: vocabRow ? mapVocabRowToDomain(vocabRow) : undefined,
           allContexts: contexts,
           currentContext: contexts[0],
         });

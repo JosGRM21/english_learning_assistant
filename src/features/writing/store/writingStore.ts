@@ -45,8 +45,6 @@ export interface WritingState {
   isLoading: boolean;
   socraticResult: SocraticFeedbackResponse | null;
   evalResult: WritingEvaluationResponse | null;
-  selectedQuizOption: number | null;
-  quizSubmitted: boolean;
 
   // Error Drill station state
   activeErrorIndex: number;
@@ -55,7 +53,6 @@ export interface WritingState {
   // History & Archive state
   historySubmissions: WritingSubmissionEntity[];
   isLoadingHistory: boolean;
-  selectedHistoryItem: WritingSubmissionEntity | null;
 
   // Setters
   setActiveTab: (tab: WritingStudioTab) => void;
@@ -74,13 +71,10 @@ export interface WritingState {
   setIsLoading: (loading: boolean) => void;
   setSocraticResult: (result: SocraticFeedbackResponse | null) => void;
   setEvalResult: (result: WritingEvaluationResponse | null) => void;
-  setSelectedQuizOption: (idx: number | null) => void;
-  setQuizSubmitted: (submitted: boolean) => void;
   setActiveErrorIndex: (idx: number) => void;
   setErrorDrillCompleted: (errorSpan: string, completed: boolean) => void;
   setHistorySubmissions: (subs: WritingSubmissionEntity[]) => void;
   setIsLoadingHistory: (loading: boolean) => void;
-  setSelectedHistoryItem: (item: WritingSubmissionEntity | null) => void;
 
   // Composite actions
   selectReadingAndApply: (reading: ReadingItem, mission: WritingMission) => void;
@@ -103,13 +97,10 @@ export const useWritingStore = create<WritingState>((set, get) => ({
   isLoading: false,
   socraticResult: null,
   evalResult: null,
-  selectedQuizOption: null,
-  quizSubmitted: false,
   activeErrorIndex: 0,
   errorDrillsCompleted: {},
   historySubmissions: [],
   isLoadingHistory: false,
-  selectedHistoryItem: null,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   setCurrentStage: (stage) => set({ currentStage: stage }),
@@ -168,8 +159,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
   setIsLoading: (loading) => set({ isLoading: loading }),
   setSocraticResult: (result) => set({ socraticResult: result }),
   setEvalResult: (result) => set({ evalResult: result }),
-  setSelectedQuizOption: (idx) => set({ selectedQuizOption: idx }),
-  setQuizSubmitted: (submitted) => set({ quizSubmitted: submitted }),
   setActiveErrorIndex: (idx) => set({ activeErrorIndex: idx }),
   setErrorDrillCompleted: (errorSpan, completed) =>
     set((state) => ({
@@ -177,7 +166,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
     })),
   setHistorySubmissions: (subs) => set({ historySubmissions: subs }),
   setIsLoadingHistory: (loading) => set({ isLoadingHistory: loading }),
-  setSelectedHistoryItem: (item) => set({ selectedHistoryItem: item }),
 
   selectReadingAndApply: (reading, mission) =>
     set({
@@ -190,8 +178,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
       currentStage: 1,
       socraticResult: null,
       evalResult: null,
-      selectedQuizOption: null,
-      quizSubmitted: false,
       activeErrorIndex: 0,
       errorDrillsCompleted: {},
     }),
@@ -212,8 +198,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
         socraticResult: item.socraticResult ?? null,
         currentStage: 3,
         activeTab: 'STUDIO',
-        selectedQuizOption: null,
-        quizSubmitted: false,
         activeErrorIndex: 0,
         errorDrillsCompleted: {},
       });
@@ -229,8 +213,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
         evalResult: null,
         currentStage: 2,
         activeTab: 'STUDIO',
-        selectedQuizOption: null,
-        quizSubmitted: false,
         activeErrorIndex: 0,
         errorDrillsCompleted: {},
       });
@@ -246,8 +228,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
         activeTab: 'STUDIO',
         socraticResult: null,
         evalResult: null,
-        selectedQuizOption: null,
-        quizSubmitted: false,
         activeErrorIndex: 0,
         errorDrillsCompleted: {},
       });
@@ -265,8 +245,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
       submissionMode: 'FREE',
       socraticResult: null,
       evalResult: null,
-      selectedQuizOption: null,
-      quizSubmitted: false,
       activeErrorIndex: 0,
       errorDrillsCompleted: {},
     }),

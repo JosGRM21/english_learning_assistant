@@ -24,11 +24,9 @@ export interface VocabSearchToolbarProps {
   // Advanced filters props
   frequencyBandFilter: string;
   selectedDimension: string;
-  selectedRegister: string;
   selectedPartOfSpeech: string;
   onSelectFrequencyBand: (band: string) => void;
   onSelectDimension: (dim: string) => void;
-  onSelectRegister: (reg: string) => void;
   onSelectPartOfSpeech: (pos: string) => void;
   onResetAdvancedFilters: () => void;
 }
@@ -47,11 +45,9 @@ export function VocabSearchToolbar({
   onSortChange,
   frequencyBandFilter,
   selectedDimension,
-  selectedRegister,
   selectedPartOfSpeech,
   onSelectFrequencyBand,
   onSelectDimension,
-  onSelectRegister,
   onSelectPartOfSpeech,
   onResetAdvancedFilters,
 }: VocabSearchToolbarProps) {
@@ -219,11 +215,9 @@ export function VocabSearchToolbar({
           <VocabAdvancedFiltersPopover
             frequencyBandFilter={frequencyBandFilter}
             selectedDimension={selectedDimension}
-            selectedRegister={selectedRegister}
             selectedPartOfSpeech={selectedPartOfSpeech}
             onSelectFrequencyBand={onSelectFrequencyBand}
             onSelectDimension={onSelectDimension}
-            onSelectRegister={onSelectRegister}
             onSelectPartOfSpeech={onSelectPartOfSpeech}
             onResetAdvancedFilters={onResetAdvancedFilters}
           />

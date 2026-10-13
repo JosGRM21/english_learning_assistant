@@ -161,7 +161,9 @@ describe('DefossilizationStationView Component', () => {
     fireEvent.click(verifyBtn);
 
     // Audio positive feedback played
-    expect(mockAudioService.playFeedback).toHaveBeenCalledWith(true);
+    await waitFor(() => {
+      expect(mockAudioService.playFeedback).toHaveBeenCalledWith(true);
+    });
 
     // Success banner
     expect(screen.getByText('¡Excelente respuesta!')).toBeDefined();

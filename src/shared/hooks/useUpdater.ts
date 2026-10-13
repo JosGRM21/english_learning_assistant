@@ -32,7 +32,7 @@ export function useUpdater() {
       const { check } = await import('@tauri-apps/plugin-updater');
       const update = await check();
 
-      if (update?.available) {
+      if (update) {
         setPendingUpdate(update);
         setUpdateInfo({
           version: update.version,

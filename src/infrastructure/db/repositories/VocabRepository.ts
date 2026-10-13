@@ -20,106 +20,111 @@ import {
   CORE_VOCAB_DATA,
 } from '@/data/core-vocab-corpus';
 
+export function mapVocabRowToDomain(row: Selectable<VocabItemsTable>): VocabItem {
+  let morphologicalFamily: string[] = [];
+  if (row.morphological_family_json) {
+    try {
+      morphologicalFamily = JSON.parse(row.morphological_family_json);
+    } catch {
+      morphologicalFamily = [];
+    }
+  }
+
+  let verbTenses: VerbTenses | null = null;
+  if (row.verb_tenses_json) {
+    try {
+      verbTenses = JSON.parse(row.verb_tenses_json);
+    } catch {
+      verbTenses = null;
+    }
+  }
+
+  let structuredFamily: StructuredWordFamily | null = null;
+  if (row.structured_family_json) {
+    try {
+      structuredFamily = JSON.parse(row.structured_family_json);
+    } catch {
+      structuredFamily = null;
+    }
+  }
+
+  let alternateSenses: VocabSense[] | null = null;
+  if (row.alternate_senses_json) {
+    try {
+      alternateSenses = JSON.parse(row.alternate_senses_json);
+    } catch {
+      alternateSenses = null;
+    }
+  }
+
+  let collocations: string[] = [];
+  if (row.collocations_json) {
+    try {
+      collocations = JSON.parse(row.collocations_json);
+    } catch {
+      collocations = [];
+    }
+  }
+
+  let primaryGraduatedExamples: any = null;
+  if (row.is_core) {
+    const coreWord = getCoreCorpusWord(row.word);
+    if (coreWord?.graduatedExamples) {
+      primaryGraduatedExamples = coreWord.graduatedExamples;
+    }
+  }
+
+  const primarySense: VocabSense = {
+    translationEs: row.translation_es,
+    definitionEn: row.definition_en,
+    partOfSpeech: row.part_of_speech as PartOfSpeech,
+    cefrLevel: row.cefr_level as CefrLevel,
+    collocations,
+    graduatedExamples: primaryGraduatedExamples,
+  };
+
+  const sensesJson: VocabSense[] = [
+    primarySense,
+    ...(alternateSenses || []),
+  ];
+
+  return {
+    id: row.id,
+    word: row.word,
+    grammaticalDimension: row.grammatical_dimension as GrammaticalDimension,
+    partOfSpeech: row.part_of_speech as PartOfSpeech,
+    subcategory: row.subcategory,
+    definitionEn: row.definition_en,
+    translationEs: row.translation_es,
+    ipaGeneralAmerican: row.ipa_general_american,
+    ipaReceivedPronunciation: row.ipa_received_pronunciation,
+    ipaWeakForm: row.ipa_weak_form || null,
+    cefrLevel: row.cefr_level as CefrLevel,
+    frequencyBand: (row.frequency_band as FrequencyBand) ?? 'TOP_3000',
+    masteryStatus: (row.mastery_status as VocabMasteryStatus) ?? 'INACTIVE',
+    isCore: Boolean(row.is_core),
+    collocationsJson: collocations,
+    isSeparable: row.is_separable === null ? null : Boolean(row.is_separable),
+    phoneticEdEnding: (row.phonetic_ed_ending as '/t/' | '/d/' | '/ɪd/' | null) ?? null,
+    isFalseFriend: Boolean(row.is_false_friend),
+    falseFriendNote: row.false_friend_note,
+    morphologicalFamilyJson: morphologicalFamily,
+    verbTensesJson: verbTenses,
+    structuredFamilyJson: structuredFamily,
+    domainCategory: row.domain_category ?? null,
+    alternateSensesJson: alternateSenses,
+    sensesJson,
+    createdAt: row.created_at,
+  };
+}
+
 export class VocabRepository implements IVocabRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
 
   private toDomainVocab(row: Selectable<VocabItemsTable>): VocabItem {
-    let morphologicalFamily: string[] = [];
-    if (row.morphological_family_json) {
-      try {
-        morphologicalFamily = JSON.parse(row.morphological_family_json);
-      } catch {
-        morphologicalFamily = [];
-      }
-    }
-
-    let verbTenses: VerbTenses | null = null;
-    if (row.verb_tenses_json) {
-      try {
-        verbTenses = JSON.parse(row.verb_tenses_json);
-      } catch {
-        verbTenses = null;
-      }
-    }
-
-    let structuredFamily: StructuredWordFamily | null = null;
-    if (row.structured_family_json) {
-      try {
-        structuredFamily = JSON.parse(row.structured_family_json);
-      } catch {
-        structuredFamily = null;
-      }
-    }
-
-    let alternateSenses: VocabSense[] | null = null;
-    if (row.alternate_senses_json) {
-      try {
-        alternateSenses = JSON.parse(row.alternate_senses_json);
-      } catch {
-        alternateSenses = null;
-      }
-    }
-
-    let collocations: string[] = [];
-    if (row.collocations_json) {
-      try {
-        collocations = JSON.parse(row.collocations_json);
-      } catch {
-        collocations = [];
-      }
-    }
-
-    let primaryGraduatedExamples: any = null;
-    if (row.is_core) {
-      const coreWord = getCoreCorpusWord(row.word);
-      if (coreWord?.graduatedExamples) {
-        primaryGraduatedExamples = coreWord.graduatedExamples;
-      }
-    }
-
-    const primarySense: VocabSense = {
-      translationEs: row.translation_es,
-      definitionEn: row.definition_en,
-      partOfSpeech: row.part_of_speech as PartOfSpeech,
-      cefrLevel: row.cefr_level as CefrLevel,
-      collocations,
-      graduatedExamples: primaryGraduatedExamples,
-    };
-
-    const sensesJson: VocabSense[] = [
-      primarySense,
-      ...(alternateSenses || []),
-    ];
-
-    return {
-      id: row.id,
-      word: row.word,
-      grammaticalDimension: row.grammatical_dimension as GrammaticalDimension,
-      partOfSpeech: row.part_of_speech as PartOfSpeech,
-      subcategory: row.subcategory,
-      definitionEn: row.definition_en,
-      translationEs: row.translation_es,
-      ipaGeneralAmerican: row.ipa_general_american,
-      ipaReceivedPronunciation: row.ipa_received_pronunciation,
-      ipaWeakForm: row.ipa_weak_form || null,
-      cefrLevel: row.cefr_level as CefrLevel,
-      frequencyBand: (row.frequency_band as FrequencyBand) ?? 'TOP_3000',
-      masteryStatus: (row.mastery_status as VocabMasteryStatus) ?? 'INACTIVE',
-      isCore: Boolean(row.is_core),
-      collocationsJson: collocations,
-      isSeparable: row.is_separable === null ? null : Boolean(row.is_separable),
-      phoneticEdEnding: (row.phonetic_ed_ending as '/t/' | '/d/' | '/ɪd/' | null) ?? null,
-      isFalseFriend: Boolean(row.is_false_friend),
-      falseFriendNote: row.false_friend_note,
-      morphologicalFamilyJson: morphologicalFamily,
-      verbTensesJson: verbTenses,
-      structuredFamilyJson: structuredFamily,
-      domainCategory: row.domain_category ?? null,
-      alternateSensesJson: alternateSenses,
-      sensesJson,
-      createdAt: row.created_at,
-    };
+    return mapVocabRowToDomain(row);
   }
+
 
   private toDomainContext(row: Selectable<VocabContextExamplesTable>): VocabContextExample {
     return {
@@ -321,7 +326,7 @@ export class VocabRepository implements IVocabRepository {
           target_id: id,
           state: 'NEW',
           stability: 0.0,
-          difficulty: 0.0,
+          difficulty: 5.0,
           reps: 0,
           lapses: 0,
           consecutive_lapses: 0,
@@ -668,39 +673,13 @@ export class VocabRepository implements IVocabRepository {
   }
 
   async clearAllVocabs(): Promise<number> {
-    // 1. Identify all SRS cards associated with VOCAB or PHRASE target types
-    const cards = await this.db
-      .selectFrom('srs_cards')
-      .select('id')
-      .where('target_type', 'in', ['VOCAB', 'PHRASE'])
-      .execute();
-
-    // 2. Delete review logs for those cards to maintain relational integrity
-    if (cards.length > 0) {
-      const cardIds = cards.map((c) => c.id);
-      await this.db
-        .deleteFrom('review_logs')
-        .where('card_id', 'in', cardIds)
-        .execute();
-    }
-
-    // 3. Delete all SRS cards for vocab & phrase targets
+    // 1. Delete all SRS cards for vocab & phrase targets (cascades to review_logs)
     await this.db
       .deleteFrom('srs_cards')
       .where('target_type', 'in', ['VOCAB', 'PHRASE'])
       .execute();
 
-    // 4. Delete all vocab context examples
-    await this.db
-      .deleteFrom('vocab_context_examples')
-      .execute();
-
-    // 5. Delete phraseological units
-    await this.db
-      .deleteFrom('phraseological_units')
-      .execute();
-
-    // 6. Delete all vocab items
+    // 2. Delete all vocab items (cascades to vocab_context_examples and phraseological_units)
     const result = await this.db
       .deleteFrom('vocab_items')
       .executeTakeFirst();

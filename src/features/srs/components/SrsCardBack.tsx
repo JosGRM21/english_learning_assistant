@@ -1,19 +1,14 @@
-import { useState } from 'react';
 import {
   AlertTriangle,
   Volume2,
   Volume1,
   RotateCw,
   Repeat,
-  Sparkles,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 import { VocabItem, VocabContextExample, PART_OF_SPEECH_LABELS_ES } from '@/core/types/vocab';
 import { SrsCard, FsrsGrade } from '@/core/types/srs';
-import { ConnectedSpeechPill } from '@/features/phonology/components/ConnectedSpeechPill';
 import { AudioService } from '@/infrastructure/audio/AudioService';
-import { VerbTensesCard } from '@/features/vocab/components/VerbTensesCard';
+import { useAudio } from '@/shared/hooks/useAudio';
 
 export interface SrsCardBackProps {
   selectedVocab: VocabItem;
@@ -27,7 +22,7 @@ export interface SrsCardBackProps {
   onFlipBack?: () => void;
   onRate: (grade: FsrsGrade) => void;
   isRating?: boolean;
-  audioService: AudioService;
+  audioService?: AudioService;
 }
 
 export const formatInterval = (days: number | undefined) => {
@@ -48,10 +43,10 @@ export function SrsCardBack({
   onFlipBack,
   onRate,
   isRating = false,
-  audioService,
+  audioService: audioProp,
 }: SrsCardBackProps) {
-  const [showPhoneticsDrawer, setShowPhoneticsDrawer] = useState(false);
-
+  const { audioService: defaultAudio } = useAudio();
+  const audioService = audioProp ?? defaultAudio;
   const partOfSpeechEs =
     PART_OF_SPEECH_LABELS_ES[selectedVocab.partOfSpeech] ?? selectedVocab.partOfSpeech;
 
@@ -253,7 +248,7 @@ export function SrsCardBack({
         {/* ============================================================ */}
         {/* CONTEXTO & FONOLOGÍA: Oración de uso y análisis auditivo     */}
         {/* ============================================================ */}
-        {currentContext ? (
+        {currentContext && (
           <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-[#151926]/70 border border-slate-200/60 dark:border-slate-800/80 space-y-3">
             {/* Header del bloque de contexto */}
             <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -304,68 +299,20 @@ export function SrsCardBack({
                 {currentContext.sentenceEs}
               </p>
             )}
-
-            {/* Desplegable de análisis fonológico */}
-            <div className="pt-2 border-t border-slate-200/50 dark:border-slate-800/60">
-              <button
-                type="button"
-                onClick={() => setShowPhoneticsDrawer(!showPhoneticsDrawer)}
-                className="w-full flex items-center justify-between text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold cursor-pointer py-1"
-              >
-                <span className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Análisis Fonológico & Habla Conectada (Linking, Glides, Weak Forms)</span>
-                </span>
-                {showPhoneticsDrawer ? (
-                  <ChevronUp className="w-3.5 h-3.5" />
-                ) : (
-                  <ChevronDown className="w-3.5 h-3.5" />
-                )}
-              </button>
-
-              {showPhoneticsDrawer && (
-                <div className="pt-2 animate-in fade-in duration-200">
-                  <ConnectedSpeechPill
-                    sentence={currentContext.sentenceEn}
-                    audioService={audioService}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="p-3.5 rounded-2xl bg-slate-50/70 dark:bg-[#151926]/70 border border-slate-200/60 dark:border-slate-800/80 space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowPhoneticsDrawer(!showPhoneticsDrawer)}
-              className="w-full flex items-center justify-between text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold cursor-pointer py-0.5"
-            >
-              <span className="flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Análisis Fonológico de la Palabra</span>
-              </span>
-              {showPhoneticsDrawer ? (
-                <ChevronUp className="w-3.5 h-3.5" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5" />
-              )}
-            </button>
-
-            {showPhoneticsDrawer && (
-              <div className="pt-2 animate-in fade-in duration-200">
-                <ConnectedSpeechPill
-                  sentence={selectedVocab.word}
-                  audioService={audioService}
-                />
-              </div>
-            )}
           </div>
         )}
 
         {/* Conjugación verbal (si es verbo) */}
         {selectedVocab.partOfSpeech === 'VERB' && selectedVocab.verbTensesJson && (
-          <div className="pt-1">
-            <VerbTensesCard tenses={selectedVocab.verbTensesJson} compact />
+          <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-[#151926]/70 border border-slate-200/60 dark:border-slate-800/80 text-xs space-y-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Tiempos Verbales
+            </span>
+            <div className="flex items-center justify-around font-mono">
+              <span><strong className="text-slate-500 font-sans">Inf:</strong> {selectedVocab.verbTensesJson.infinitive}</span>
+              <span><strong className="text-slate-500 font-sans">Past:</strong> {selectedVocab.verbTensesJson.pastSimple}</span>
+              <span><strong className="text-slate-500 font-sans">Part:</strong> {selectedVocab.verbTensesJson.pastParticiple}</span>
+            </div>
           </div>
         )}
       </div>

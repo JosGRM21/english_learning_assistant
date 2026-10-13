@@ -2,8 +2,6 @@ import { useState } from 'react';
 import {
   AlertCircle,
 } from 'lucide-react';
-import { IAiGateway } from '@/infrastructure/ai/IAiGateway';
-import { AudioService } from '@/infrastructure/audio/AudioService';
 import { useWritingSession } from '../hooks/useWritingSession';
 import { WritingStudioHeader } from './WritingStudioHeader';
 import { WritingStageOne } from './WritingStageOne';
@@ -15,8 +13,6 @@ import { ReadingSelectionModal } from './ReadingSelectionModal';
 import { AppTab } from '@/shared/constants/app-tabs';
 
 export interface SocraticWritingStudioProps {
-  audioService?: AudioService;
-  aiGateway?: IAiGateway;
   onNavigateTab?: (tab: AppTab) => void;
 }
 

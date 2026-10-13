@@ -55,13 +55,10 @@ export function useWritingSession() {
     isLoading,
     socraticResult,
     evalResult,
-    selectedQuizOption,
-    quizSubmitted,
     activeErrorIndex,
     errorDrillsCompleted,
     historySubmissions,
     isLoadingHistory,
-    selectedHistoryItem,
     setActiveTab,
     setCurrentStage,
     setCurrentSubmissionId,
@@ -78,12 +75,9 @@ export function useWritingSession() {
     setIsLoading,
     setSocraticResult,
     setEvalResult,
-    setSelectedQuizOption,
-    setQuizSubmitted,
     setActiveErrorIndex,
     setHistorySubmissions,
     setIsLoadingHistory,
-    setSelectedHistoryItem,
     selectReadingAndApply,
     loadSubmissionIntoStudio,
     resetWriting,
@@ -170,7 +164,6 @@ export function useWritingSession() {
         subId = await writingRepo.createSubmission({
           id: subId ?? undefined,
           userId: 'user_local',
-          promptId: null,
           submissionMode,
           userText: draft1,
           wordCount: words,
@@ -243,8 +236,6 @@ export function useWritingSession() {
       response.corrections = enrichedCorrections;
 
       setEvalResult(response);
-      setSelectedQuizOption(null);
-      setQuizSubmitted(false);
 
       // 4. Save in database if writingRepo is available
       const subId = currentSubmissionId;
@@ -297,8 +288,6 @@ export function useWritingSession() {
     refreshHistory,
     setIsLoading,
     setEvalResult,
-    setSelectedQuizOption,
-    setQuizSubmitted,
     updateQuestProgress,
     updateStreak,
     setCurrentStage,
@@ -420,13 +409,10 @@ export function useWritingSession() {
     isLoading,
     socraticResult,
     evalResult,
-    selectedQuizOption,
-    quizSubmitted,
     activeErrorIndex,
     errorDrillsCompleted,
     historySubmissions,
     isLoadingHistory,
-    selectedHistoryItem,
     errorMessage,
     srsSuccessMessage,
     isPlayingTts,
@@ -440,7 +426,6 @@ export function useWritingSession() {
     setTargetCefr,
     setTargetWords,
     setErrorMessage,
-    setSelectedHistoryItem,
     setActiveErrorIndex,
     replaceTargetWord,
     selectReadingAndApply,

@@ -142,6 +142,7 @@ describe('Database Migrations Engine', () => {
     `.execute(db);
 
     expect(tableInfo.rows[0].sql).not.toContain('REFERENCES writing_prompts');
+    expect(tableInfo.rows[0].sql).not.toContain('prompt_id');
 
     // 4. Verify existing data was preserved
     const rows = await sql<{ id: string; user_text: string }>`

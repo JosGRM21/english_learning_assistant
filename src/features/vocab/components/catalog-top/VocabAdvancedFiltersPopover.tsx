@@ -12,11 +12,9 @@ import { Select, ListBox } from '@heroui/react';
 export interface VocabAdvancedFiltersPopoverProps {
   frequencyBandFilter: string;
   selectedDimension: string;
-  selectedRegister: string;
   selectedPartOfSpeech: string;
   onSelectFrequencyBand: (band: string) => void;
   onSelectDimension: (dim: string) => void;
-  onSelectRegister: (reg: string) => void;
   onSelectPartOfSpeech: (pos: string) => void;
   onResetAdvancedFilters: () => void;
 }
@@ -24,11 +22,9 @@ export interface VocabAdvancedFiltersPopoverProps {
 export function VocabAdvancedFiltersPopover({
   frequencyBandFilter,
   selectedDimension,
-  selectedRegister,
   selectedPartOfSpeech,
   onSelectFrequencyBand,
   onSelectDimension,
-  onSelectRegister,
   onSelectPartOfSpeech,
   onResetAdvancedFilters,
 }: VocabAdvancedFiltersPopoverProps) {
@@ -39,7 +35,6 @@ export function VocabAdvancedFiltersPopover({
   const activeCount = [
     frequencyBandFilter !== 'ALL',
     selectedDimension !== 'ALL',
-    selectedRegister !== 'ALL',
     selectedPartOfSpeech !== 'ALL',
   ].filter(Boolean).length;
 
@@ -218,50 +213,7 @@ export function VocabAdvancedFiltersPopover({
               </Select>
             </div>
 
-            {/* 3. Registro de Uso */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-400 flex items-center gap-1">
-                <Filter className="w-3 h-3 text-indigo-500" />
-                <span>Registro de Uso</span>
-              </label>
-              <Select
-                selectedKey={selectedRegister}
-                onSelectionChange={(key) => {
-                  if (key) onSelectRegister(key as string);
-                }}
-                aria-label="Filtrar por registro de uso"
-                className="w-full"
-              >
-                <Select.Trigger className="h-8 px-2.5 text-xs bg-gray-50 dark:bg-[#181D2D] border border-gray-200/80 dark:border-white/[0.08] rounded-xl flex items-center justify-between gap-1.5 cursor-pointer hover:border-indigo-400 transition-colors">
-                  <Select.Value className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate" />
-                  <Select.Indicator className="text-gray-400 shrink-0" />
-                </Select.Trigger>
-                <Select.Popover className="p-1 rounded-xl bg-white dark:bg-[#181D2D] border border-gray-200/80 dark:border-white/[0.08] shadow-xl min-w-[170px] z-60">
-                  <ListBox className="space-y-0.5 outline-none">
-                    <ListBox.Item id="ALL" textValue="Todos los Registros" className="px-2.5 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200">
-                      Todos los Registros
-                    </ListBox.Item>
-                    <ListBox.Item id="NEUTRAL" textValue="Neutral" className="px-2.5 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200">
-                      Neutral
-                    </ListBox.Item>
-                    <ListBox.Item id="FORMAL" textValue="Formal" className="px-2.5 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200">
-                      Formal
-                    </ListBox.Item>
-                    <ListBox.Item id="INFORMAL" textValue="Informal" className="px-2.5 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200">
-                      Informal
-                    </ListBox.Item>
-                    <ListBox.Item id="ACADEMIC" textValue="Académico" className="px-2.5 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200">
-                      Académico
-                    </ListBox.Item>
-                    <ListBox.Item id="SLANG" textValue="Slang / Coloquial" className="px-2.5 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200">
-                      Slang / Coloquial
-                    </ListBox.Item>
-                  </ListBox>
-                </Select.Popover>
-              </Select>
-            </div>
-
-            {/* 4. Categoría Gramatical */}
+            {/* 3. Categoría Gramatical */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-400 flex items-center gap-1">
                 <BookOpen className="w-3 h-3 text-indigo-500" />

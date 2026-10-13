@@ -27,7 +27,7 @@ let tauriDbSingleton: Kysely<DatabaseSchema> | null = null;
  * Executes the DDL statements to create all 10 active tables and indexes, and runs migrations.
  * Guaranteed to be idempotent and safe against concurrent executions.
  */
-export async function initializeDatabase(db: Kysely<DatabaseSchema>): Promise<void> {
+export async function initializeDatabase(db: Kysely<DatabaseSchema>, seed = true): Promise<void> {
   const existing = activeInitPromises.get(db);
   if (existing) {
     return existing;
@@ -48,8 +48,10 @@ export async function initializeDatabase(db: Kysely<DatabaseSchema>): Promise<vo
     await runMigrations(db);
 
     // 5. Seed master core vocabulary corpus if DB is clean
-    const { seedCoreCorpus } = await import('./seeder');
-    await seedCoreCorpus(db);
+    if (seed) {
+      const { seedCoreCorpus } = await import('./seeder');
+      await seedCoreCorpus(db);
+    }
   })();
 
   activeInitPromises.set(db, initPromise);
@@ -65,10 +67,10 @@ export async function initializeDatabase(db: Kysely<DatabaseSchema>): Promise<vo
 /**
  * Creates an in-memory Kysely instance backed by WASM SQLite (for testing and browser fallback).
  */
-export async function createTestDatabase(): Promise<Kysely<DatabaseSchema>> {
+export async function createTestDatabase(seed = true): Promise<Kysely<DatabaseSchema>> {
   const dialect = new SqlJsDialect();
   const db = new Kysely<DatabaseSchema>({ dialect });
-  await initializeDatabase(db);
+  await initializeDatabase(db, seed);
   return db;
 }
 

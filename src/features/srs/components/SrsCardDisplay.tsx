@@ -300,7 +300,6 @@ export function SrsCardDisplay({
           onFlipBack={onFlipBack}
           onRate={onRate}
           isRating={isRating}
-          audioService={audioService}
         />
       </div>
     </div>

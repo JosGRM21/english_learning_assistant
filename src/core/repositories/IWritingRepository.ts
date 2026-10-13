@@ -8,7 +8,6 @@ import { WritingErrorSrsItem } from '../types/srs';
 export interface WritingSubmissionEntity {
   id: string;
   userId: string;
-  promptId: string | null;
   submissionMode: 'FREE' | 'GUIDED' | 'MICRO_WRITING' | 'READING_TO_WRITE';
   userText: string;
   draft2Text?: string;
@@ -23,7 +22,6 @@ export interface WritingSubmissionEntity {
 export interface CreateSubmissionInput {
   id?: string;
   userId?: string;
-  promptId?: string | null;
   submissionMode?: 'FREE' | 'GUIDED' | 'MICRO_WRITING' | 'READING_TO_WRITE';
   userText: string;
   wordCount: number;

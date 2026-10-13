@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { AudioService } from '../AudioService';
+import { splitTextForFastTTFA } from '../kokoro.worker';
 
 vi.mock('@tauri-apps/api/core', () => {
   class MockChannel<T = any> {
     public onmessage: ((data: T) => void) | null = null;
-    constructor() {}
+    constructor() { }
   }
   return {
     invoke: vi.fn(),
@@ -49,7 +50,6 @@ describe('AudioService', () => {
   it('falls back to Web Speech API when not running in Tauri', async () => {
     const cancelMock = vi.fn();
     const speakMock = vi.fn((utterance: SpeechSynthesisUtterance) => {
-      // Simulate speech finishing
       if (utterance.onend) utterance.onend(new Event('end') as SpeechSynthesisEvent);
     });
 
@@ -64,9 +64,9 @@ describe('AudioService', () => {
         this.text = text;
       }
     }
+
     // @ts-expect-error test mock
     window.SpeechSynthesisUtterance = MockSpeechSynthesisUtterance;
-
     Object.defineProperty(window, 'speechSynthesis', {
       writable: true,
       value: {
@@ -77,7 +77,6 @@ describe('AudioService', () => {
     });
 
     await audioService.speak('test word', 1.0);
-
     expect(cancelMock).toHaveBeenCalled();
     expect(speakMock).toHaveBeenCalled();
   });
@@ -109,18 +108,90 @@ describe('AudioService', () => {
     }).not.toThrow();
   });
 
-  it('synthesizes via native backend streaming when running in Tauri and backend is available', async () => {
-    // Simulate Tauri runtime
+  it('synthesizes via native backend streaming when running in Tauri and caches backend readiness', async () => {
     (window as any).__TAURI_INTERNALS__ = {};
 
     mockInvoke.mockImplementation(async (cmd: string, args?: any) => {
       if (cmd === 'kokoro_is_ready') return true;
       if (cmd === 'get_build_target') return 'avx2-native';
       if (cmd === 'kokoro_synthesize_stream') {
-        // Trigger simulated stream chunk to verify channel
         if (args?.onChunk?.onmessage) {
           args.onChunk.onmessage({
-            samples: [0.1, -0.1, 0.2, -0.2],
+            samples: new Float32Array([0.1, -0.1, 0.2, -0.2]),
+            sample_rate: 24000,
+            chunk_index: 0,
+            is_final: true,
+          });
+        }
+        return undefined;
+      }
+      return null;
+    });
+
+    const mockChannelData = new Float32Array(4);
+    const copyToChannelMock = vi.fn();
+    const mockAudioBuffer = {
+      length: 4,
+      numberOfChannels: 1,
+      sampleRate: 24000,
+      duration: 0.1,
+      getChannelData: vi.fn().mockReturnValue(mockChannelData),
+      copyToChannel: copyToChannelMock,
+    } as unknown as AudioBuffer;
+
+    const mockSource = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      start: vi.fn(function (this: any) {
+        if (this.onended) this.onended();
+      }),
+      stop: vi.fn(),
+      buffer: null,
+      onended: null,
+    };
+
+    class MockAudioContext {
+      state = 'running';
+      currentTime = 0;
+      destination = {};
+      resume = vi.fn().mockResolvedValue(undefined);
+      createBuffer = vi.fn().mockReturnValue(mockAudioBuffer);
+      createBufferSource = vi.fn().mockReturnValue(mockSource);
+    }
+
+    // @ts-expect-error test mock
+    window.AudioContext = MockAudioContext;
+
+    expect(await audioService.isBackendAvailable()).toBe(true);
+    expect(await audioService.getBuildTarget?.()).toBe('avx2-native');
+    expect(await audioService.getActiveEngine?.()).toBe('native-avx2');
+
+    await audioService.speak('Hello world', 1.0);
+
+    expect(copyToChannelMock).toHaveBeenCalled();
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'kokoro_synthesize_stream',
+      expect.objectContaining({
+        text: 'Hello world',
+      }),
+    );
+
+    // Verify kokoro_is_ready was only called once thanks to readiness caching
+    const readyCalls = mockInvoke.mock.calls.filter((c) => c[0] === 'kokoro_is_ready');
+    expect(readyCalls.length).toBe(1);
+
+    delete (window as any).__TAURI_INTERNALS__;
+  });
+
+  it('prefetches audio into cache and plays cached buffer with zero synthesis calls on speak()', async () => {
+    (window as any).__TAURI_INTERNALS__ = {};
+
+    mockInvoke.mockImplementation(async (cmd: string, args?: any) => {
+      if (cmd === 'kokoro_is_ready') return true;
+      if (cmd === 'kokoro_synthesize_stream') {
+        if (args?.onChunk?.onmessage) {
+          args.onChunk.onmessage({
+            samples: new Float32Array([0.05, -0.05, 0.1, -0.1]),
             sample_rate: 24000,
             chunk_index: 0,
             is_final: true,
@@ -138,10 +209,12 @@ describe('AudioService', () => {
       sampleRate: 24000,
       duration: 0.1,
       getChannelData: vi.fn().mockReturnValue(mockChannelData),
+      copyToChannel: vi.fn(),
     } as unknown as AudioBuffer;
 
     const mockSource = {
       connect: vi.fn(),
+      disconnect: vi.fn(),
       start: vi.fn(function (this: any) {
         if (this.onended) this.onended();
       }),
@@ -152,24 +225,35 @@ describe('AudioService', () => {
 
     class MockAudioContext {
       state = 'running';
+      currentTime = 0;
       destination = {};
       resume = vi.fn().mockResolvedValue(undefined);
       createBuffer = vi.fn().mockReturnValue(mockAudioBuffer);
       createBufferSource = vi.fn().mockReturnValue(mockSource);
     }
+
     // @ts-expect-error test mock
     window.AudioContext = MockAudioContext;
 
-    expect(await audioService.isBackendAvailable()).toBe(true);
-    expect(await audioService.getBuildTarget?.()).toBe('avx2-native');
-    expect(await audioService.getActiveEngine?.()).toBe('native-avx2');
+    await audioService.prefetch('resilient', 1.0, 'af_heart');
+    expect(mockSource.start).not.toHaveBeenCalled();
 
-    await audioService.speak('Hello world', 1.0);
+    // Clear invoke history and now speak the prefetched word
+    mockInvoke.mockClear();
+    await audioService.speak('resilient', 1.0, 'af_heart');
 
-    expect(mockInvoke).toHaveBeenCalledWith('kokoro_synthesize_stream', expect.objectContaining({
-      text: 'Hello world',
-    }));
+    // Should play from AudioBuffer cache without invoking kokoro_synthesize_stream again
+    expect(mockInvoke).not.toHaveBeenCalledWith('kokoro_synthesize_stream', expect.anything());
+    expect(mockSource.start).toHaveBeenCalledTimes(1);
 
     delete (window as any).__TAURI_INTERNALS__;
+  });
+
+  it('splits long first sentences into shorter clauses for fast TTFA', () => {
+    const longSentence =
+      'Although the international conference was postponed due to severe weather conditions, the research team continued working on the presentation.';
+    const segments = splitTextForFastTTFA(longSentence);
+    expect(segments.length).toBeGreaterThan(1);
+    expect(segments[0]).toContain('Although the international conference was postponed');
   });
 });

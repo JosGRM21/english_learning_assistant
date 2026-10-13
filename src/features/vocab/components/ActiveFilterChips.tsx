@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { GrammaticalDimension, PartOfSpeech, VocabRegister, PART_OF_SPEECH_LABELS_ES, GRAMMATICAL_DIMENSION_LABELS_ES } from '@/core/types/vocab';
+import { GrammaticalDimension, PartOfSpeech, PART_OF_SPEECH_LABELS_ES, GRAMMATICAL_DIMENSION_LABELS_ES } from '@/core/types/vocab';
 
 export interface ActiveFilterChipsProps {
   searchQuery: string;
@@ -8,7 +8,6 @@ export interface ActiveFilterChipsProps {
   frequencyBandFilter: string;
   masteryStatusFilter: string;
   onlyFalseFriends: boolean;
-  selectedRegister?: string;
   selectedPartOfSpeech?: string;
   originFilter: 'ALL' | 'CORE' | 'VAULT';
   onClearSearch: () => void;
@@ -17,19 +16,10 @@ export interface ActiveFilterChipsProps {
   onClearFrequencyBand: () => void;
   onClearMasteryStatus: () => void;
   onClearFalseFriends: () => void;
-  onClearRegister?: () => void;
   onClearPartOfSpeech?: () => void;
   onClearOrigin: () => void;
   onResetAll: () => void;
 }
-
-const REGISTER_LABELS: Record<VocabRegister, string> = {
-  FORMAL: 'Formal',
-  INFORMAL: 'Informal',
-  NEUTRAL: 'Neutral',
-  ACADEMIC: 'Académico',
-  SLANG: 'Slang / Coloquial',
-};
 
 const FREQUENCY_LABELS: Record<string, string> = {
   TOP_500: 'Top 500 Esencial',
@@ -52,7 +42,6 @@ export function ActiveFilterChips({
   frequencyBandFilter,
   masteryStatusFilter,
   onlyFalseFriends,
-  selectedRegister,
   selectedPartOfSpeech,
   originFilter,
   onClearSearch,
@@ -61,7 +50,6 @@ export function ActiveFilterChips({
   onClearFrequencyBand,
   onClearMasteryStatus,
   onClearFalseFriends,
-  onClearRegister,
   onClearPartOfSpeech,
   onClearOrigin,
   onResetAll,
@@ -113,14 +101,6 @@ export function ActiveFilterChips({
       key: 'ff',
       label: 'Falsos Amigos',
       onRemove: onClearFalseFriends,
-    });
-  }
-
-  if (selectedRegister && selectedRegister !== 'ALL') {
-    chips.push({
-      key: 'register',
-      label: `Registro: ${REGISTER_LABELS[selectedRegister as VocabRegister] ?? selectedRegister}`,
-      onRemove: () => onClearRegister?.(),
     });
   }
 

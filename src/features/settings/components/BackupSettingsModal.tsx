@@ -40,8 +40,6 @@ export function BackupSettingsModal({
   const [dbCards, setDbCards] = useState<Record<string, unknown>[] | null>(null);
   const [dbLogs, setDbLogs] = useState<ReviewLog[] | null>(null);
 
-  const storeCard = useSrsStore((s) => s.srsCard);
-  const storeLogs = useSrsStore((s) => s.reviewLogs);
   const storeStreak = useHabitsStore((s) => s.streak);
   const storeQuests = useHabitsStore((s) => s.quests);
   const finalUserId = userId ?? 'user_local';
@@ -121,8 +119,8 @@ export function BackupSettingsModal({
     [db, cardRepo, finalUserId, onRestoreBackup],
   );
 
-  const finalCards = cards ?? dbCards ?? (storeCard ? [storeCard as unknown as Record<string, unknown>] : []);
-  const finalLogs = reviewLogs ?? dbLogs ?? storeLogs;
+  const finalCards = cards ?? dbCards ?? [];
+  const finalLogs = reviewLogs ?? dbLogs ?? [];
   const finalErrors = errors ?? [];
   const finalStreak = streak !== undefined ? streak : (storeStreak as unknown as Record<string, unknown>);
   const finalQuests = quests ?? (storeQuests as unknown as Record<string, unknown>[]);

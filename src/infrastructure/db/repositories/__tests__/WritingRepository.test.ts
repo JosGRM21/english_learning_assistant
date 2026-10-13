@@ -22,7 +22,6 @@ describe('WritingRepository Integration Tests', () => {
     // 1. Create initial submission
     const subId = await repo.createSubmission({
       userId: 'user_local',
-      promptId: 'prompt_standup_1',
       submissionMode: 'GUIDED',
       userText: 'I am agree with your point and it depend of the server.',
       wordCount: 12,
@@ -64,7 +63,6 @@ describe('WritingRepository Integration Tests', () => {
         pragmatics_and_complexity: 8.0,
       },
       estimated_cefr: 'B1',
-      scores: { grammar: 9.0, vocabulary: 8.5, coherence: 8.5 },
       qualitative_recommendations_es: 'Mantén el foco en colocaciones preposicionales.',
       successful_repairs: [
         {
@@ -104,7 +102,6 @@ describe('WritingRepository Integration Tests', () => {
     expect(found?.userText).toBe('I am agree with your point and it depend of the server.');
     expect(found?.draft2Text).toBe('I agree with your point and it depends on the server.');
     expect(found?.status).toBe('EVALUATED');
-    expect(found?.evaluation?.scores.grammar).toBe(9.0);
     expect(found?.evaluation?.clean_structural_version).toBe('I agree with your point and it depends on the server.');
     expect(found?.evaluation?.native_recast_version).toContain('I completely agree');
     expect(found?.evaluation?.rubric_scores.accuracy).toBe(9.0);

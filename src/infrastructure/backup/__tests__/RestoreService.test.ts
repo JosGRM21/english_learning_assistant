@@ -12,7 +12,7 @@ describe('RestoreService', () => {
   let vocabRepo: VocabRepository;
 
   beforeEach(async () => {
-    db = await createTestDatabase();
+    db = await createTestDatabase(false);
     cardRepo = new CardRepository(db);
     vocabRepo = new VocabRepository(db);
   });

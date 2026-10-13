@@ -122,7 +122,6 @@ CREATE INDEX IF NOT EXISTS idx_review_time ON review_logs(reviewed_at);
 CREATE TABLE IF NOT EXISTS writing_submissions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL DEFAULT 'user_local',
-    prompt_id TEXT,
     submission_mode TEXT NOT NULL DEFAULT 'FREE' CHECK(submission_mode IN ('FREE', 'GUIDED', 'MICRO_WRITING', 'READING_TO_WRITE')),
     user_text TEXT NOT NULL,
     word_count INTEGER NOT NULL,
@@ -154,9 +153,6 @@ CREATE TABLE IF NOT EXISTS writing_evaluations (
     clean_structural_version TEXT NOT NULL DEFAULT '',
     native_recast_version TEXT NOT NULL DEFAULT '',
     noticing_the_gap_json TEXT NOT NULL DEFAULT '[]',
-    grammar_score REAL NOT NULL,
-    vocabulary_score REAL NOT NULL,
-    coherence_score REAL NOT NULL,
     accuracy_score REAL NOT NULL DEFAULT 0.0,
     range_precision_score REAL NOT NULL DEFAULT 0.0,
     cohesion_flow_score REAL NOT NULL DEFAULT 0.0,

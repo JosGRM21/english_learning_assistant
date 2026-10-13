@@ -1,8 +1,11 @@
-import { X, BookOpen } from 'lucide-react';
+import { useState } from 'react';
+import { X, BookOpen, PenLine, Library } from 'lucide-react';
 import { ReadingItem, WritingMission } from '@/data/reading-to-write-catalog';
 import {
   ReadingSelectionModalProps,
   ReadingCatalogView,
+  CustomReadingTab,
+  ModalViewTab,
 } from './reading-modal';
 
 export { type ReadingSelectionModalProps } from './reading-modal/types';
@@ -12,6 +15,8 @@ export function ReadingSelectionModal({
   onClose,
   onSelectReadingAndMission,
 }: ReadingSelectionModalProps) {
+  const [activeTab, setActiveTab] = useState<ModalViewTab>('CATALOG');
+
   if (!isOpen) return null;
 
   const handleSelectReadingAndMission = (reading: ReadingItem, mission: WritingMission) => {
@@ -49,19 +54,53 @@ export function ReadingSelectionModal({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer shrink-0"
-            aria-label="Cerrar modal"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Tab switchers */}
+            <div className="flex items-center p-1 bg-gray-100 dark:bg-gray-800/60 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setActiveTab('CATALOG')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'CATALOG'
+                    ? 'bg-white dark:bg-[#181D2A] text-indigo-600 dark:text-indigo-400 shadow-2xs font-bold'
+                    : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+                }`}
+              >
+                <Library className="w-3.5 h-3.5" />
+                <span>Catálogo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('CUSTOM')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'CUSTOM'
+                    ? 'bg-white dark:bg-[#181D2A] text-indigo-600 dark:text-indigo-400 shadow-2xs font-bold'
+                    : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+                }`}
+              >
+                <PenLine className="w-3.5 h-3.5" />
+                <span>Texto Propio</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer shrink-0"
+              aria-label="Cerrar modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Modal Main Content: Focused on Readings Catalog */}
+        {/* Modal Main Content */}
         <div className="flex-1 flex overflow-hidden min-h-0 bg-white dark:bg-[#131722]">
-          <ReadingCatalogView onSelectReadingAndMission={handleSelectReadingAndMission} />
+          {activeTab === 'CATALOG' ? (
+            <ReadingCatalogView onSelectReadingAndMission={handleSelectReadingAndMission} />
+          ) : (
+            <CustomReadingTab onApplyCustomReading={handleSelectReadingAndMission} />
+          )}
         </div>
       </div>
     </div>

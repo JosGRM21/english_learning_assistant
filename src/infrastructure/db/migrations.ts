@@ -230,8 +230,8 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
 
     if (subCheck.rows.length > 0) {
       const tableDdl = subCheck.rows[0].sql || '';
-      // If table DDL still contains a reference to writing_prompts, rebuild table safely
-      if (/REFERENCES\s+writing_prompts/i.test(tableDdl)) {
+      // If table DDL still contains a reference to writing_prompts or obsolete prompt_id column, rebuild table safely
+      if (/REFERENCES\s+writing_prompts/i.test(tableDdl) || /\bprompt_id\b/i.test(tableDdl)) {
         await executeSqlBatch(
           db,
           `
@@ -240,7 +240,6 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
           CREATE TABLE IF NOT EXISTS writing_submissions_new (
               id TEXT PRIMARY KEY,
               user_id TEXT NOT NULL DEFAULT 'user_local',
-              prompt_id TEXT,
               submission_mode TEXT NOT NULL DEFAULT 'FREE' CHECK(submission_mode IN ('FREE', 'GUIDED', 'MICRO_WRITING', 'READING_TO_WRITE')),
               user_text TEXT NOT NULL,
               word_count INTEGER NOT NULL,
@@ -249,12 +248,11 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
           );
 
           INSERT OR IGNORE INTO writing_submissions_new (
-              id, user_id, prompt_id, submission_mode, user_text, word_count, status, submitted_at
+              id, user_id, submission_mode, user_text, word_count, status, submitted_at
           )
           SELECT
               id,
               COALESCE(user_id, 'user_local'),
-              prompt_id,
               COALESCE(submission_mode, 'FREE'),
               user_text,
               word_count,

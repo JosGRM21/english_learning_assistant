@@ -62,14 +62,6 @@ export interface VocabDetailDrawerProps {
   accentPreference?: 'US' | 'UK';
 }
 
-const REGISTER_LABELS: Record<string, string> = {
-  FORMAL: 'Formal',
-  INFORMAL: 'Informal',
-  NEUTRAL: 'Neutral',
-  ACADEMIC: 'Académico',
-  SLANG: 'Slang / Coloquial',
-};
-
 export function VocabDetailDrawer({
   vocab,
   isOpen,
@@ -499,13 +491,6 @@ export function VocabDetailDrawer({
                       ? 'Expresión / Frase'
                       : 'Contenido Léxico'}
                   </span>
-
-                  {/* Register */}
-                  {currentVocab.register && (
-                    <span className="px-3 py-1 rounded-xl bg-[#141824] text-slate-400 font-medium text-xs border border-white/[0.08]">
-                      {REGISTER_LABELS[currentVocab.register] ?? currentVocab.register}
-                    </span>
-                  )}
                 </div>
 
                 {/* Headword & Phonetics */}

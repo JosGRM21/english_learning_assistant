@@ -117,32 +117,23 @@ export class RestoreService {
         const definitionEn =
           (vocabRaw.definitionEn as string) ||
           (vocabRaw.definition_en as string) ||
-          (vocabRaw.definition as string) ||
-          (c.definitionEn as string) ||
-          (c.definition as string) ||
           wordClean;
         const translationEs =
           (vocabRaw.translationEs as string) ||
           (vocabRaw.translation_es as string) ||
-          (vocabRaw.translation as string) ||
-          (c.translationEs as string) ||
-          (c.translation as string) ||
           'Sin traducción';
         const ipaGeneralAmerican =
           (vocabRaw.ipaGeneralAmerican as string) ||
           (vocabRaw.ipa_general_american as string) ||
-          (vocabRaw.ipa as string) ||
-          (c.ipaGeneralAmerican as string) ||
-          (c.ipa as string) ||
           '';
         const ipaReceivedPronunciation =
           (vocabRaw.ipaReceivedPronunciation as string) ||
           (vocabRaw.ipa_received_pronunciation as string) ||
           null;
         const subcategory =
-          (vocabRaw.subcategory as string) || (c.subcategory as string) || null;
+          (vocabRaw.subcategory as string) || null;
         const isFalseFriend = Boolean(
-          vocabRaw.isFalseFriend ?? vocabRaw.is_false_friend ?? c.isFalseFriend ?? false,
+          vocabRaw.isFalseFriend ?? vocabRaw.is_false_friend ?? false,
         )
           ? 1
           : 0;

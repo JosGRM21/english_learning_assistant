@@ -27,7 +27,6 @@ describe('Writing Studio Components & Store', () => {
       const mockSub = {
         id: 'sub_test_1',
         userId: 'user_local',
-        promptId: null,
         submissionMode: 'FREE' as const,
         userText: 'Original text',
         draft2Text: 'Corrected text',
@@ -42,7 +41,6 @@ describe('Writing Studio Components & Store', () => {
           rubric_scores: { accuracy: 8.5, range_and_precision: 8.0, cohesion_and_flow: 9.0, pragmatics_and_complexity: 8.0 },
           qualitative_recommendations_es: '',
           estimated_cefr: 'B2' as const,
-          scores: { grammar: 8.5, vocabulary: 8.0, coherence: 9.0 },
           successful_repairs: [],
           corrections: [],
           micro_challenge: {

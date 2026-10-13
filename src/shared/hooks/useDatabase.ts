@@ -4,17 +4,7 @@ import { DatabaseContext, DatabaseContextValue } from '@/app/providers/DatabaseP
 export function useDatabase(): DatabaseContextValue {
   const context = useContext(DatabaseContext);
   if (!context) {
-    return {
-      db: null,
-      vocabRepo: null,
-      cardRepo: null,
-      writingRepo: null,
-      notificationRepo: null,
-      appSettingsRepo: null,
-      isReady: false,
-      error: null,
-      retry: () => {},
-    };
+    throw new Error('useDatabase must be used within a DatabaseProvider');
   }
   return context;
 }

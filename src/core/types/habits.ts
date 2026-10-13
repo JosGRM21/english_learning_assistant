@@ -1,10 +1,6 @@
 export type QuestType =
   | 'VOCAB_SRS'
-  | 'PHONETICS_LISTEN'
-  | 'WRITING_SUBMISSION'
-  | 'MICRO_WORKOUT'
-  | 'SPEED_DRILL'
-  | 'GRADED_READER';
+  | 'WRITING_SUBMISSION';
 
 export interface DailyQuest {
   id: string;

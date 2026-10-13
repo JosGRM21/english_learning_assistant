@@ -1,5 +1,5 @@
-import { Kysely } from 'kysely';
-import { DatabaseSchema } from '../../../core/types/database';
+import { Kysely, Selectable } from 'kysely';
+import { DatabaseSchema, WritingDraftRevisionsTable, WritingEvaluationsTable } from '../../../core/types/database';
 import {
   IWritingRepository,
   WritingSubmissionEntity,
@@ -38,7 +38,6 @@ export class WritingRepository implements IWritingRepository {
           .updateTable('writing_submissions')
           .set({
             user_id: userId,
-            prompt_id: null,
             submission_mode: input.submissionMode ?? 'FREE',
             user_text: input.userText,
             word_count: input.wordCount,
@@ -56,7 +55,6 @@ export class WritingRepository implements IWritingRepository {
       .values({
         id,
         user_id: userId,
-        prompt_id: null,
         submission_mode: input.submissionMode ?? 'FREE',
         user_text: input.userText,
         word_count: input.wordCount,
@@ -113,9 +111,9 @@ export class WritingRepository implements IWritingRepository {
       .executeTakeFirst();
 
     const rubric = input.evaluation.rubric_scores ?? {
-      accuracy: input.evaluation.scores.grammar,
-      range_and_precision: input.evaluation.scores.vocabulary,
-      cohesion_and_flow: input.evaluation.scores.coherence,
+      accuracy: 8.0,
+      range_and_precision: 8.0,
+      cohesion_and_flow: 8.0,
       pragmatics_and_complexity: 8.0,
     };
 
@@ -128,9 +126,6 @@ export class WritingRepository implements IWritingRepository {
           clean_structural_version: input.evaluation.clean_structural_version || '',
           native_recast_version: input.evaluation.native_recast_version || '',
           noticing_the_gap_json: JSON.stringify(input.evaluation.noticing_the_gap_contrasts || []),
-          grammar_score: input.evaluation.scores.grammar,
-          vocabulary_score: input.evaluation.scores.vocabulary,
-          coherence_score: input.evaluation.scores.coherence,
           accuracy_score: rubric.accuracy,
           range_precision_score: rubric.range_and_precision,
           cohesion_flow_score: rubric.cohesion_and_flow,
@@ -156,9 +151,6 @@ export class WritingRepository implements IWritingRepository {
           clean_structural_version: input.evaluation.clean_structural_version || '',
           native_recast_version: input.evaluation.native_recast_version || '',
           noticing_the_gap_json: JSON.stringify(input.evaluation.noticing_the_gap_contrasts || []),
-          grammar_score: input.evaluation.scores.grammar,
-          vocabulary_score: input.evaluation.scores.vocabulary,
-          coherence_score: input.evaluation.scores.coherence,
           accuracy_score: rubric.accuracy,
           range_precision_score: rubric.range_and_precision,
           cohesion_flow_score: rubric.cohesion_and_flow,
@@ -186,6 +178,36 @@ export class WritingRepository implements IWritingRepository {
       .execute();
   }
 
+  private toDomainEvaluation(evalRow: Selectable<WritingEvaluationsTable>): WritingEvaluationResponse | null {
+    try {
+      return {
+        overall_feedback_es: evalRow.overall_feedback_es,
+        clean_structural_version: evalRow.clean_structural_version ?? '',
+        native_recast_version: evalRow.native_recast_version ?? '',
+        noticing_the_gap_contrasts: evalRow.noticing_the_gap_json
+          ? JSON.parse(evalRow.noticing_the_gap_json)
+          : [],
+        rubric_scores: {
+          accuracy: evalRow.accuracy_score,
+          range_and_precision: evalRow.range_precision_score,
+          cohesion_and_flow: evalRow.cohesion_flow_score,
+          pragmatics_and_complexity: evalRow.pragmatics_complexity_score,
+        },
+        estimated_cefr: evalRow.estimated_cefr as WritingEvaluationResponse['estimated_cefr'],
+        qualitative_recommendations_es: evalRow.qualitative_recommendations_es ?? '',
+        successful_repairs: evalRow.successful_repairs_json
+          ? JSON.parse(evalRow.successful_repairs_json)
+          : [],
+        corrections: JSON.parse(evalRow.corrections_json),
+        micro_challenge: evalRow.micro_challenge_json
+          ? JSON.parse(evalRow.micro_challenge_json)
+          : null,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async getSubmissions(userId = 'user_local', limit = 30): Promise<WritingSubmissionEntity[]> {
     const submissions = await this.db
       .selectFrom('writing_submissions')
@@ -195,18 +217,45 @@ export class WritingRepository implements IWritingRepository {
       .limit(limit)
       .execute();
 
+    if (submissions.length === 0) {
+      return [];
+    }
+
+    const submissionIds = submissions.map((s) => s.id);
+
+    // Batch load all revisions and evaluations to eliminate N+1 queries
+    const [allRevisions, allEvaluations] = await Promise.all([
+      this.db
+        .selectFrom('writing_draft_revisions')
+        .selectAll()
+        .where('submission_id', 'in', submissionIds)
+        .orderBy('revision_number', 'desc')
+        .execute(),
+      this.db
+        .selectFrom('writing_evaluations')
+        .selectAll()
+        .where('submission_id', 'in', submissionIds)
+        .execute(),
+    ]);
+
+    // Map latest revision by submission_id
+    const latestRevMap = new Map<string, Selectable<WritingDraftRevisionsTable>>();
+    for (const rev of allRevisions) {
+      if (!latestRevMap.has(rev.submission_id)) {
+        latestRevMap.set(rev.submission_id, rev);
+      }
+    }
+
+    // Map evaluation by submission_id
+    const evalMap = new Map<string, Selectable<WritingEvaluationsTable>>();
+    for (const ev of allEvaluations) {
+      evalMap.set(ev.submission_id, ev);
+    }
+
     const result: WritingSubmissionEntity[] = [];
 
     for (const sub of submissions) {
-      // Find latest revision
-      const latestRev = await this.db
-        .selectFrom('writing_draft_revisions')
-        .selectAll()
-        .where('submission_id', '=', sub.id)
-        .orderBy('revision_number', 'desc')
-        .limit(1)
-        .executeTakeFirst();
-
+      const latestRev = latestRevMap.get(sub.id);
       let socraticResult: SocraticFeedbackResponse | null = null;
       if (latestRev?.ai_hints_json) {
         try {
@@ -216,53 +265,12 @@ export class WritingRepository implements IWritingRepository {
         }
       }
 
-      // Find evaluation
-      const evalRow = await this.db
-        .selectFrom('writing_evaluations')
-        .selectAll()
-        .where('submission_id', '=', sub.id)
-        .executeTakeFirst();
-
-      let evaluation: WritingEvaluationResponse | null = null;
-      if (evalRow) {
-        try {
-            evaluation = {
-              overall_feedback_es: evalRow.overall_feedback_es,
-              clean_structural_version: evalRow.clean_structural_version ?? '',
-              native_recast_version: evalRow.native_recast_version ?? '',
-              noticing_the_gap_contrasts: evalRow.noticing_the_gap_json
-                ? JSON.parse(evalRow.noticing_the_gap_json)
-                : [],
-              rubric_scores: {
-                accuracy: evalRow.accuracy_score ?? evalRow.grammar_score,
-                range_and_precision: evalRow.range_precision_score ?? evalRow.vocabulary_score,
-                cohesion_and_flow: evalRow.cohesion_flow_score ?? evalRow.coherence_score,
-                pragmatics_and_complexity: evalRow.pragmatics_complexity_score ?? 8.0,
-              },
-              scores: {
-                grammar: evalRow.grammar_score,
-                vocabulary: evalRow.vocabulary_score,
-                coherence: evalRow.coherence_score,
-              },
-              estimated_cefr: evalRow.estimated_cefr as WritingEvaluationResponse['estimated_cefr'],
-              qualitative_recommendations_es: evalRow.qualitative_recommendations_es ?? '',
-              successful_repairs: evalRow.successful_repairs_json
-                ? JSON.parse(evalRow.successful_repairs_json)
-                : [],
-              corrections: JSON.parse(evalRow.corrections_json),
-              micro_challenge: evalRow.micro_challenge_json
-                ? JSON.parse(evalRow.micro_challenge_json)
-                : null,
-            };
-        } catch {
-          evaluation = null;
-        }
-      }
+      const evalRow = evalMap.get(sub.id);
+      const evaluation = evalRow ? this.toDomainEvaluation(evalRow) : null;
 
       result.push({
         id: sub.id,
         userId: sub.user_id,
-        promptId: sub.prompt_id,
         submissionMode: sub.submission_mode,
         userText: sub.user_text,
         draft2Text: latestRev?.draft_text,
@@ -309,46 +317,11 @@ export class WritingRepository implements IWritingRepository {
       .where('submission_id', '=', sub.id)
       .executeTakeFirst();
 
-    let evaluation: WritingEvaluationResponse | null = null;
-    if (evalRow) {
-      try {
-        evaluation = {
-          overall_feedback_es: evalRow.overall_feedback_es,
-          clean_structural_version: evalRow.clean_structural_version ?? '',
-          native_recast_version: evalRow.native_recast_version ?? '',
-          noticing_the_gap_contrasts: evalRow.noticing_the_gap_json
-            ? JSON.parse(evalRow.noticing_the_gap_json)
-            : [],
-          rubric_scores: {
-            accuracy: evalRow.accuracy_score ?? evalRow.grammar_score,
-            range_and_precision: evalRow.range_precision_score ?? evalRow.vocabulary_score,
-            cohesion_and_flow: evalRow.cohesion_flow_score ?? evalRow.coherence_score,
-            pragmatics_and_complexity: evalRow.pragmatics_complexity_score ?? 8.0,
-          },
-          scores: {
-            grammar: evalRow.grammar_score,
-            vocabulary: evalRow.vocabulary_score,
-            coherence: evalRow.coherence_score,
-          },
-          estimated_cefr: evalRow.estimated_cefr as WritingEvaluationResponse['estimated_cefr'],
-          qualitative_recommendations_es: evalRow.qualitative_recommendations_es ?? '',
-          successful_repairs: evalRow.successful_repairs_json
-            ? JSON.parse(evalRow.successful_repairs_json)
-            : [],
-          corrections: JSON.parse(evalRow.corrections_json),
-          micro_challenge: evalRow.micro_challenge_json
-            ? JSON.parse(evalRow.micro_challenge_json)
-            : null,
-        };
-      } catch {
-        evaluation = null;
-      }
-    }
+    const evaluation = evalRow ? this.toDomainEvaluation(evalRow) : null;
 
     return {
       id: sub.id,
       userId: sub.user_id,
-      promptId: sub.prompt_id,
       submissionMode: sub.submission_mode,
       userText: sub.user_text,
       draft2Text: latestRev?.draft_text,
@@ -446,7 +419,7 @@ export class WritingRepository implements IWritingRepository {
           srs_profile: 'WRITING_ERROR_REFLECTIVE',
           state: 'NEW',
           stability: 0.0,
-          difficulty: isFossilized ? 0.8 : 0.0,
+          difficulty: isFossilized ? 7.0 : 5.0,
           reps: 0,
           lapses: 0,
           consecutive_lapses: 0,

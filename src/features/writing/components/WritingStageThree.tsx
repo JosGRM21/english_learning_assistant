@@ -52,9 +52,9 @@ export function WritingStageThree({
   };
 
   const rubric = evalResult.rubric_scores || {
-    accuracy: evalResult.scores?.grammar ?? 8,
-    range_and_precision: evalResult.scores?.vocabulary ?? 8,
-    cohesion_and_flow: evalResult.scores?.coherence ?? 8,
+    accuracy: 8,
+    range_and_precision: 8,
+    cohesion_and_flow: 8,
     pragmatics_and_complexity: 8,
   };
 

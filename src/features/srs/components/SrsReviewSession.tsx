@@ -287,7 +287,6 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
           onFlipBack={() => setShowAnswer(false)}
           onRate={handleRate}
           isRating={isRating}
-          audioService={audioService}
         />
       )}
 

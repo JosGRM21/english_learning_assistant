@@ -38,7 +38,6 @@ export function VocabCatalogView() {
     originFilter,
     frequencyBandFilter,
     masteryStatusFilter,
-    selectedRegister,
     selectedPartOfSpeech,
     accentPreference,
     sortBy,
@@ -49,7 +48,6 @@ export function VocabCatalogView() {
     setOriginFilter,
     setFrequencyBandFilter,
     setMasteryStatusFilter,
-    setSelectedRegister,
     setSelectedPartOfSpeech,
     setAccentPreference,
     setSortBy,
@@ -122,7 +120,6 @@ export function VocabCatalogView() {
     originFilter,
     frequencyBandFilter,
     masteryStatusFilter,
-    selectedRegister,
     selectedPartOfSpeech,
     sortBy,
   ]);
@@ -354,7 +351,6 @@ export function VocabCatalogView() {
   const handleResetAdvancedFilters = () => {
     setFrequencyBandFilter('ALL');
     setSelectedDimension('ALL');
-    setSelectedRegister('ALL');
     setSelectedPartOfSpeech('ALL');
   };
 
@@ -422,11 +418,9 @@ export function VocabCatalogView() {
           onSortChange={setSortBy}
           frequencyBandFilter={frequencyBandFilter}
           selectedDimension={selectedDimension}
-          selectedRegister={selectedRegister}
           selectedPartOfSpeech={selectedPartOfSpeech}
           onSelectFrequencyBand={setFrequencyBandFilter}
           onSelectDimension={setSelectedDimension}
-          onSelectRegister={setSelectedRegister}
           onSelectPartOfSpeech={setSelectedPartOfSpeech}
           onResetAdvancedFilters={handleResetAdvancedFilters}
         />
@@ -441,7 +435,6 @@ export function VocabCatalogView() {
               frequencyBandFilter={frequencyBandFilter}
               masteryStatusFilter={masteryStatusFilter}
               onlyFalseFriends={false}
-              selectedRegister={selectedRegister}
               selectedPartOfSpeech={selectedPartOfSpeech}
               originFilter={originFilter}
               onClearSearch={() => setSearchQuery('')}
@@ -450,7 +443,6 @@ export function VocabCatalogView() {
               onClearFrequencyBand={() => setFrequencyBandFilter('ALL')}
               onClearMasteryStatus={() => setMasteryStatusFilter('ALL')}
               onClearFalseFriends={() => {}}
-              onClearRegister={() => setSelectedRegister('ALL')}
               onClearPartOfSpeech={() => setSelectedPartOfSpeech('ALL')}
               onClearOrigin={() => setOriginFilter('ALL')}
               onResetAll={resetFilters}

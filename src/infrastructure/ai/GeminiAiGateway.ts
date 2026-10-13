@@ -65,14 +65,9 @@ export class GeminiAiGateway implements IAiGateway {
         });
 
         const rawText = response.text?.trim() ?? '{}';
-        let cleanedJson = rawText;
-        if (cleanedJson.startsWith('```')) {
-          cleanedJson = cleanedJson.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-        }
-
         let parsedJson: unknown;
         try {
-          parsedJson = JSON.parse(cleanedJson);
+          parsedJson = JSON.parse(rawText);
         } catch (jsonErr) {
           console.error(`[${actionName}] Error de parseo JSON. Salida cruda de la IA:`, rawText);
           throw new Error(`Respuesta no válida de la IA: formato JSON corrupto (${(jsonErr as Error).message})`);

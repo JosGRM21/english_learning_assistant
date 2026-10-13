@@ -133,4 +133,23 @@ describe('ReadingSelectionModal Component', () => {
 
     expect(screen.getByText(READING_TO_WRITE_CATALOG[0].title)).toBeDefined();
   });
+
+  it('allows switching to the custom reading tab and entering custom text', () => {
+    const handleSelect = vi.fn();
+    const handleClose = vi.fn();
+
+    render(
+      <ReadingSelectionModal
+        isOpen={true}
+        onClose={handleClose}
+        onSelectReadingAndMission={handleSelect}
+      />,
+    );
+
+    const customTabBtn = screen.getByRole('button', { name: /Texto Propio/i });
+    fireEvent.click(customTabBtn);
+
+    expect(screen.getByText(/Escribe a partir de lo que estás leyendo en tu día a día/i)).toBeDefined();
+    expect(screen.getByPlaceholderText(/Pega aquí el texto en inglés que leíste/i)).toBeDefined();
+  });
 });

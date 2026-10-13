@@ -60,9 +60,6 @@ describe('MockAiGateway', () => {
       expect(response.rubric_scores.range_and_precision).toBeGreaterThan(0);
       expect(response.rubric_scores.cohesion_and_flow).toBeGreaterThan(0);
       expect(response.rubric_scores.pragmatics_and_complexity).toBeGreaterThan(0);
-      expect(response.scores.grammar).toBeGreaterThan(0);
-      expect(response.scores.vocabulary).toBeGreaterThan(0);
-      expect(response.scores.coherence).toBeGreaterThan(0);
     });
 
     it('identifies uncorrected L1 transfer errors with positive production drills (RF-ERR-02)', async () => {

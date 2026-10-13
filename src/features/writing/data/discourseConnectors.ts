@@ -1,4 +1,5 @@
-export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
+import { CefrLevel } from '@/core/types/vocab';
+export type { CefrLevel };
 
 export interface DiscourseConnector {
   phrase: string;
@@ -34,9 +35,14 @@ export const CEFR_DESCRIPTIONS: Record<CefrLevel, { name: string; summary: strin
     summary: 'Precisión estilística, colocaciones idiomáticas y cohesión compleja.',
     detail: 'Matices finos de significado, retórica académica, transiciones elegantes y cohesión sin fisuras.',
   },
+  C2: {
+    name: 'Maestría',
+    summary: 'Dominio nativo pleno, matices sutiles y sofisticación expresiva.',
+    detail: 'Expresión precisa, fluida y espontánea, diferenciando matices finos incluso en situaciones complejas.',
+  },
 };
 
-export const DISCOURSE_CONNECTORS: Record<CefrLevel, DiscourseConnector[]> = {
+export const DISCOURSE_CONNECTORS: Partial<Record<CefrLevel, DiscourseConnector[]>> = {
   A1: [
     { phrase: 'and', labelEs: 'y', category: 'Adición', categoryType: 'addition', exampleEn: 'I like coffee and tea.' },
     { phrase: 'but', labelEs: 'pero', category: 'Contraste', categoryType: 'contrast', exampleEn: 'I want to go, but it is raining.' },

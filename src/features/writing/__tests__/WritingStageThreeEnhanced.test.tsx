@@ -23,11 +23,6 @@ describe('WritingStageThree Enhanced (Doble Reformulación & 4-Axis Rubric)', ()
       cohesion_and_flow: 9.0,
       pragmatics_and_complexity: 7.5,
     },
-    scores: {
-      grammar: 8.5,
-      vocabulary: 8.0,
-      coherence: 9.0,
-    },
     qualitative_recommendations_es: 'Practica conectores de contraste.',
     successful_repairs: [],
     corrections: [

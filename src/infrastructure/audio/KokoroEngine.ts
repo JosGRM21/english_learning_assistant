@@ -18,6 +18,10 @@ export class KokoroEngine {
   private static isInitialized = false;
   private static initPromise: Promise<boolean> | null = null;
   private static nextRequestId = 1;
+  private static idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Automatically unload worker model after 10 minutes of inactivity to free RAM/VRAM
+  private static readonly IDLE_UNLOAD_MS = 10 * 60 * 1000;
 
   // Callbacks mapped by request id
   private static activeCallbacks: Map<
@@ -29,6 +33,20 @@ export class KokoroEngine {
     }
   > = new Map();
 
+  private static resetIdleTimer(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+    }
+    if (typeof window === 'undefined' || import.meta.env?.MODE === 'test') {
+      return;
+    }
+    this.idleTimer = setTimeout(() => {
+      if (this.activeCallbacks.size === 0) {
+        this.unload();
+      }
+    }, this.IDLE_UNLOAD_MS);
+  }
+
   /**
    * Initializes or retrieves the dedicated Web Worker instance.
    */
@@ -39,7 +57,6 @@ export class KokoroEngine {
     if (import.meta.env?.MODE === 'test') {
       return null;
     }
-
     if (!this.worker) {
       try {
         this.worker = new Worker(new URL('./kokoro.worker.ts', import.meta.url), {
@@ -73,6 +90,7 @@ export class KokoroEngine {
               this.activeCallbacks.delete(msg.id);
               cbs.onDone();
             }
+            this.resetIdleTimer();
             return;
           }
 
@@ -82,6 +100,7 @@ export class KokoroEngine {
               this.activeCallbacks.delete(msg.id);
               cbs.onError(new Error(msg.error));
             }
+            this.resetIdleTimer();
             return;
           }
         };
@@ -94,7 +113,6 @@ export class KokoroEngine {
         return null;
       }
     }
-
     return this.worker;
   }
 
@@ -124,7 +142,10 @@ export class KokoroEngine {
       return false;
     }
 
-    if (this.isInitialized) return true;
+    if (this.isInitialized && this.worker) {
+      this.resetIdleTimer();
+      return true;
+    }
     if (this.initPromise) return this.initPromise;
 
     const worker = this.getWorker();
@@ -132,6 +153,7 @@ export class KokoroEngine {
 
     this.initPromise = new Promise<boolean>((resolve) => {
       const timeout = setTimeout(() => {
+        worker.removeEventListener('message', handler);
         resolve(false);
       }, 30000);
 
@@ -139,6 +161,7 @@ export class KokoroEngine {
         if (event.data?.type === 'INIT_RESULT') {
           clearTimeout(timeout);
           worker.removeEventListener('message', handler);
+          this.resetIdleTimer();
           resolve(event.data.success);
         }
       };
@@ -175,6 +198,7 @@ export class KokoroEngine {
       throw new Error('Web Worker instance not available');
     }
 
+    this.resetIdleTimer();
     const id = `req_${++this.nextRequestId}_${Date.now()}`;
 
     return new Promise<void>((resolve, reject) => {
@@ -216,21 +240,62 @@ export class KokoroEngine {
         voice: options.voice || 'af_heart',
         speed: options.speed || 1.0,
       };
-
       worker.postMessage(synthMsg);
     });
   }
 
   /**
-   * Warms up the model in the background worker thread without blocking the UI.
+   * Warms up the model in the background worker thread during browser idle periods
+   * so startup database migrations and UI rendering are never delayed.
    */
   public static warmup(): void {
     if (
-      typeof window !== 'undefined' &&
-      typeof DecompressionStream !== 'undefined' &&
-      import.meta.env?.MODE !== 'test'
+      typeof window === 'undefined' ||
+      typeof DecompressionStream === 'undefined' ||
+      import.meta.env?.MODE === 'test'
     ) {
-      this.init().catch(() => {});
+      return;
+    }
+
+    const runWarmup = () => {
+      this.init().catch(() => { });
+    };
+
+    if (typeof (window as any).requestIdleCallback === 'function') {
+      (window as any).requestIdleCallback(runWarmup, { timeout: 2500 });
+    } else {
+      setTimeout(runWarmup, 1200);
+    }
+  }
+
+  /**
+   * Releases the ONNX model inside the worker without destroying the worker instance.
+   */
+  public static unload(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+    this.isInitialized = false;
+    this.initPromise = null;
+    if (this.worker) {
+      const msg: WorkerInMessage = { type: 'UNLOAD' };
+      this.worker.postMessage(msg);
+    }
+  }
+
+  /**
+   * Terminates the Web Worker completely and frees all associated memory.
+   */
+  public static terminate(): void {
+    this.unload();
+    for (const [, cbs] of this.activeCallbacks) {
+      cbs.onDone();
+    }
+    this.activeCallbacks.clear();
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
     }
   }
 }

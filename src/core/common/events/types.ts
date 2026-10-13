@@ -7,7 +7,7 @@ export interface DomainEvent<T = unknown> {
 export interface ErrorCommittedPayload {
   userId: string;
   errorTaxonomyCode: string;
-  source: 'SRS' | 'WRITING_EVALUATION' | 'PHONETICS_DRILL' | 'SPEED_DRILL';
+  source: 'SRS' | 'WRITING_EVALUATION';
   sourceReferenceId?: string;
   contextSnippet?: string;
   incorrectToken?: string;

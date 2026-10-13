@@ -184,19 +184,23 @@ export function WritingHistoryDrawer({
                     "{sub.userText}"
                   </div>
 
-                  {sub.evaluation && (
-                    <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-mono">
-                      <div className="p-2 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 border border-indigo-100/60 dark:border-indigo-900/30">
-                        <span className="block text-[9px] text-gray-400 uppercase font-semibold tracking-wider">Gramática</span>
-                        <span className="font-bold">{sub.evaluation.scores.grammar}/10</span>
+                  {sub.evaluation && sub.evaluation.rubric_scores && (
+                    <div className="grid grid-cols-4 gap-1.5 text-center text-[10px] font-mono">
+                      <div className="p-1.5 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 border border-indigo-100/60 dark:border-indigo-900/30">
+                        <span className="block text-[8px] text-gray-400 uppercase font-semibold tracking-wider truncate">Precisión</span>
+                        <span className="font-bold">{sub.evaluation.rubric_scores.accuracy}/10</span>
                       </div>
-                      <div className="p-2 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100/60 dark:border-emerald-900/30">
-                        <span className="block text-[9px] text-gray-400 uppercase font-semibold tracking-wider">Vocabulario</span>
-                        <span className="font-bold">{sub.evaluation.scores.vocabulary}/10</span>
+                      <div className="p-1.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100/60 dark:border-emerald-900/30">
+                        <span className="block text-[8px] text-gray-400 uppercase font-semibold tracking-wider truncate">Léxico</span>
+                        <span className="font-bold">{sub.evaluation.rubric_scores.range_and_precision}/10</span>
                       </div>
-                      <div className="p-2 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 border border-purple-100/60 dark:border-purple-900/30">
-                        <span className="block text-[9px] text-gray-400 uppercase font-semibold tracking-wider">Coherencia</span>
-                        <span className="font-bold">{sub.evaluation.scores.coherence}/10</span>
+                      <div className="p-1.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 border border-purple-100/60 dark:border-purple-900/30">
+                        <span className="block text-[8px] text-gray-400 uppercase font-semibold tracking-wider truncate">Cohesión</span>
+                        <span className="font-bold">{sub.evaluation.rubric_scores.cohesion_and_flow}/10</span>
+                      </div>
+                      <div className="p-1.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 border border-amber-100/60 dark:border-amber-900/30">
+                        <span className="block text-[8px] text-gray-400 uppercase font-semibold tracking-wider truncate">Pragmática</span>
+                        <span className="font-bold">{sub.evaluation.rubric_scores.pragmatics_and_complexity}/10</span>
                       </div>
                     </div>
                   )}

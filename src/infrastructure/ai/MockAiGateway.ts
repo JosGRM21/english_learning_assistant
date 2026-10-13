@@ -284,11 +284,6 @@ export class MockAiGateway implements IAiGateway {
         cohesion_and_flow: 8.5,
         pragmatics_and_complexity: 8.0,
       },
-      scores: {
-        grammar: corrections.length === 0 ? 9.5 : 7.0,
-        vocabulary: 8.0,
-        coherence: 8.5,
-      },
       estimated_cefr: estimatedCefr,
       qualitative_recommendations_es:
         'Continúa practicando regímenes preposicionales fijos y conectores de transición para consolidar fluidez C1.',

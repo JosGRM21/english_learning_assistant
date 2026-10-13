@@ -6,14 +6,12 @@ describe('HabitsManager', () => {
   const habits = new HabitsManager();
 
   describe('generateDailyQuests', () => {
-    it('creates 4 balanced quests for given date with targets and XP rewards', () => {
+    it('creates balanced daily quests for given date with targets and XP rewards', () => {
       const quests = habits.generateDailyQuests('user_test', '2026-09-29');
 
-      expect(quests).toHaveLength(4);
+      expect(quests).toHaveLength(2);
       expect(quests.map((q) => q.questType)).toEqual([
         'VOCAB_SRS',
-        'PHONETICS_LISTEN',
-        'SPEED_DRILL',
         'WRITING_SUBMISSION',
       ]);
       expect(quests.every((q) => q.targetCount > 0)).toBe(true);

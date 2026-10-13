@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AiModelsView } from '../AiModelsView';
+import { DatabaseProvider } from '@/app/providers/DatabaseProvider';
 import {
   AiProvider,
   STORAGE_KEYS_KEY,
@@ -27,9 +28,11 @@ describe('AiModelsView / QuotaMatrixMonitor UI Component', () => {
 
   it('renders modern page header and model selector with humanized limits', () => {
     render(
-      <AiProvider>
-        <AiModelsView />
-      </AiProvider>,
+      <DatabaseProvider>
+        <AiProvider>
+          <AiModelsView />
+        </AiProvider>
+      </DatabaseProvider>,
     );
 
     // Header title and description
@@ -50,9 +53,11 @@ describe('AiModelsView / QuotaMatrixMonitor UI Component', () => {
 
   it('renders configured API key summary with collapsible model breakdown', () => {
     render(
-      <AiProvider>
-        <AiModelsView />
-      </AiProvider>,
+      <DatabaseProvider>
+        <AiProvider>
+          <AiModelsView />
+        </AiProvider>
+      </DatabaseProvider>,
     );
 
     expect(screen.getByText('Main Studio Key')).toBeDefined();
@@ -114,9 +119,11 @@ describe('AiModelsView / QuotaMatrixMonitor UI Component', () => {
     localStorage.setItem(STORAGE_QUOTA_STATES_KEY, JSON.stringify(previousQuotas));
 
     render(
-      <AiProvider>
-        <AiModelsView />
-      </AiProvider>,
+      <DatabaseProvider>
+        <AiProvider>
+          <AiModelsView />
+        </AiProvider>
+      </DatabaseProvider>,
     );
 
     // Request logs UI must NOT be rendered
@@ -130,9 +137,11 @@ describe('AiModelsView / QuotaMatrixMonitor UI Component', () => {
     localStorage.setItem(STORAGE_KEYS_KEY, JSON.stringify([]));
 
     render(
-      <AiProvider>
-        <AiModelsView />
-      </AiProvider>,
+      <DatabaseProvider>
+        <AiProvider>
+          <AiModelsView />
+        </AiProvider>
+      </DatabaseProvider>,
     );
 
     expect(screen.getByText('Conecta con Google Gemini')).toBeDefined();

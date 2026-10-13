@@ -11,7 +11,7 @@ describe('BackupSettingsModal Integration', () => {
   let dbContextValue: DatabaseContextValue;
 
   beforeEach(async () => {
-    const db = await createTestDatabase();
+    const db = await createTestDatabase(false);
     const cardRepo = new CardRepository(db);
     const vocabRepo = new VocabRepository(db);
 

@@ -157,14 +157,7 @@ export type ErrorPracticeDrill = PositiveDrill;
 export const CorrectionItemSchema = z.preprocess(
   (raw: any) => {
     if (raw && typeof raw === 'object') {
-      const errorSpan =
-        raw.error_span ||
-        raw.user_fragment ||
-        raw.original_snippet ||
-        raw.highlighted_area ||
-        raw.mistake ||
-        raw.original_sentence ||
-        '';
+      const errorSpan = raw.error_span ?? '';
       return {
         ...raw,
         error_span: typeof errorSpan === 'string' ? errorSpan : String(errorSpan ?? ''),
@@ -275,11 +268,6 @@ export const WritingEvaluationResponseSchema = z.object({
     cohesion_and_flow: 8,
     pragmatics_and_complexity: 8,
   }),
-  scores: z.object({
-    grammar: z.number().min(0).max(10),
-    vocabulary: z.number().min(0).max(10),
-    coherence: z.number().min(0).max(10),
-  }).default({ grammar: 8, vocabulary: 8, coherence: 8 }),
   estimated_cefr: z.preprocess((val) => {
     if (typeof val === 'string') {
       const upper = val.trim().toUpperCase();

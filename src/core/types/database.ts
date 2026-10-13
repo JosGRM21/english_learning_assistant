@@ -91,7 +91,6 @@ export interface ReviewLogsTable {
 export interface WritingSubmissionsTable {
   id: string;
   user_id: Generated<string>;
-  prompt_id: string | null;
   submission_mode: Generated<'FREE' | 'GUIDED' | 'MICRO_WRITING' | 'READING_TO_WRITE'>;
   user_text: string;
   word_count: number;
@@ -118,9 +117,6 @@ export interface WritingEvaluationsTable {
   clean_structural_version: Generated<string>;
   native_recast_version: Generated<string>;
   noticing_the_gap_json: Generated<string>;
-  grammar_score: number;
-  vocabulary_score: number;
-  coherence_score: number;
   accuracy_score: Generated<number>;
   range_precision_score: Generated<number>;
   cohesion_flow_score: Generated<number>;

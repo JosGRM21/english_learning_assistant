@@ -3,16 +3,6 @@ import { VocabItem, VocabContextExample } from '@/core/types/vocab';
 import { SrsCard, ReviewLog } from '@/core/types/srs';
 import { SrsSessionStats } from '@/core/srs/SrsSessionEngine';
 
-export interface OneClickCardPayload {
-  word: string;
-  cleanWord?: string;
-  translationEs?: string;
-  ipa?: string;
-  cefrLevel: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
-  sentenceEn: string;
-  sentenceEs: string;
-}
-
 export interface SrsState {
   vocabList: VocabItem[];
   selectedVocab: VocabItem | null;
@@ -36,7 +26,6 @@ export interface SrsState {
   incrementReviewCount: () => void;
   setLastSessionStats: (stats: SrsSessionStats | null) => void;
   resetSession: () => void;
-  addExtractedCard: (payload: OneClickCardPayload) => void;
   addVocabItem: (item: VocabItem, context?: VocabContextExample | null, cardId?: string) => void;
   addBatchVocabItems: (items: VocabItem[]) => void;
   updateVocabItem: (item: VocabItem) => void;
@@ -106,60 +95,6 @@ export const useSrsStore = create<SrsState>((set) => ({
     set({
       showAnswer: false,
     }),
-
-  addExtractedCard: (payload: OneClickCardPayload) => {
-    const newItem: VocabItem = {
-      id: `voc_extracted_${Date.now()}`,
-      word: payload.cleanWord || payload.word,
-      grammaticalDimension: 'CONTENT',
-      partOfSpeech: 'NOUN',
-      definitionEn: `Vocabulary term extracted from reading: "${payload.word}"`,
-      translationEs: payload.translationEs || 'Término extraído',
-      ipaGeneralAmerican: payload.ipa || 'ˌɛk.strækt',
-      cefrLevel: payload.cefrLevel,
-      isFalseFriend: false,
-      isCore: true,
-      masteryStatus: 'LEARNING',
-      createdAt: new Date().toISOString(),
-    };
-
-    const newContext: VocabContextExample = {
-      id: `ctx_extracted_${Date.now()}`,
-      vocabId: newItem.id,
-      sentenceEn: payload.sentenceEn,
-      sentenceEs: payload.sentenceEs,
-      clozeTarget: payload.word,
-      cefrLevel: payload.cefrLevel,
-      createdAt: new Date().toISOString(),
-    };
-
-    const newCard: SrsCard = {
-      id: `card_${newItem.id}`,
-      userId: 'user_local',
-      targetType: 'VOCAB',
-      targetId: newItem.id,
-      srsProfile: 'VOCAB_AGILE',
-      state: 'NEW',
-      stability: 0,
-      difficulty: 5.0,
-      reps: 0,
-      lapses: 0,
-      consecutiveLapses: 0,
-      isLeech: false,
-      lastReviewedAt: null,
-      scheduledFor: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-    };
-
-    set((state) => ({
-      vocabList: [newItem, ...state.vocabList],
-      selectedVocab: newItem,
-      availableContexts: [newContext],
-      currentContext: newContext,
-      srsCard: newCard,
-      showAnswer: false,
-    }));
-  },
 
   addVocabItem: (item: VocabItem, context?: VocabContextExample | null, cardId?: string) => {
     const newCard: SrsCard = {

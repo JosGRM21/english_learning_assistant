@@ -130,8 +130,6 @@ export interface PhrasalVerbItem {
   example2?: string | null;
 }
 
-export type VocabRegister = 'FORMAL' | 'INFORMAL' | 'NEUTRAL' | 'ACADEMIC' | 'SLANG';
-
 export interface VocabItem {
   id: string;
   word: string;
@@ -157,7 +155,6 @@ export interface VocabItem {
   structuredFamilyJson?: StructuredWordFamily | null;
   domainCategory?: string | null;
   alternateSensesJson?: VocabSense[] | null;
-  register?: VocabRegister | null;
   sensesJson?: VocabSense[] | null;
   phrasalVerbsJson?: PhrasalVerbItem[] | null;
   createdAt: string;

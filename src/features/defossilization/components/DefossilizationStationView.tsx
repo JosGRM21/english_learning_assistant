@@ -23,6 +23,7 @@ import {
 } from '../hooks/useDefossilizationSession';
 import { FsrsGrade } from '@/core/types/srs';
 import { AppTab } from '@/shared/constants/app-tabs';
+import { ErrorContrastCard } from '@/shared/ui/ErrorContrastCard';
 
 export interface DefossilizationStationViewProps {
   onNavigateTab?: (tab: AppTab) => void;
@@ -336,29 +337,12 @@ export function DefossilizationStationView({ onNavigateTab }: DefossilizationSta
             </div>
 
             {/* Error Contrast strip */}
-            <div className="p-4 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-200/80 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <span className="text-gray-400 font-medium">Contraste:</span>
-                <span className="line-through text-rose-600 dark:text-rose-400 font-mono font-bold bg-white dark:bg-[#121620] px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900/50">
-                  "{currentItem.errorSpan}"
-                </span>
-                <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
-                <span className="text-emerald-700 dark:text-emerald-300 font-mono font-bold bg-white dark:bg-[#121620] px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-900/50">
-                  "{currentItem.nativeReformulation}"
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => playTts(currentItem.nativeReformulation)}
-                disabled={isPlayingTts}
-                className="px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 font-semibold inline-flex items-center gap-1.5 hover:bg-indigo-100 transition-colors cursor-pointer self-start sm:self-auto"
-                title="Escuchar pronunciación nativa"
-              >
-                <Volume2 className={`w-3.5 h-3.5 ${isPlayingTts ? 'animate-pulse text-indigo-500' : ''}`} />
-                <span>Escuchar audio</span>
-              </button>
-            </div>
+            <ErrorContrastCard
+              errorSpan={currentItem.errorSpan}
+              nativeReformulation={currentItem.nativeReformulation}
+              onPlayTts={playTts}
+              isPlayingTts={isPlayingTts}
+            />
 
             {/* ========================================================================= */}
             {/* INTERACTIVE DRILL FORMAT: POSITIVE PRODUCTION */}
