@@ -38,13 +38,16 @@ export const SenseItemSchema = z.object({
   grammarPattern: z.string().nullable().describe('Patrón sintáctico o régimen ej: verb + -ing, depend + ON. null si no aplica'),
   countability: z.enum(['COUNTABLE', 'UNCOUNTABLE', 'BOTH']).nullable().describe('COUNTABLE, UNCOUNTABLE o BOTH para sustantivos. null para otras categorías'),
   connotation: z.enum(['POSITIVE', 'NEUTRAL', 'NEGATIVE']).describe('Connotación del término en este sentido'),
-  collocations: z.array(z.string()).describe('2 a 4 colocaciones habituales para palabras de contenido (CONTENT). Array vacío para palabras funcionales'),
+  collocations: z.array(z.string()).describe('2 a 4 colocaciones léxicas habituales o de verbo soporte para palabras de contenido (CONTENT). PROHIBIDO combinaciones sintácticas libres (have a car) y phrasal verbs. Array vacío para palabras funcionales'),
   graduatedExamples: GraduatedExamplesSchema.describe('Ejemplos básicos y avanzados obligatorios para esta acepción'),
 });
 
 export const PhrasalVerbSchema = z.object({
   text: z.string().describe('Texto completo del phrasal verb ej. run out of, give up'),
   meaningEs: z.string().describe('Significado preciso en español'),
+  definitionEn: z.string().describe('Definición clara y pedagógica en Learner English'),
+  ipaGeneralAmerican: z.string().describe('Transcripción fonética IPA GA con acentuación ej. ˌraɪt ˈdaʊn'),
+  ipaReceivedPronunciation: z.string().nullable().describe('Transcripción IPA RP británica o null si no difiere'),
   type: z.enum([
     'TYPE_1_INTRANSITIVE',
     'TYPE_2_SEPARABLE',
@@ -54,7 +57,9 @@ export const PhrasalVerbSchema = z.object({
   pronounMustSplit: z.boolean().describe('True si los pronombres deben dividir la partícula obligatoriamente (separable)'),
   cefrLevel: z.enum(['A1', 'A2', 'B1', 'B2', 'C1']).describe('Nivel CEFR del phrasal verb'),
   example1: z.string().describe('Oración de ejemplo 1'),
+  example1Es: z.string().describe('Traducción fiel y natural al español de la oración 1'),
   example2: z.string().nullable().describe('Oración de ejemplo 2 opcional o null'),
+  example2Es: z.string().nullable().describe('Traducción fiel y natural al español de la oración 2 o null'),
 });
 
 export const GeneratedVocabWordSchema = z.object({

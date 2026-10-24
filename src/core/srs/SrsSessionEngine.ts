@@ -126,6 +126,12 @@ export class SrsSessionEngine {
     if (this.queue.length > 0 && this.queue[0].card.id === card.card.id) {
       return;
     }
+    // If card was already completed in this session, remove from completedCards to prevent duplicate counting
+    const wasCompleted = this.completedCards.some((c) => c.card.id === card.card.id);
+    if (wasCompleted) {
+      this.completedCards = this.completedCards.filter((c) => c.card.id !== card.card.id);
+      this.stats.successfulRecalls = Math.max(0, this.stats.successfulRecalls - 1);
+    }
     this.queue = this.queue.filter((c) => c.card.id !== card.card.id);
     this.queue.unshift(card);
   }

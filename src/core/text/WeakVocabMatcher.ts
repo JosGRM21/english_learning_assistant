@@ -1,4 +1,4 @@
-import { ErrorPracticeDrill } from '@/infrastructure/ai/schemas';
+import { PositiveDrill } from '@/infrastructure/ai/schemas';
 
 /**
  * Generates common English morphological inflections for a word or phrasal chunk
@@ -33,9 +33,105 @@ export function extractTargetWordTokens(word: string): string[] {
   return Array.from(tokens);
 }
 
+// Common English irregular verbs and their inflected forms
+const COMMON_IRREGULAR_VERBS: Record<string, string[]> = {
+  be: ['am', 'is', 'are', 'was', 'were', 'been', 'being'],
+  have: ['has', 'had', 'having'],
+  do: ['does', 'did', 'done', 'doing'],
+  go: ['goes', 'went', 'gone', 'going'],
+  say: ['says', 'said', 'saying'],
+  make: ['makes', 'made', 'making'],
+  take: ['takes', 'took', 'taken', 'taking'],
+  come: ['comes', 'came', 'coming'],
+  see: ['sees', 'saw', 'seen', 'seeing'],
+  know: ['knows', 'knew', 'known', 'knowing'],
+  get: ['gets', 'got', 'gotten', 'getting'],
+  give: ['gives', 'gave', 'given', 'giving'],
+  find: ['finds', 'found', 'finding'],
+  think: ['thinks', 'thought', 'thinking'],
+  tell: ['tells', 'told', 'telling'],
+  become: ['becomes', 'became', 'becoming'],
+  leave: ['leaves', 'left', 'leaving'],
+  feel: ['feels', 'felt', 'feeling'],
+  put: ['puts', 'putting'],
+  bring: ['brings', 'brought', 'bringing'],
+  begin: ['begins', 'began', 'begun', 'beginning'],
+  keep: ['keeps', 'kept', 'keeping'],
+  hold: ['holds', 'held', 'holding'],
+  write: ['writes', 'wrote', 'written', 'writing'],
+  stand: ['stands', 'stood', 'standing'],
+  hear: ['hears', 'heard', 'hearing'],
+  let: ['lets', 'letting'],
+  mean: ['means', 'meant', 'meaning'],
+  set: ['sets', 'setting'],
+  meet: ['meets', 'met', 'meeting'],
+  run: ['runs', 'ran', 'running'],
+  pay: ['pays', 'paid', 'paying'],
+  sit: ['sits', 'sat', 'sitting'],
+  speak: ['speaks', 'spoke', 'spoken', 'speaking'],
+  lie: ['lies', 'lay', 'lain', 'lying'],
+  lead: ['leads', 'led', 'leading'],
+  read: ['reads', 'reading'],
+  grow: ['grows', 'grew', 'grown', 'growing'],
+  lose: ['loses', 'lost', 'losing'],
+  fall: ['falls', 'fell', 'fallen', 'falling'],
+  send: ['sends', 'sent', 'sending'],
+  build: ['builds', 'built', 'building'],
+  understand: ['understands', 'understood', 'understanding'],
+  draw: ['draws', 'drew', 'drawn', 'drawing'],
+  break: ['breaks', 'broke', 'broken', 'breaking'],
+  spend: ['spends', 'spent', 'spending'],
+  cut: ['cuts', 'cutting'],
+  rise: ['rises', 'rose', 'risen', 'rising'],
+  drive: ['drives', 'drove', 'driven', 'driving'],
+  buy: ['buys', 'bought', 'buying'],
+  wear: ['wears', 'wore', 'worn', 'wearing'],
+  choose: ['chooses', 'chose', 'chosen', 'choosing'],
+  seek: ['seeks', 'sought', 'seeking'],
+  throw: ['throws', 'threw', 'thrown', 'throwing'],
+  catch: ['catches', 'caught', 'catching'],
+  deal: ['deals', 'dealt', 'dealing'],
+  win: ['wins', 'won', 'winning'],
+  forget: ['forgets', 'forgot', 'forgotten', 'forgetting'],
+  sell: ['sells', 'sold', 'selling'],
+  fight: ['fights', 'fought', 'fighting'],
+  teach: ['teaches', 'taught', 'teaching'],
+  eat: ['eats', 'ate', 'eaten', 'eating'],
+  sing: ['sings', 'sang', 'sung', 'singing'],
+  drink: ['drinks', 'drank', 'drunk', 'drinking'],
+  swim: ['swims', 'swam', 'swum', 'swimming'],
+  fly: ['flies', 'flew', 'flown', 'flying'],
+  sleep: ['sleeps', 'slept', 'sleeping'],
+  hide: ['hides', 'hid', 'hidden', 'hiding'],
+  cost: ['costs', 'costing'],
+  hit: ['hits', 'hitting'],
+  hurt: ['hurts', 'hurting'],
+  shut: ['shuts', 'shutting'],
+  spread: ['spreads', 'spreading'],
+  bear: ['bears', 'bore', 'born', 'borne', 'bearing'],
+  strike: ['strikes', 'struck', 'striking'],
+  shake: ['shakes', 'shook', 'shaken', 'shaking'],
+  ride: ['rides', 'rode', 'ridden', 'riding'],
+  wake: ['wakes', 'woke', 'woken', 'waking'],
+  bite: ['bites', 'bit', 'bitten', 'biting'],
+  blow: ['blows', 'blew', 'blown', 'blowing'],
+  tear: ['tears', 'tore', 'torn', 'tearing'],
+  freeze: ['freezes', 'froze', 'frozen', 'freezing'],
+  steal: ['steals', 'stole', 'stolen', 'stealing'],
+};
+
 function getSingleWordInflections(base: string): string[] {
   const forms = new Set<string>();
   forms.add(base);
+
+  // If irregular verb, add known irregular inflections and avoid spurious regular past endings like "taked"
+  const irregularForms = COMMON_IRREGULAR_VERBS[base];
+  if (irregularForms) {
+    for (const f of irregularForms) {
+      forms.add(f);
+    }
+    return Array.from(forms);
+  }
 
   // Suffixes: -s, -es
   if (base.endsWith('y') && !/[aeiou]y$/.test(base)) {
@@ -96,7 +192,7 @@ export function synthesizeErrorDrillFallback(correction: {
   native_reformulation: string;
   explanation_es: string;
   sentence_context?: string;
-}): ErrorPracticeDrill {
+}): PositiveDrill {
   const target = correction.native_reformulation.trim();
   const mistake = correction.error_span.trim();
 

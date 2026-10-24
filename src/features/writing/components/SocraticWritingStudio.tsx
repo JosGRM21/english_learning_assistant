@@ -35,7 +35,6 @@ export function SocraticWritingStudio({ onNavigateTab }: SocraticWritingStudioPr
     historySubmissions,
     isLoadingHistory,
     errorMessage,
-    srsSuccessMessage,
     isPlayingTts,
     setActiveTab,
     setCurrentStage,
@@ -52,7 +51,6 @@ export function SocraticWritingStudio({ onNavigateTab }: SocraticWritingStudioPr
     handleRequestSocratic,
     handleEvaluateFinal,
     handlePlayTts,
-    handleAddCorrectionToSrs,
     resetWriting,
   } = useWritingSession();
 
@@ -134,9 +132,7 @@ export function SocraticWritingStudio({ onNavigateTab }: SocraticWritingStudioPr
               draft1={draft1}
               draft2={draft2}
               isPlayingTts={isPlayingTts}
-              srsSuccessMessage={srsSuccessMessage}
               onPlayTts={handlePlayTts}
-              onAddToSrs={handleAddCorrectionToSrs}
               onNavigateToDefossilization={() => onNavigateTab?.('defossilization')}
               onReset={resetWriting}
             />

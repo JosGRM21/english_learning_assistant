@@ -73,14 +73,18 @@ Para cada ítem registrado, el motor debe calcular y persistir de manera continu
 
 * **RF-SRS-CORE-08: Perfiles de Parámetros según Naturaleza Cognitiva**:
   * El motor debe admitir perfiles de configuración especializados para atender las diferentes demandas de la tarea de aprendizaje:
-    * **Perfil Vocabulario y Expresiones (Flujo Ágil)**:
+    * **Perfil Vocabulario y Expresiones (Flujo Ágil - `VOCAB_AGILE`)**:
       * Optimizado para memoria declarativa y reconocimiento rápido (3–5 segundos por tarjeta).
       * Retención objetivo estándar: $r_{\text{target}} = 0.90$.
       * Pasos de aprendizaje inicial: 1 día.
-    * **Perfil Errores de Redacción y Sintaxis (Flujo Reflexivo)**:
+    * **Perfil Errores de Redacción y Sintaxis (Flujo Reflexivo - `WRITING_ERROR_REFLECTIVE`)**:
       * Optimizado para procesamiento procedimental de oraciones complejas (15–45 segundos por ejercicio).
       * Retención objetivo más estricta: $r_{\text{target}} = 0.92$ (para forzar mayor solidez antes de separar los intervalos).
       * Mayor penalización de estabilidad ante fallos repetidos para desfosilizar malos hábitos de la lengua materna.
+    * **Perfil Fonética y Habla Conectada (Flujo Auditivo / Agudeza Perceptiva - `PHONETIC_ACUITY`)**:
+      * Optimizado para discriminación auditiva rápida, detección de enlaces y retención de formas reducidas (5–10 segundos por drill).
+      * Retención objetivo estándar: $r_{\text{target}} = 0.90$.
+      * Presentación con estímulo primario auditivo y evaluación de agudeza acústica.
 
 ---
 

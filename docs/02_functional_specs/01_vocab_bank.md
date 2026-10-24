@@ -52,7 +52,7 @@ flowchart TD
     A["Entrada Léxica"] --> B["Dimensión 1: Semántica & Polisemia Jerárquica"]
     A --> C["Dimensión 2: Sintaxis del Término & Patrones Gramaticales"]
     A --> D["Dimensión 3: Colocaciones Naturales"]
-    A --> E["Dimensión 4: Fonética & Habla Conectada"]
+    A --> E["Dimensión 4: Fonética Segmental Léxica"]
     A --> F["Dimensión 5: Interferencia L1 & Pragmática"]
     A --> G["Dimensión 6: Tiempos Verbales Completos"]
 ```
@@ -89,15 +89,15 @@ flowchart TD
     * *Adverbio + Adjetivo* (ej. *deeply concerned*, *highly likely*, *utterly impossible*).
     * *Sustantivo + Preposición* (ej. *access to*, *increase in*).
 
-### Dimensión 4: Fonética, Pronunciación y Fenómenos de Habla Conectada
-* **RF-VOC-06: Fonética IPA Dual y Fenómenos Suprasegmentales**:
+### Dimensión 4: Fonética Segmental y Pronunciación Léxica
+* **RF-VOC-06: Fonética IPA Dual, Formas Débiles y Alófonos Léxicos**:
   * **Acentos Estándar (IPA US y UK)**: Transcripción fonética en General American (GA) y Received Pronunciation (RP) con marcas claras de acento prosódico primario (`ˈ`) y secundario (`ˌ`). Adaptado al acento preferido del usuario con alternancia en un clic.
   * **Formas Fuertes y Formas Débiles (*Strong vs. Weak Forms*)**:
-    * Para palabras funcionales (preposiciones, conjunciones, pronombres, modales), registrar la forma débil con reducción vocálica a Schwa (/ə/) en habla conectada (ej. *can* aislado `/kæn/` vs. habla natural `/kən/`).
+    * Para palabras funcionales (preposiciones, conjunciones, pronombres, modales), registrar como metadato la forma débil con reducción vocálica a Schwa (/ə/) habitual en el habla natural (ej. *can* aislado `/kæn/` vs. forma débil `/kən/`).
   * **Fonética Morfológica Crítica de Terminación *-ed***:
     * Para verbos regulares en pasado/participio, clasificar y resaltar explícitamente el alófono correspondiente (`/t/`, `/d/`, o `/ɪd/`) para eliminar el error fonético sistemático de los hispanohablantes (ej. *watched* `/t/`, *played* `/d/`, *decided* `/ɪd/`).
-  * **Puntos de Habla Conectada (*Connected Speech*)**:
-    * Identificación de enlaces consonante-vocal (*linking*, ej. *tur**n o**ff* $\rightarrow$ `/tɜːn‿ɒf/`), intrusión de semivocales (*glides* /j/, /w/) y pronunciación del *Flap T* (/ɾ/) en inglés americano.
+  * **Punto de Enlace con el Laboratorio de Habla Conectada**:
+    * La ficha del término proporciona un enlace directo (*deep-link*) hacia el módulo especializado: **Laboratorio de Fonética y Habla Conectada** ([`08_phonetics_connected_speech_lab.md`](file:///c:/dev/personal/english_learning_assistant/docs/02_functional_specs/08_phonetics_connected_speech_lab.md)), donde se practican de forma dedicada los fenómenos suprasegmentales que surgen al usar la palabra en oraciones continuas (*linking*, *glides*, *flap T*, elisiones y ritmo acentual).
 
 ### Dimensión 5: Interferencia de la L1 (Español) y Pragmática
 * **RF-VOC-07: Falsos Amigos, Registro y Connotación**:
@@ -143,7 +143,7 @@ flowchart TD
      * El usuario adquiere la ficha léxica limpia: significado en contexto, fonética IPA, audio modelo, tiempos verbales y alerta de falso amigo.
   2. **Estadio Asociativo (Conocimiento Práctico - Saber "Cómo")**:
      * Integración con el **Motor SRS (FSRS 5.0)** mediante tarjetas cloze con rotación de oraciones de ejemplo y recuperación condicionada por colocaciones clave.
-     * Práctica de discriminación auditiva y pronunciación de enlaces (*linking*) y terminaciones verbales (*-ed*).
+     * Afianzamiento léxico ágil de la colocación, audio de referencia y alófono morfológico (*-ed*), derivando la práctica de habla conectada (*linking*, ritmo y *shadowing*) al **Laboratorio de Fonética y Habla Conectada** ([`08_phonetics_connected_speech_lab.md`](file:///c:/dev/personal/english_learning_assistant/docs/02_functional_specs/08_phonetics_connected_speech_lab.md)).
   3. **Estadio Autónomo (Conocimiento Procedimental - Uso Espontáneo)**:
      * Integración con el **Taller de Redacción Socrática**: El sistema rastrea los términos del banco activados por el usuario (*Target Vocab Tracker*) y retroalimenta de forma socrática si se emplearon con la preposición dependiente correcta, la colocación idónea o si se incurrió en interferencia de la L1.
 

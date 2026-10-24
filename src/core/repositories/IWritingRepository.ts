@@ -71,7 +71,11 @@ export interface IWritingRepository {
     contextText?: string,
   ): Promise<void>;
   getWritingErrorStats(userId?: string, limit?: number): Promise<WritingErrorStat[]>;
-  checkRecidivism(userId: string, taxonomyCode: string): Promise<{ isRecidivist: boolean; count: number }>;
+  checkRecidivism(
+    userId: string,
+    taxonomyCode: string,
+    errorSpan?: string,
+  ): Promise<{ isRecidivist: boolean; count: number }>;
   getFossilizedErrors(userId?: string): Promise<WritingErrorSrsItem[]>;
   getAllWritingErrors(userId?: string): Promise<WritingErrorSrsItem[]>;
   updateErrorMastery(id: string, status: 'LEARNING' | 'INTERNALIZED' | 'RECIDIVIST'): Promise<void>;

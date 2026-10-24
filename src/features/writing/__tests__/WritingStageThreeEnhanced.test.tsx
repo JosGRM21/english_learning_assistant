@@ -4,7 +4,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { WritingStageThree } from '../components/WritingStageThree';
 import { WritingEvaluationResponse } from '@/infrastructure/ai/schemas';
 
-describe('WritingStageThree Enhanced (Doble Reformulación & 4-Axis Rubric)', () => {
+describe('WritingStageThree Enhanced (RF-WRT-07, RF-WRT-08, RF-WRT-11)', () => {
   const mockEvalResult: WritingEvaluationResponse = {
     overall_feedback_es: 'Tu redacción muestra una estructura clara y buen manejo de tiempos.',
     estimated_cefr: 'B2',
@@ -29,17 +29,27 @@ describe('WritingStageThree Enhanced (Doble Reformulación & 4-Axis Rubric)', ()
       {
         error_span: 'depend of',
         error_type: 'PREPOSITION',
-        taxonomy_code: 'PREP_REGIME',
+        taxonomy_code: 'PREPOSITION',
         is_l1_spanish_transfer: true,
         explanation_es: 'En inglés se dice depend on.',
         native_reformulation: 'depend on',
         original_sentence: 'It depend of that.',
         expanded_context: 'It depend of that.',
       },
+      {
+        error_span: 'buyed',
+        error_type: 'TENSE_ASPECT',
+        taxonomy_code: 'TENSE_ASPECT',
+        is_l1_spanish_transfer: false,
+        explanation_es: 'El verbo buy es irregular: bought.',
+        native_reformulation: 'bought',
+        original_sentence: 'I buyed a book.',
+        expanded_context: 'I buyed a book.',
+      },
     ],
   };
 
-  it('renders 4-axis rubric scores with clear metrics', () => {
+  it('renders 4-axis rubric scores with clear metrics (RF-WRT-08)', () => {
     render(
       <WritingStageThree
         evalResult={mockEvalResult}
@@ -62,41 +72,54 @@ describe('WritingStageThree Enhanced (Doble Reformulación & 4-Axis Rubric)', ()
     expect(screen.getByText('7.5 / 10')).toBeDefined();
   });
 
-  it('does NOT render Activación de Vocabulario Objetivo, Doble Reformulación, Noticing the Gap, nor Ejercicios por Error', () => {
-    const evalWithVocab = {
-      ...mockEvalResult,
-      target_words_feedback: [
-        { word: 'atmosphere', used: true, is_natural: true, feedback_es: 'Buena integración de vocabulario.' },
-      ],
-    };
-
+  it('renders Double Recast panel and Noticing the Gap contrasts (RF-WRT-07)', () => {
     render(
       <WritingStageThree
-        evalResult={evalWithVocab}
+        evalResult={mockEvalResult}
         draft1="Initial draft"
         draft2="Revised draft"
         onReset={vi.fn()}
       />,
     );
 
-    // 1. Vocabulario Objetivo (SRS) container must not exist
-    expect(screen.queryByText(/Activación de Vocabulario Objetivo \(SRS\)/i)).toBeNull();
+    // 1. Level 1: Grammatical Correction Version
+    expect(screen.getByRole('heading', { level: 4, name: /Corrección Gramatical/i })).toBeDefined();
+    expect(screen.getByText(/I have been living in London for three years/i)).toBeDefined();
 
-    // 2. Doble Reformulación Pedagógica container must not exist
-    expect(screen.queryByText(/Doble Reformulación Pedagógica/i)).toBeNull();
-    expect(screen.queryByText('Versión Estructural Limpia')).toBeNull();
-    expect(screen.queryByText('Versión Nativa Pulida (Recast)')).toBeNull();
+    // 2. Level 2: Natural Native Version
+    expect(screen.getByText(/Versión Nativa Natural/i)).toBeDefined();
+    expect(screen.getByText(/Having lived in London for three years, I find its vibrant atmosphere/i)).toBeDefined();
 
-    // 3. Noticing the Gap container must not exist
-    expect(screen.queryByText(/Noticing the Gap/i)).toBeNull();
-    expect(screen.queryByText(/Brecha Lingüística/i)).toBeNull();
-
-    // 4. Ejercicios Específicos por Error container must not exist
-    expect(screen.queryByText(/Ejercicios Específicos por Error/i)).toBeNull();
-    expect(screen.queryByText(/Laboratorio de Práctica Deliberada/i)).toBeNull();
+    // 3. Noticing the Gap / Expression contrasts
+    expect(screen.getByRole('heading', { name: /Cómo sonar más natural/i })).toBeDefined();
+    expect(screen.getByText(/I have 3 years living/i)).toBeDefined();
+    expect(screen.getByText(/Having lived... for three years/i)).toBeDefined();
+    expect(
+      screen.getByText(/Se utiliza participio perfecto para indicar duración/i),
+    ).toBeDefined();
   });
 
-  it('triggers onNavigateToDefossilization when CTA button is clicked', () => {
+  it('triggers TTS playback for Level 2 Native Recast when clicked (RF-WRT-11)', () => {
+    const handlePlayTts = vi.fn();
+    render(
+      <WritingStageThree
+        evalResult={mockEvalResult}
+        draft1="Initial draft"
+        draft2="Revised draft"
+        onPlayTts={handlePlayTts}
+        onReset={vi.fn()}
+      />,
+    );
+
+    const ttsBtn = screen.getByRole('button', { name: /Escuchar versión nativa natural/i });
+    fireEvent.click(ttsBtn);
+
+    expect(handlePlayTts).toHaveBeenCalledWith(
+      'Having lived in London for three years, I find its vibrant atmosphere truly captivating.',
+    );
+  });
+
+  it('triggers onNavigateToDefossilization when CTA button is clicked (RF-WRT-10)', () => {
     const handleNavigate = vi.fn();
     render(
       <WritingStageThree
@@ -112,5 +135,30 @@ describe('WritingStageThree Enhanced (Doble Reformulación & 4-Axis Rubric)', ()
     fireEvent.click(defossBtn);
 
     expect(handleNavigate).toHaveBeenCalled();
+  });
+
+  it('renders Puntos de Mejora tab and discriminates L1 transfer badge accurately', () => {
+    render(
+      <WritingStageThree
+        evalResult={mockEvalResult}
+        draft1="Initial draft"
+        draft2="Revised draft"
+        onReset={vi.fn()}
+      />,
+    );
+
+    const correctionsTab = screen.getByRole('button', { name: /Puntos de Mejora/i });
+    expect(correctionsTab).toBeDefined();
+    expect(screen.getByText('2')).toBeDefined();
+
+    fireEvent.click(correctionsTab);
+
+    expect(screen.getByText(/Correcciones y Puntos de Mejora \(2\)/i)).toBeDefined();
+    expect(screen.getByText('depend of')).toBeDefined();
+    expect(screen.getByText('buyed')).toBeDefined();
+
+    // The L1 Spanish transfer badge should only appear once (for 'depend of', not for 'buyed')
+    const l1Badges = screen.getAllByText('Influencia del Español');
+    expect(l1Badges).toHaveLength(1);
   });
 });

@@ -3,16 +3,13 @@ import {
   HelpCircle,
   Sparkles,
   BookOpen,
-  Eye,
-  CheckCircle2,
   Check,
   X,
-  Lock,
-  ChevronLeft,
-  ChevronRight,
-  RotateCcw,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import { SocraticClue } from '@/infrastructure/ai/schemas';
+import { SocraticClue, TaxonomyErrorCode } from '@/infrastructure/ai/schemas';
+import { normalizeInput } from '@/shared/utils/text';
 
 export interface ZpdScaffoldingCardProps {
   clue: SocraticClue;
@@ -21,14 +18,16 @@ export interface ZpdScaffoldingCardProps {
   onHighlight?: (clue: SocraticClue | null) => void;
 }
 
-const CLUE_TYPE_LABELS_ES: Record<string, string> = {
+const CLUE_TYPE_LABELS_ES: Record<TaxonomyErrorCode, string> = {
   PREPOSITION: 'Preposición dependiente',
-  FALSE_FRIEND: 'Falso amigo / Cognado engañoso',
-  AGREEMENT: 'Concordancia gramatical',
   TENSE_ASPECT: 'Tiempo y aspecto verbal',
-  COLLOCATION: 'Combinación léxica natural',
-  WORD_ORDER: 'Orden de palabras sintáctico',
-  WORD_CHOICE: 'Selección de vocabulario',
+  FALSE_FRIEND: 'Falso amigo',
+  AGREEMENT: 'Concordancia gramatical',
+  LEXICAL_COLLOCATION: 'Combinación natural',
+  WORD_ORDER: 'Orden de palabras',
+  COHESION_LINKERS: 'Conector discursivo',
+  SYNTACTIC_VARIETY: 'Fluidez sintáctica',
+  REGISTER: 'Registro y tono',
   SPELLING: 'Ortografía',
 };
 
@@ -38,35 +37,39 @@ export function ZpdScaffoldingCard({
   isApplied = false,
   onHighlight,
 }: ZpdScaffoldingCardProps) {
-  const [currentZpdLevel, setCurrentZpdLevel] = useState<1 | 2 | 3 | 4>(1);
-  const [unlockedLevels, setUnlockedLevels] = useState<number[]>([1]);
+  // Determine if it is an arbitrary convention/gap (prepositions, collocations, false friends)
+  // or a monitoring slip (agreement, verb tense, spelling, word order)
+  const isCompetenceGap = [
+    'PREPOSITION',
+    'LEXICAL_COLLOCATION',
+    'FALSE_FRIEND',
+    'REGISTER',
+    'COHESION_LINKERS',
+    'SYNTACTIC_VARIETY',
+  ].includes(clue.clue_type);
+
+  // Progressive disclosure states (No rigid numeric tabs)
+  const [showPractice, setShowPractice] = useState(false);
+  const [showSolution, setShowSolution] = useState(false);
   const [clueUserAnswer, setClueUserAnswer] = useState('');
   const [clueFeedback, setClueFeedback] = useState<'IDLE' | 'CORRECT' | 'INCORRECT'>('IDLE');
 
-  const unlockAndNavigate = (level: 1 | 2 | 3 | 4) => {
-    if (!unlockedLevels.includes(level)) {
-      setUnlockedLevels((prev) => [...prev, level]);
-    }
-    setCurrentZpdLevel(level);
-  };
-
   // Compute dynamic or fallback details
-  const getZpdDetails = () => {
+  const getClueDetails = () => {
     const area = clue.highlighted_area;
+    const question = clue.hint_question_es;
 
-    const level1Question = clue.hint_question_es;
-
-    const level2Contrastive =
+    const explanation =
       clue.zpd_contrastive_es ||
       (clue.clue_type === 'PREPOSITION'
-        ? `En español solemos traducir preposiciones como "de", "en" o "con", pero en inglés "${area}" suele asociarse a una partícula idiomática específica e inmutable.`
+        ? `En inglés "${area}" suele asociarse a una partícula idiomática fija distinta al español.`
         : clue.clue_type === 'FALSE_FRIEND'
-          ? `Cuidado con la trampa cognitiva de los falsos amigos: la palabra "${area}" tiene una forma similar a una palabra en español, pero su significado en inglés difiere notablemente.`
+          ? `Cuidado: la palabra "${area}" se parece al español pero tiene un significado diferente en inglés.`
           : clue.clue_type === 'AGREEMENT'
-            ? `Revisa la relación entre el sujeto y el verbo principal. En inglés la flexión verbal y los auxiliares siguen reglas de concordancia estrictas.`
-            : `Observa la estructura idiomática del inglés natural frente a la traducción literal directa palabra por palabra.`);
+            ? `Revisa la relación entre el sujeto y el verbo principal en la oración.`
+            : `Observa la estructura natural en inglés frente a la traducción literal.`);
 
-    const level3Cloze =
+    const clozeSentence =
       clue.zpd_cloze_sentence ||
       `${area.split(' ')[0] || 'word'} [ ___ ]`;
 
@@ -78,36 +81,36 @@ export function ZpdScaffoldingCard({
           ? 'agree'
           : '');
 
-    const level4NativeModel =
+    const resolvedModel =
       clue.zpd_native_model ||
-      `Colocación o reformulación idiomática nativa para "${area}".`;
+      `Colocación recomendada: ${expectedToken || area}`;
 
     return {
-      level1Question,
-      level2Contrastive,
-      level3Cloze,
+      question,
+      explanation,
+      clozeSentence,
       expectedToken,
-      level4NativeModel,
+      resolvedModel,
     };
   };
 
-  const zpd = getZpdDetails();
+  const details = getClueDetails();
 
   const BLANK_REGEX = /\[\s*[_.-]+\s*\]|_{2,}/;
-  const hasClozeBlank = Boolean(zpd.level3Cloze && BLANK_REGEX.test(zpd.level3Cloze));
+  const hasClozeBlank = Boolean(details.clozeSentence && BLANK_REGEX.test(details.clozeSentence));
   const fullCompletedCloze =
-    hasClozeBlank && zpd.expectedToken
-      ? zpd.level3Cloze.replace(BLANK_REGEX, zpd.expectedToken)
+    hasClozeBlank && details.expectedToken
+      ? details.clozeSentence.replace(BLANK_REGEX, details.expectedToken)
       : null;
 
   const renderCompletedCloze = () => {
-    if (!hasClozeBlank || !zpd.expectedToken) return null;
-    const parts = zpd.level3Cloze.split(BLANK_REGEX);
+    if (!hasClozeBlank || !details.expectedToken) return null;
+    const parts = details.clozeSentence.split(BLANK_REGEX);
     return (
       <span className="font-mono text-xs sm:text-sm">
         <span>{parts[0]}</span>
         <span className="inline-block px-1.5 py-0.5 rounded-md font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/60 border border-emerald-300/80 dark:border-emerald-700/80 mx-1">
-          {zpd.expectedToken}
+          {details.expectedToken}
         </span>
         <span>{parts.slice(1).join('')}</span>
       </span>
@@ -117,21 +120,13 @@ export function ZpdScaffoldingCard({
   const handleValidateAnswer = () => {
     if (!clueUserAnswer.trim()) return;
 
-    if (!zpd.expectedToken) {
-      setClueFeedback('CORRECT');
+    if (!details.expectedToken || !details.expectedToken.trim()) {
+      setShowSolution(true);
       return;
     }
 
-    const cleanInput = clueUserAnswer
-      .trim()
-      .toLowerCase()
-      .replace(/['"´`]/g, "'")
-      .replace(/\s+/g, ' ');
-    const cleanExpected = zpd.expectedToken
-      .trim()
-      .toLowerCase()
-      .replace(/['"´`]/g, "'")
-      .replace(/\s+/g, ' ');
+    const cleanInput = normalizeInput(clueUserAnswer);
+    const cleanExpected = normalizeInput(details.expectedToken);
 
     if (cleanInput === cleanExpected) {
       setClueFeedback('CORRECT');
@@ -144,21 +139,29 @@ export function ZpdScaffoldingCard({
     <div
       onMouseEnter={() => onHighlight?.(clue)}
       onMouseLeave={() => onHighlight?.(null)}
-      className={`p-5 rounded-2xl border shadow-xs transition-all duration-200 space-y-4 ${isApplied
+      className={`p-5 rounded-2xl border shadow-xs transition-all duration-200 space-y-4 ${
+        isApplied
           ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-900/50 hover:border-emerald-300'
           : 'bg-white dark:bg-[#131722] border-gray-200/90 dark:border-gray-800 hover:border-indigo-300 dark:hover:border-indigo-800'
-        }`}
+      }`}
     >
-      {/* Header with Clue Type & Progressive Stepper */}
+      {/* 1. Header: Clue type and snippet */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-gray-100 dark:border-gray-800/80">
         <div className="flex items-center gap-2 flex-wrap">
           <span
-            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isApplied
+            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+              isApplied
                 ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400'
-                : 'bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400'
-              }`}
+                : isCompetenceGap
+                  ? 'bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400'
+                  : 'bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400'
+            }`}
           >
-            <HelpCircle className="w-3.5 h-3.5" />
+            {isCompetenceGap ? (
+              <Sparkles className="w-3.5 h-3.5" />
+            ) : (
+              <HelpCircle className="w-3.5 h-3.5" />
+            )}
           </span>
 
           <span className="text-xs font-bold text-gray-900 dark:text-white">
@@ -169,108 +172,117 @@ export function ZpdScaffoldingCard({
             "{clue.highlighted_area}"
           </span>
 
+          {clue.is_l1_spanish_transfer && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100/90 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800 inline-flex items-center gap-1">
+              <span>Interferencia L1 (Español)</span>
+            </span>
+          )}
+
           {isApplied && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100/90 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 inline-flex items-center gap-1">
               <Check className="w-3 h-3" />
-              <span>Aplicado en Borrador 2</span>
+              <span>Modificado en Borrador 2</span>
             </span>
           )}
         </div>
-
-        {/* ZPD 4-Level Stepper */}
-        <div className="flex items-center gap-1 bg-gray-100/90 dark:bg-[#181D2A] p-1 rounded-xl">
-          {([1, 2, 3, 4] as const).map((lvl) => {
-            const isUnlocked = unlockedLevels.includes(lvl);
-            const isActive = currentZpdLevel === lvl;
-
-            return (
-              <button
-                key={lvl}
-                type="button"
-                onClick={() => unlockAndNavigate(lvl)}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-all cursor-pointer flex items-center gap-1 ${isActive
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : isUnlocked
-                      ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-gray-800'
-                      : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                  }`}
-              >
-                {!isUnlocked && lvl > 1 && <Lock className="w-2.5 h-2.5 opacity-50" />}
-                <span>Nivel {lvl}</span>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
-      {/* Level 1: Guiding Socratic Question */}
-      {currentZpdLevel === 1 && (
-        <div className="space-y-3 animate-in fade-in duration-150">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Nivel 1: Pregunta Guía para Autodescubrimiento</span>
+      {/* 2. BODY: Bifurcated according to error nature */}
+      {isCompetenceGap ? (
+        /* ========================================================================= */
+        /* CASE A: Competence Gap / Idiomatic Convention (Direct recommendation + note) */
+        /* ========================================================================= */
+        <div className="space-y-3.5 animate-in fade-in duration-150">
+          {/* Direct natural expression */}
+          <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/70 dark:border-purple-800/60 space-y-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300 block">
+              Forma recomendada en inglés:
+            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-gray-500 line-through font-mono text-xs">
+                "{clue.highlighted_area}"
+              </span>
+              <span className="text-purple-800 dark:text-purple-200 font-bold font-mono text-sm bg-white dark:bg-[#181D2A] px-2.5 py-0.5 rounded-md border border-purple-200 dark:border-purple-800 shadow-2xs">
+                {details.expectedToken || details.resolvedModel}
+              </span>
+            </div>
           </div>
 
-          <p className="text-sm text-gray-800 dark:text-gray-100 font-medium leading-relaxed">
-            {zpd.level1Question}
-          </p>
+          {/* Clear explanatory note */}
+          <div className="flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300 font-sans leading-relaxed">
+            <BookOpen className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+            <p>{details.explanation}</p>
+          </div>
 
-          <div className="pt-2 flex justify-end border-t border-gray-100 dark:border-gray-800/60">
+          {/* Interactive practice toggle */}
+          <div className="pt-1">
             <button
               type="button"
-              onClick={() => unlockAndNavigate(2)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
+              onClick={() => setShowPractice((prev) => !prev)}
+              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1 cursor-pointer font-medium"
             >
-              <span>Siguiente</span>
-              <ChevronRight className="w-3.5 h-3.5" />
+              <span>{showPractice ? 'Ocultar práctica' : 'Practicar en una oración'}</span>
+              {showPractice ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>
-      )}
-
-      {/* Level 2: Metalinguistic / L1 Contrastive Explanation */}
-      {currentZpdLevel === 2 && (
-        <div className="space-y-3 animate-in fade-in duration-150">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>Nivel 2: Diferencias con el Español</span>
-          </div>
-
+      ) : (
+        /* ========================================================================= */
+        /* CASE B: Monitoring Slip (Agile Socratic question for self-repair)          */
+        /* ========================================================================= */
+        <div className="space-y-3.5 animate-in fade-in duration-150">
+          {/* Guiding question for reflection */}
           <p className="text-sm text-gray-800 dark:text-gray-100 font-medium leading-relaxed">
-            {zpd.level2Contrastive}
+            {details.question}
           </p>
 
-          <div className="pt-2 flex justify-between items-center border-t border-gray-100 dark:border-gray-800/60">
+          {/* Options for progressive help */}
+          <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
             <button
               type="button"
-              onClick={() => unlockAndNavigate(1)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+              onClick={() => setShowPractice((prev) => !prev)}
+              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1 cursor-pointer font-medium"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span>Anterior</span>
+              <span>{showPractice ? 'Ocultar pista con espacio' : 'Ver pista con espacio en blanco'}</span>
+              {showPractice ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
-            <button
-              type="button"
-              onClick={() => unlockAndNavigate(3)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
-            >
-              <span>Siguiente</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+
+            {!showSolution && (
+              <button
+                type="button"
+                onClick={() => setShowSolution(true)}
+                className="text-[11px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
+              >
+                Ver solución
+              </button>
+            )}
           </div>
+
+          {/* Explicit solution when requested */}
+          {showSolution && (
+            <div className="p-3.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/25 border border-emerald-200/70 dark:border-emerald-800/60 text-xs text-emerald-950 dark:text-emerald-100 font-medium animate-in fade-in duration-150">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block mb-1">
+                Solución de referencia:
+              </span>
+              {fullCompletedCloze ? (
+                renderCompletedCloze()
+              ) : (
+                <p className="font-mono">{details.resolvedModel}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Level 3: Interactive Cloze with Validation */}
-      {currentZpdLevel === 3 && (
-        <div className="space-y-3 animate-in fade-in duration-150">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-            <Eye className="w-3.5 h-3.5" />
-            <span>Nivel 3: Completa el Espacio en Blanco</span>
-          </div>
+      {/* 3. INTERACTIVE PRACTICE ARENA (CLOZE) - Available when toggled in either case */}
+      {showPractice && (
+        <div className="p-4 rounded-xl bg-gray-50/80 dark:bg-[#181D2A] border border-gray-200/80 dark:border-gray-800 space-y-3 animate-in fade-in duration-150">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">
+            Completa la palabra o preposición requerida:
+          </span>
 
-          <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-[#181D2A] border border-gray-200/80 dark:border-gray-800 text-center font-mono text-sm font-bold text-gray-900 dark:text-white shadow-2xs">
-            {zpd.level3Cloze}
+          <div className="p-3 rounded-lg bg-white dark:bg-[#131722] border border-gray-200/80 dark:border-gray-800 text-center font-mono text-xs sm:text-sm font-bold text-gray-900 dark:text-white shadow-2xs">
+            {details.clozeSentence}
           </div>
 
           <div className="flex items-center gap-2">
@@ -285,98 +297,40 @@ export function ZpdScaffoldingCard({
                 if (e.key === 'Enter') handleValidateAnswer();
               }}
               placeholder="Escribe la corrección..."
-              className="flex-1 px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#181D2A] text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+              className="flex-1 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#131722] text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden font-mono"
             />
             <button
               type="button"
               onClick={handleValidateAnswer}
               disabled={!clueUserAnswer.trim()}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold transition-colors cursor-pointer"
+              className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold transition-colors cursor-pointer shrink-0"
             >
               Comprobar
             </button>
           </div>
 
           {clueFeedback === 'CORRECT' && (
-            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-2">
+            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-2">
               <Check className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>¡Exacto! Asimilaste la estructura.</span>
             </div>
           )}
 
           {clueFeedback === 'INCORRECT' && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-300 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+            <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-300 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
                 <X className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>Intenta nuevamente o avanza al Nivel 4 para ver la solución.</span>
+                <span>Intenta nuevamente.</span>
               </div>
               <button
                 type="button"
-                onClick={() => unlockAndNavigate(4)}
+                onClick={() => setShowSolution(true)}
                 className="text-[11px] font-bold underline cursor-pointer shrink-0"
               >
                 Ver solución
               </button>
             </div>
           )}
-
-          <div className="pt-2 flex justify-between items-center border-t border-gray-100 dark:border-gray-800/60">
-            <button
-              type="button"
-              onClick={() => unlockAndNavigate(2)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span>Anterior</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => unlockAndNavigate(4)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
-            >
-              <span>Siguiente</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Level 4: Explicit Native Model */}
-      {currentZpdLevel === 4 && (
-        <div className="space-y-3 animate-in fade-in duration-150">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Nivel 4: Oración Resuelta</span>
-          </div>
-
-          <div className="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/25 border border-emerald-200/70 dark:border-emerald-800/60 text-emerald-950 dark:text-emerald-100 font-medium">
-            {fullCompletedCloze ? (
-              renderCompletedCloze()
-            ) : (
-              <p className="text-xs sm:text-sm text-emerald-900 dark:text-emerald-200 leading-relaxed font-sans font-medium">
-                {zpd.level4NativeModel}
-              </p>
-            )}
-          </div>
-
-          <div className="pt-2 flex justify-between items-center border-t border-gray-100 dark:border-gray-800/60">
-            <button
-              type="button"
-              onClick={() => unlockAndNavigate(3)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span>Anterior</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => unlockAndNavigate(1)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Reiniciar</span>
-            </button>
-          </div>
         </div>
       )}
     </div>

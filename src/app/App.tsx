@@ -24,7 +24,7 @@ function AppContent({
   );
 }
 
-export function App() {
+export default function App() {
   // Inicializado siempre en 'home' (Inicio) al iniciar la app
   const [activeTab, setActiveTab] = useState<AppTab>('home');
 
@@ -105,6 +105,3 @@ export function App() {
     </AppProviders>
   );
 }
-
-
-export default App;

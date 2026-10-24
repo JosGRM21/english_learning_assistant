@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { isTauri } from '@/shared/utils/platform';
 import { BackupManager } from '@/infrastructure/backup/BackupManager';
 import { FsrsCalibrator } from '@/core/srs/FsrsCalibrator';
 import { ReviewLog } from '@/core/types/srs';
@@ -55,7 +56,7 @@ export function useBackupRestore({
       const json = backupManager.serialize(backup);
 
       // Si estamos en entorno Tauri (escritorio), invocar la ventana nativa para seleccionar dónde guardar
-      if (typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window || (window as unknown as { isTauri?: boolean }).isTauri)) {
+      if (isTauri()) {
         try {
           const { save } = await import('@tauri-apps/plugin-dialog');
           const filePath = await save({

@@ -32,6 +32,11 @@ export async function executeSqlBatch(
   }
 }
 
+function isDuplicateColumnError(err: unknown): boolean {
+  const msg = (err as any)?.message || String(err || '');
+  return msg.toLowerCase().includes('duplicate column name');
+}
+
 /**
  * Detects existing tables and alters them to add any newly introduced columns.
  * This MUST run before executing DDL schemas that create indexes on these columns
@@ -75,7 +80,6 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
 
       const colsToAdd = [
         ['verb_tenses_json', 'TEXT'],
-        ['structured_family_json', 'TEXT'],
         ['domain_category', 'TEXT'],
         ['alternate_senses_json', 'TEXT'],
         ['frequency_band', 'TEXT'],
@@ -89,7 +93,6 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
         ['ipa_weak_form', 'TEXT'],
         ['is_false_friend', 'INTEGER NOT NULL DEFAULT 0'],
         ['false_friend_note', 'TEXT'],
-        ['morphological_family_json', 'TEXT'],
         ['created_at', "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"],
       ];
 
@@ -98,7 +101,7 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
           try {
             await sql.raw(`ALTER TABLE vocab_items ADD COLUMN ${col} ${type}`).execute(db);
           } catch (colErr: any) {
-            if (!colErr?.message?.includes('duplicate column name')) {
+            if (!isDuplicateColumnError(colErr)) {
               console.warn(`[migrateExistingTableColumns] Could not add column ${col}:`, colErr);
             }
           }
@@ -128,7 +131,7 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
           try {
             await sql.raw(`ALTER TABLE srs_cards ADD COLUMN ${col} ${type}`).execute(db);
           } catch (colErr: any) {
-            if (!colErr?.message?.includes('duplicate column name')) {
+            if (!isDuplicateColumnError(colErr)) {
               console.warn(`[migrateExistingTableColumns] Could not add column ${col} to srs_cards:`, colErr);
             }
           }
@@ -163,23 +166,98 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
     if (evalCheck.rows.length > 0) {
       const evalInfo = await sql<{ name: string }>`PRAGMA table_info(writing_evaluations)`.execute(db);
       const existingCols = new Set(evalInfo.rows.map((r: any) => (r.name || r.NAME || '').toLowerCase()));
-      const evalColsToAdd = [
-        ['clean_structural_version', "TEXT NOT NULL DEFAULT ''"],
-        ['native_recast_version', "TEXT NOT NULL DEFAULT ''"],
-        ['noticing_the_gap_json', "TEXT NOT NULL DEFAULT '[]'"],
-        ['accuracy_score', 'REAL NOT NULL DEFAULT 0.0'],
-        ['range_precision_score', 'REAL NOT NULL DEFAULT 0.0'],
-        ['cohesion_flow_score', 'REAL NOT NULL DEFAULT 0.0'],
-        ['pragmatics_complexity_score', 'REAL NOT NULL DEFAULT 0.0'],
-        ['qualitative_recommendations_es', "TEXT NOT NULL DEFAULT ''"],
-      ];
-      for (const [col, type] of evalColsToAdd) {
-        if (!existingCols.has(col.split(' ')[0].toLowerCase())) {
-          try {
-            await sql.raw(`ALTER TABLE writing_evaluations ADD COLUMN ${col} ${type}`).execute(db);
-          } catch (colErr: any) {
-            if (!colErr?.message?.includes('duplicate column name')) {
-              console.warn(`[migrateExistingTableColumns] Could not add column ${col} to writing_evaluations:`, colErr);
+
+      // If legacy NOT NULL score columns exist, rebuild the table safely
+      if (existingCols.has('grammar_score') || existingCols.has('vocabulary_score') || existingCols.has('coherence_score')) {
+        await executeSqlBatch(
+          db,
+          `
+          PRAGMA foreign_keys = OFF;
+
+          DROP TABLE IF EXISTS writing_evaluations_new;
+
+          CREATE TABLE writing_evaluations_new (
+              id TEXT PRIMARY KEY,
+              submission_id TEXT NOT NULL UNIQUE,
+              model_used TEXT NOT NULL DEFAULT 'gemini-3.8-flash' CHECK(model_used IN ('gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash')),
+              estimated_cefr TEXT NOT NULL CHECK(estimated_cefr IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
+              clean_structural_version TEXT NOT NULL DEFAULT '',
+              native_recast_version TEXT NOT NULL DEFAULT '',
+              noticing_the_gap_json TEXT NOT NULL DEFAULT '[]',
+              accuracy_score REAL NOT NULL DEFAULT 0.0,
+              range_precision_score REAL NOT NULL DEFAULT 0.0,
+              cohesion_flow_score REAL NOT NULL DEFAULT 0.0,
+              pragmatics_complexity_score REAL NOT NULL DEFAULT 0.0,
+              overall_feedback_es TEXT NOT NULL,
+              qualitative_recommendations_es TEXT NOT NULL DEFAULT '',
+              corrections_json TEXT NOT NULL,
+              successful_repairs_json TEXT,
+              evaluated_at TEXT NOT NULL DEFAULT (DATETIME('now')),
+              FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE
+          );
+
+          INSERT OR IGNORE INTO writing_evaluations_new (
+              id,
+              submission_id,
+              model_used,
+              estimated_cefr,
+              clean_structural_version,
+              native_recast_version,
+              noticing_the_gap_json,
+              accuracy_score,
+              range_precision_score,
+              cohesion_flow_score,
+              pragmatics_complexity_score,
+              overall_feedback_es,
+              qualitative_recommendations_es,
+              corrections_json,
+              successful_repairs_json,
+              evaluated_at
+          )
+          SELECT
+              id,
+              submission_id,
+              ${existingCols.has('model_used') ? "COALESCE(model_used, 'gemini-3.8-flash')" : "'gemini-3.8-flash'"},
+              ${existingCols.has('estimated_cefr') ? "COALESCE(estimated_cefr, 'B1')" : "'B1'"},
+              ${existingCols.has('clean_structural_version') ? "COALESCE(clean_structural_version, '')" : "''"},
+              ${existingCols.has('native_recast_version') ? "COALESCE(native_recast_version, '')" : "''"},
+              ${existingCols.has('noticing_the_gap_json') ? "COALESCE(noticing_the_gap_json, '[]')" : "'[]'"},
+              ${existingCols.has('accuracy_score') ? (existingCols.has('grammar_score') ? 'COALESCE(accuracy_score, grammar_score, 0.0)' : 'COALESCE(accuracy_score, 0.0)') : (existingCols.has('grammar_score') ? 'COALESCE(grammar_score, 0.0)' : '0.0')},
+              ${existingCols.has('range_precision_score') ? (existingCols.has('vocabulary_score') ? 'COALESCE(range_precision_score, vocabulary_score, 0.0)' : 'COALESCE(range_precision_score, 0.0)') : (existingCols.has('vocabulary_score') ? 'COALESCE(vocabulary_score, 0.0)' : '0.0')},
+              ${existingCols.has('cohesion_flow_score') ? (existingCols.has('coherence_score') ? 'COALESCE(cohesion_flow_score, coherence_score, 0.0)' : 'COALESCE(cohesion_flow_score, 0.0)') : (existingCols.has('coherence_score') ? 'COALESCE(coherence_score, 0.0)' : '0.0')},
+              ${existingCols.has('pragmatics_complexity_score') ? 'COALESCE(pragmatics_complexity_score, 0.0)' : '0.0'},
+              ${existingCols.has('overall_feedback_es') ? "COALESCE(overall_feedback_es, '')" : "''"},
+              ${existingCols.has('qualitative_recommendations_es') ? "COALESCE(qualitative_recommendations_es, '')" : "''"},
+              ${existingCols.has('corrections_json') ? "COALESCE(corrections_json, '[]')" : "'[]'"},
+              ${existingCols.has('successful_repairs_json') ? 'successful_repairs_json' : 'NULL'},
+              ${existingCols.has('evaluated_at') ? "COALESCE(evaluated_at, DATETIME('now'))" : "DATETIME('now')"}
+          FROM writing_evaluations;
+
+          DROP TABLE writing_evaluations;
+          ALTER TABLE writing_evaluations_new RENAME TO writing_evaluations;
+
+          PRAGMA foreign_keys = ON;
+          `,
+        );
+      } else {
+        const evalColsToAdd = [
+          ['clean_structural_version', "TEXT NOT NULL DEFAULT ''"],
+          ['native_recast_version', "TEXT NOT NULL DEFAULT ''"],
+          ['noticing_the_gap_json', "TEXT NOT NULL DEFAULT '[]'"],
+          ['accuracy_score', 'REAL NOT NULL DEFAULT 0.0'],
+          ['range_precision_score', 'REAL NOT NULL DEFAULT 0.0'],
+          ['cohesion_flow_score', 'REAL NOT NULL DEFAULT 0.0'],
+          ['pragmatics_complexity_score', 'REAL NOT NULL DEFAULT 0.0'],
+          ['qualitative_recommendations_es', "TEXT NOT NULL DEFAULT ''"],
+        ];
+        for (const [col, type] of evalColsToAdd) {
+          if (!existingCols.has(col.split(' ')[0].toLowerCase())) {
+            try {
+              await sql.raw(`ALTER TABLE writing_evaluations ADD COLUMN ${col} ${type}`).execute(db);
+            } catch (colErr: any) {
+              if (!isDuplicateColumnError(colErr)) {
+                console.warn(`[migrateExistingTableColumns] Could not add column ${col} to writing_evaluations:`, colErr);
+              }
             }
           }
         }
@@ -211,7 +289,7 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
           try {
             await sql.raw(`ALTER TABLE writing_error_logs ADD COLUMN ${col} ${type}`).execute(db);
           } catch (colErr: any) {
-            if (!colErr?.message?.includes('duplicate column name')) {
+            if (!isDuplicateColumnError(colErr)) {
               console.warn(`[migrateExistingTableColumns] Could not add column ${col} to writing_error_logs:`, colErr);
             }
           }
@@ -407,7 +485,7 @@ export async function runMigrations(db: Kysely<DatabaseSchema>): Promise<void> {
         try {
           await sql.raw(`ALTER TABLE writing_error_logs ADD COLUMN ${col} ${type}`).execute(db);
         } catch (colErr: any) {
-          if (!colErr?.message?.includes('duplicate column name')) {
+          if (!isDuplicateColumnError(colErr)) {
             console.warn(`[runMigrations] Could not add column ${col} to writing_error_logs:`, colErr);
           }
         }
@@ -418,6 +496,6 @@ export async function runMigrations(db: Kysely<DatabaseSchema>): Promise<void> {
   }
 
   // Ensure PRAGMA user_version is updated
-  await sql.raw(`PRAGMA user_version = 4`).execute(db);
+  await sql.raw(`PRAGMA user_version = 5`).execute(db);
 }
 

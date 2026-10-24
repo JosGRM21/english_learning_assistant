@@ -19,6 +19,8 @@ export interface VocabSearchToolbarProps {
   onActivateSuggestionWord: (id: string) => void;
   originFilter: 'ALL' | 'CORE' | 'VAULT';
   onOriginChange: (origin: 'ALL' | 'CORE' | 'VAULT') => void;
+  coreCount?: number;
+  vaultCount?: number;
   sortBy: 'RECENT' | 'ALPHA_ASC' | 'ALPHA_DESC' | 'CEFR_ASC';
   onSortChange: (sort: 'RECENT' | 'ALPHA_ASC' | 'ALPHA_DESC' | 'CEFR_ASC') => void;
   // Advanced filters props
@@ -41,6 +43,8 @@ export function VocabSearchToolbar({
   onActivateSuggestionWord,
   originFilter,
   onOriginChange,
+  coreCount,
+  vaultCount,
   sortBy,
   onSortChange,
   frequencyBandFilter,
@@ -196,7 +200,7 @@ export function VocabSearchToolbar({
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
               }`}
             >
-              Core (3.5k)
+              Core {coreCount !== undefined ? `(${coreCount})` : ''}
             </button>
             <button
               type="button"
@@ -207,7 +211,7 @@ export function VocabSearchToolbar({
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
               }`}
             >
-              Mi Bóveda
+              Mi Bóveda {vaultCount !== undefined ? `(${vaultCount})` : ''}
             </button>
           </div>
 

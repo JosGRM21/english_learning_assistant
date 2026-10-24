@@ -228,6 +228,28 @@ describe('NotificationRuleEngine', () => {
       expect(decision.type).toBe('STREAK_SAVER_2');
       expect(decision.body).toContain('Streak Freeze');
     });
+
+    it('fires STREAK_SAVER_2 during default quiet hours (e.g. 23:40) to prevent streak loss before midnight', () => {
+      // 23:40 is after quietHoursStart (23:30), but STREAK_SAVER_2 must be exempted
+      const ctx = createMockContext({
+        currentTime: new Date('2026-10-05T23:40:00'),
+        settings: {
+          ...baseSettings,
+          quietHoursStart: '23:30',
+          quietHoursEnd: '08:00',
+        },
+        effectivePracticeTime: '14:00',
+        isCompletedToday: false,
+        sentTodayTypes: ['PRACTICE_REMINDER', 'STREAK_SAVER_1'],
+        currentStreak: 5,
+        availableFreezes: 0,
+      });
+
+      const decision = engine.evaluate(ctx);
+      expect(decision.shouldNotify).toBe(true);
+      expect(decision.type).toBe('STREAK_SAVER_2');
+      expect(decision.title).toContain('Última oportunidad');
+    });
   });
 
   describe('Spaced Repetition (SRS) Smart Batching', () => {

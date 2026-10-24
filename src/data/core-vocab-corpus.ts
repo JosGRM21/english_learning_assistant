@@ -28,9 +28,7 @@ export interface RawCoreCorpusItem {
   phoneticEdEnding: '/t/' | '/d/' | '/ɪd/' | null;
   isFalseFriend: number;
   falseFriendNote: string | null;
-  morphologicalFamilyJson: string[];
   verbTensesJson: any;
-  structuredFamilyJson: any;
   domainCategory: string;
   alternateSensesJson: any;
   graduatedExamples: {
@@ -49,10 +47,15 @@ export interface RawCorePhrasalUnit {
   chunkType: 'PHRASAL_VERB' | 'COLLOCATION' | 'IDIOM' | 'BINOMIAL' | 'SENTENCE_FRAME';
   text: string;
   meaningEs: string;
+  definitionEn?: string;
+  ipaGeneralAmerican?: string;
+  ipaReceivedPronunciation?: string | null;
   phrasalVerbType?: 'TYPE_1_INTRANSITIVE' | 'TYPE_2_SEPARABLE' | 'TYPE_3_INSEPARABLE' | 'TYPE_4_THREE_PART' | null;
   pronounMustSplit: number;
   example1: string;
+  example1Es?: string;
   example2: string | null;
+  example2Es?: string | null;
   cefrLevel: CefrLevel;
 }
 
@@ -147,6 +150,23 @@ export function searchCoreCorpusLocally(query: string, limit = 20): RawCoreCorpu
 }
 
 /**
+ * Searches Core Phrasal Units locally.
+ */
+export function searchCorePhrasalLocally(query: string, limit = 10): RawCorePhrasalUnit[] {
+  const clean = query.trim().toLowerCase();
+  if (!clean) return [];
+
+  const results: RawCorePhrasalUnit[] = [];
+  for (const item of CORE_PHRASAL_DATA) {
+    if (results.length >= limit) break;
+    if (item.text.toLowerCase().startsWith(clean) || item.text.toLowerCase().includes(clean)) {
+      results.push(item);
+    }
+  }
+  return results;
+}
+
+/**
  * Retrieves a single word from the Core Corpus if it exists.
  */
 export function getCoreCorpusWord(word: string): RawCoreCorpusItem | undefined {
@@ -177,9 +197,7 @@ export function toDomainCoreVocab(raw: RawCoreCorpusItem, activeStatus: VocabMas
     phoneticEdEnding: raw.phoneticEdEnding,
     isFalseFriend: Boolean(raw.isFalseFriend),
     falseFriendNote: raw.falseFriendNote,
-    morphologicalFamilyJson: raw.morphologicalFamilyJson || [],
     verbTensesJson: raw.verbTensesJson || null,
-    structuredFamilyJson: raw.structuredFamilyJson || null,
     domainCategory: raw.domainCategory || 'Uso General',
     alternateSensesJson: raw.alternateSensesJson || null,
     sensesJson: (raw as any).sensesJson || [
@@ -192,6 +210,72 @@ export function toDomainCoreVocab(raw: RawCoreCorpusItem, activeStatus: VocabMas
         graduatedExamples: raw.graduatedExamples,
       },
       ...((raw.alternateSensesJson as any) || []),
+    ],
+    phrasalVerbsJson: ((raw as any).phrasalVerbsJson && (raw as any).phrasalVerbsJson.length > 0)
+      ? (raw as any).phrasalVerbsJson
+      : getCorePhrasalUnits(raw.id).map((p) => ({
+          id: p.id,
+          text: p.text,
+          meaningEs: p.meaningEs,
+          definitionEn: p.definitionEn || '',
+          ipaGeneralAmerican: p.ipaGeneralAmerican || '',
+          ipaReceivedPronunciation: p.ipaReceivedPronunciation || null,
+          type: p.phrasalVerbType || 'TYPE_3_INSEPARABLE',
+          pronounMustSplit: Boolean(p.pronounMustSplit),
+          cefrLevel: p.cefrLevel,
+          example1: p.example1,
+          example1Es: p.example1Es || '',
+          example2: p.example2,
+          example2Es: p.example2Es || null,
+        })),
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Converts a raw core phrasal unit into a domain VocabItem.
+ */
+export function toDomainCorePhrase(phrase: RawCorePhrasalUnit, activeStatus: VocabMasteryStatus = 'INACTIVE'): VocabItem {
+  return {
+    id: phrase.id,
+    word: phrase.text,
+    grammaticalDimension: 'CHUNK',
+    partOfSpeech: phrase.chunkType === 'PHRASAL_VERB' ? 'VERB' : 'NOUN',
+    subcategory: phrase.chunkType === 'PHRASAL_VERB' ? 'PHRASAL_VERB' : null,
+    definitionEn: phrase.definitionEn || '',
+    translationEs: phrase.meaningEs,
+    ipaGeneralAmerican: phrase.ipaGeneralAmerican || '',
+    ipaReceivedPronunciation: phrase.ipaReceivedPronunciation || null,
+    ipaWeakForm: null,
+    cefrLevel: phrase.cefrLevel,
+    frequencyBand: 'TOP_3000',
+    isCore: true,
+    masteryStatus: activeStatus,
+    collocationsJson: [],
+    isSeparable: Boolean(phrase.pronounMustSplit),
+    phoneticEdEnding: null,
+    isFalseFriend: false,
+    falseFriendNote: null,
+    verbTensesJson: null,
+    domainCategory: 'Uso General',
+    alternateSensesJson: null,
+    sensesJson: [
+      {
+        translationEs: phrase.meaningEs,
+        definitionEn: phrase.definitionEn || '',
+        partOfSpeech: phrase.chunkType === 'PHRASAL_VERB' ? 'VERB' : 'NOUN',
+        cefrLevel: phrase.cefrLevel,
+        exampleSentenceEn: phrase.example1,
+        exampleSentenceEs: phrase.example1Es || '',
+        graduatedExamples: {
+          sentenceBasicEn: phrase.example1,
+          sentenceBasicEs: phrase.example1Es || '',
+          clozeTargetBasic: phrase.text,
+          sentenceAdvancedEn: phrase.example2 || phrase.example1,
+          sentenceAdvancedEs: phrase.example2Es || phrase.example1Es || '',
+          clozeTargetAdvanced: phrase.text,
+        },
+      },
     ],
     phrasalVerbsJson: [],
     createdAt: new Date().toISOString(),

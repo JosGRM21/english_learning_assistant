@@ -4,7 +4,6 @@ import { useAiGateway } from '@/shared/hooks/useAiGateway';
 import { useAudio } from '@/shared/hooks/useAudio';
 import { useDatabase } from '@/shared/hooks/useDatabase';
 import { useHabitsStore } from '@/features/habits/store/habitsStore';
-import { CorrectionItem } from '@/infrastructure/ai/schemas';
 import { synthesizeErrorDrillFallback } from '@/core/text/WeakVocabMatcher';
 
 function formatErrorMessage(err: unknown): string {
@@ -32,12 +31,11 @@ function formatErrorMessage(err: unknown): string {
 export function useWritingSession() {
   const { aiGateway, orchestrator } = useAiGateway();
   const { audioService } = useAudio();
-  const { writingRepo, vocabRepo, cardRepo, isReady } = useDatabase();
+  const { writingRepo, cardRepo, isReady } = useDatabase();
   const updateQuestProgress = useHabitsStore((s) => s.updateQuestProgress);
   const updateStreak = useHabitsStore((s) => s.updateStreak);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [srsSuccessMessage, setSrsSuccessMessage] = useState<string | null>(null);
   const [isPlayingTts, setIsPlayingTts] = useState(false);
 
   const {
@@ -55,8 +53,6 @@ export function useWritingSession() {
     isLoading,
     socraticResult,
     evalResult,
-    activeErrorIndex,
-    errorDrillsCompleted,
     historySubmissions,
     isLoadingHistory,
     setActiveTab,
@@ -75,7 +71,6 @@ export function useWritingSession() {
     setIsLoading,
     setSocraticResult,
     setEvalResult,
-    setActiveErrorIndex,
     setHistorySubmissions,
     setIsLoadingHistory,
     selectReadingAndApply,
@@ -112,12 +107,13 @@ export function useWritingSession() {
             domainCategory: c.vocab?.domainCategory ?? undefined,
             isUsed: false,
             cardId: c.card.id,
+            recommendedContext: c.allContexts?.[0]?.sentenceEn || c.vocab?.definitionEn || undefined,
           }))
           .filter((w) => w.word.trim().length > 0);
 
         setAvailableWeakPool(pool);
         if (useWritingStore.getState().targetWords.length === 0) {
-          const initialTargets = pool.slice(0, 5);
+          const initialTargets = pool.slice(0, 3);
           setTargetWords(initialTargets);
           useWritingStore.getState().updateTargetWordUsage(draft1 || draft2);
         }
@@ -152,8 +148,13 @@ export function useWritingSession() {
     setErrorMessage(null);
 
     try {
-      // 1. Call AI Gateway with target CEFR
-      const response = await aiGateway.evaluateSocraticPhase1(draft1, targetCefr);
+      // 1. Call AI Gateway with target CEFR and contextual mission/reading/vocab info
+      const contextualInfo = {
+        readingContext: selectedReading?.readingTextEn,
+        missionInstructions: selectedMission?.instructionsEs,
+        targetWords: targetWords.map((t) => t.word),
+      };
+      const response = await aiGateway.evaluateSocraticPhase1(draft1, targetCefr, contextualInfo);
       setSocraticResult(response);
       setDraft2(draft1);
 
@@ -193,6 +194,9 @@ export function useWritingSession() {
   }, [
     draft1,
     targetCefr,
+    selectedReading,
+    selectedMission,
+    targetWords,
     currentSubmissionId,
     submissionMode,
     aiGateway,
@@ -215,6 +219,7 @@ export function useWritingSession() {
       // 1. Contextual information for AI
       const contextualInfo = {
         readingContext: selectedReading?.readingTextEn,
+        missionInstructions: selectedMission?.instructionsEs,
         targetWords: targetWords.map((t) => t.word),
       };
 
@@ -257,8 +262,8 @@ export function useWritingSession() {
           evaluation: response,
         });
 
-        // Record detailed error taxonomy log
-        await writingRepo.logWritingErrors(subId, response.corrections, 'user_local');
+        // Record detailed error taxonomy log with draft context (RF-ERR-01 / RF-WRT-10)
+        await writingRepo.logWritingErrors(subId, response.corrections, 'user_local', draft2);
 
         // Refresh submissions history in background
         refreshHistory();
@@ -310,90 +315,6 @@ export function useWritingSession() {
     [isPlayingTts, audioService],
   );
 
-  // Add correction to SRS deck with contextual sentence Cloze
-  const handleAddCorrectionToSrs = useCallback(
-    async (correction: CorrectionItem, draftContext = '') => {
-      if (!vocabRepo || !cardRepo) {
-        setSrsSuccessMessage('Base de datos no lista');
-        return;
-      }
-
-      try {
-        const textToSearch = draftContext || draft2 || draft1;
-        let contextualSentence = '';
-        if (textToSearch) {
-          const sentences = textToSearch.split(/(?<=[.?!])\s+/);
-          const found = sentences.find(
-            (s) =>
-              s.toLowerCase().includes(correction.native_reformulation.toLowerCase()) ||
-              s.toLowerCase().includes(correction.error_span.toLowerCase()),
-          );
-          if (found) {
-            contextualSentence = found.trim();
-          }
-        }
-
-        // Generate Cloze prompt if sentence exists
-        let clozePrompt = '';
-        if (contextualSentence) {
-          const regex = new RegExp(
-            correction.native_reformulation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-            'i',
-          );
-          if (regex.test(contextualSentence)) {
-            clozePrompt = contextualSentence.replace(regex, '[ ___ ]');
-          } else {
-            clozePrompt = contextualSentence;
-          }
-        }
-
-        const vocabId = `voc_phrase_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-        const vocabItem = await vocabRepo.createVocab({
-          id: vocabId,
-          word: correction.native_reformulation,
-          grammaticalDimension: 'CHUNK',
-          partOfSpeech: correction.error_type === 'PREPOSITION' ? 'PREPOSITION' : 'VERB',
-          definitionEn: clozePrompt
-            ? `Context Cloze: "${clozePrompt}"`
-            : `Collocation / Idiomatic structure: ${correction.native_reformulation}`,
-          translationEs: `${correction.explanation_es}${contextualSentence ? ` (Contexto: "${contextualSentence}")` : ''}`,
-          ipaGeneralAmerican: '',
-          cefrLevel: targetCefr,
-          isFalseFriend: correction.error_type === 'FALSE_FRIEND',
-          falseFriendNote: correction.explanation_es,
-        });
-
-        const cardId = `card_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-        await cardRepo.createCard({
-          id: cardId,
-          userId: 'user_local',
-          targetType: 'PHRASE',
-          targetId: vocabItem.id,
-          state: 'NEW',
-          stability: 0.0,
-          difficulty: 5.0,
-          reps: 0,
-          lapses: 0,
-          lastReviewedAt: null,
-          scheduledFor: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
-        });
-
-        audioService.playFeedback(true);
-        setSrsSuccessMessage(
-          clozePrompt
-            ? `¡Tarjeta Cloze contextual guardada en SRS: "${correction.native_reformulation}"!`
-            : `¡Añadido a tu mazo SRS: "${correction.native_reformulation}"!`,
-        );
-        setTimeout(() => setSrsSuccessMessage(null), 3500);
-      } catch (err) {
-        console.error('Failed to add correction to SRS:', err);
-        setSrsSuccessMessage('No se pudo guardar la tarjeta');
-        setTimeout(() => setSrsSuccessMessage(null), 3000);
-      }
-    },
-    [vocabRepo, cardRepo, targetCefr, audioService, draft2, draft1],
-  );
-
   return {
     activeTab,
     currentStage,
@@ -409,12 +330,9 @@ export function useWritingSession() {
     isLoading,
     socraticResult,
     evalResult,
-    activeErrorIndex,
-    errorDrillsCompleted,
     historySubmissions,
     isLoadingHistory,
     errorMessage,
-    srsSuccessMessage,
     isPlayingTts,
     setActiveTab,
     setCurrentStage,
@@ -426,14 +344,12 @@ export function useWritingSession() {
     setTargetCefr,
     setTargetWords,
     setErrorMessage,
-    setActiveErrorIndex,
     replaceTargetWord,
     selectReadingAndApply,
     loadSubmissionIntoStudio,
     handleRequestSocratic,
     handleEvaluateFinal,
     handlePlayTts,
-    handleAddCorrectionToSrs,
     refreshHistory,
     refreshWeakVocabulary,
     resetWriting,

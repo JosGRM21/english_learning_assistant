@@ -109,6 +109,25 @@ describe('QuotaMatrixOrchestrator', () => {
     expect(route.modelId).toBe('gemini-3.8-flash');
   });
 
+  it('treats generic 429 (Resource exhausted) as temporary RPM cooldown rather than daily lockout', () => {
+    const now = new Date('2026-09-29T12:00:00Z');
+    // Generic Gemini 429 without explicit "per day"
+    orchestrator.recordHttp429('key_2', 'gemini-3.8-flash', 'Resource has been exhausted (e.g. check quota).', now);
+
+    const quota2 = orchestrator.getQuotaState('key_2', 'gemini-3.8-flash');
+    expect(quota2?.rpmCooldownUntil).not.toBeNull();
+    expect(quota2?.rpdStatus).toBe('AVAILABLE'); // not locked out for whole day!
+  });
+
+  it('locks out until midnight PT only when 429 explicitly indicates daily limit (RPD)', () => {
+    const now = new Date('2026-09-29T12:00:00Z');
+    orchestrator.recordHttp429('key_1', 'gemini-3.8-flash', 'Quota exceeded: requests per day limit reached', now);
+
+    const quota1 = orchestrator.getQuotaState('key_1', 'gemini-3.8-flash');
+    expect(quota1?.rpdStatus).toBe('EXHAUSTED_UNTIL_MIDNIGHT_PT');
+    expect(quota1?.requestsToday).toBe(quota1?.dailyLimit);
+  });
+
   it('never performs automatic model failover for 503 or quota; model selection is strictly manual', () => {
     // Even if preferred model key is in cooldown or exhausted, it NEVER switches model automatically
     const now = new Date('2026-09-29T12:00:00Z');

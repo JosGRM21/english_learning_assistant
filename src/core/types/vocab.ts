@@ -79,13 +79,6 @@ export interface VerbTenses {
   edPhoneticEnding?: '/t/' | '/d/' | '/ɪd/' | null;
 }
 
-export interface StructuredWordFamily {
-  nouns?: string[];
-  verbs?: string[];
-  adjectives?: string[];
-  adverbs?: string[];
-}
-
 export interface VocabSense {
   id?: string;
   senseId?: string;
@@ -123,11 +116,16 @@ export interface PhrasalVerbItem {
   id?: string;
   text: string;
   meaningEs: string;
+  definitionEn?: string;
+  ipaGeneralAmerican?: string;
+  ipaReceivedPronunciation?: string | null;
   type: PhrasalVerbType;
   pronounMustSplit?: boolean;
   cefrLevel: CefrLevel;
   example1: string;
+  example1Es?: string;
   example2?: string | null;
+  example2Es?: string | null;
 }
 
 export interface VocabItem {
@@ -150,9 +148,7 @@ export interface VocabItem {
   phoneticEdEnding?: '/t/' | '/d/' | '/ɪd/' | null;
   isFalseFriend: boolean;
   falseFriendNote?: string | null;
-  morphologicalFamilyJson?: string[] | null;
   verbTensesJson?: VerbTenses | null;
-  structuredFamilyJson?: StructuredWordFamily | null;
   domainCategory?: string | null;
   alternateSensesJson?: VocabSense[] | null;
   sensesJson?: VocabSense[] | null;
@@ -166,9 +162,15 @@ export interface PhraseologicalUnit {
   chunkType: ChunkType;
   text: string;
   meaningEs: string;
+  definitionEn?: string;
+  ipaGeneralAmerican?: string;
+  ipaReceivedPronunciation?: string | null;
   phrasalVerbType?: PhrasalVerbType | null;
+  pronounMustSplit?: boolean;
   example1: string;
+  example1Es?: string;
   example2?: string | null;
+  example2Es?: string | null;
   cefrLevel: CefrLevel;
   createdAt: string;
 }

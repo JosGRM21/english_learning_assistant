@@ -4,6 +4,7 @@ import {
   ExternalLink,
   PlusCircle,
   CheckCircle,
+  Compass,
 } from 'lucide-react';
 import { VocabSense, VocabItem } from '@/core/types/vocab';
 import { useAudio } from '@/shared/hooks/useAudio';
@@ -97,6 +98,54 @@ export function SenseBlock({
         </div>
       </div>
 
+      {/* Contextual Disambiguation Hint, POS & Syntactic Dimensions (RF-VOC-03, RF-VOC-04) */}
+      <div className="flex items-center gap-2 flex-wrap pt-0.5">
+        {/* Contextual Hint */}
+        {sense.contextualHint && (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-950/60 border border-indigo-500/30 text-[11px] font-medium text-indigo-300">
+            <Compass className="w-3 h-3 text-indigo-400" />
+            <span>Pista: {sense.contextualHint}</span>
+          </span>
+        )}
+
+        {/* Countability for Nouns */}
+        {sense.countability && (
+          <span
+            className="px-2 py-0.5 rounded-lg font-mono text-[11px] font-bold bg-[#141824] border border-white/[0.08] text-slate-300"
+            title={
+              sense.countability === 'COUNTABLE'
+                ? 'Sustantivo Contable [C]'
+                : sense.countability === 'UNCOUNTABLE'
+                ? 'Sustantivo Incontable [U]'
+                : 'Sustantivo con doble uso Contable e Incontable [C/U]'
+            }
+          >
+            {sense.countability === 'COUNTABLE' ? '[C] Contable' : sense.countability === 'UNCOUNTABLE' ? '[U] Incontable' : '[C/U]'}
+          </span>
+        )}
+
+        {/* Grammar Complementation Pattern */}
+        {sense.grammarPattern && (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-950/50 border border-emerald-500/30 font-mono text-[11px] font-semibold text-emerald-300">
+            <span className="text-[10px] uppercase font-sans text-emerald-400 font-bold">Régimen:</span>
+            <span>{sense.grammarPattern}</span>
+          </span>
+        )}
+
+        {/* Connotation */}
+        {sense.connotation && sense.connotation !== 'NEUTRAL' && (
+          <span
+            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${
+              sense.connotation === 'POSITIVE'
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
+            }`}
+          >
+            {sense.connotation === 'POSITIVE' ? 'Connotación Favorable' : 'Peyorativo / Desfavorable'}
+          </span>
+        )}
+      </div>
+
       {/* English Definition */}
       {sense.definitionEn && (
         <div className="space-y-1">
@@ -106,6 +155,25 @@ export function SenseBlock({
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
             {sense.definitionEn}
           </p>
+        </div>
+      )}
+
+      {/* Collocations Network (RF-VOC-05) */}
+      {sense.collocations && sense.collocations.length > 0 && (
+        <div className="space-y-1.5 pt-1">
+          <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+            COLOCACIONES HABITUALES ({sense.collocations.length})
+          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {sense.collocations.map((colloc, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center px-2.5 py-1 rounded-xl bg-[#141828] border border-white/[0.08] text-slate-200 font-editorial italic text-xs shadow-2xs hover:border-indigo-500/40 transition-colors"
+              >
+                &ldquo;{colloc}&rdquo;
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
@@ -143,6 +211,7 @@ export function SenseBlock({
                 {basicTranslation}
               </p>
             )}
+
             <button
               type="button"
               onClick={() => handleSpeak(`basic_${senseNumber}`, basicExample)}
@@ -167,6 +236,7 @@ export function SenseBlock({
                   {advancedTranslation}
                 </p>
               )}
+
               <button
                 type="button"
                 onClick={() => handleSpeak(`adv_${senseNumber}`, advancedExample)}

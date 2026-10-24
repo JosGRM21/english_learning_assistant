@@ -20,9 +20,7 @@ export interface VocabItemsTable {
   phonetic_ed_ending: string | null;
   is_false_friend: number;
   false_friend_note: string | null;
-  morphological_family_json: string | null;
   verb_tenses_json?: string | null;
-  structured_family_json?: string | null;
   domain_category?: string | null;
   alternate_senses_json?: string | null;
   created_at: Generated<string>;
@@ -34,10 +32,15 @@ export interface PhraseologicalUnitsTable {
   chunk_type: string;
   text: string;
   meaning_es: string;
+  definition_en: string;
+  ipa_general_american: string | null;
+  ipa_received_pronunciation: string | null;
   phrasal_verb_type: string | null;
   pronoun_must_split: Generated<number>;
   example_1: string;
+  example_1_es: string;
   example_2: string | null;
+  example_2_es: string | null;
   cefr_level: string;
   created_at: Generated<string>;
 }
@@ -124,7 +127,6 @@ export interface WritingEvaluationsTable {
   overall_feedback_es: string;
   qualitative_recommendations_es: Generated<string>;
   corrections_json: string;
-  micro_challenge_json: string | null;
   successful_repairs_json: string | null;
   evaluated_at: Generated<string>;
 }

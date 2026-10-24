@@ -36,9 +36,7 @@ describe('VocabRepository Integration Tests', () => {
           phoneticEdEnding: null,
           isFalseFriend: 0,
           falseFriendNote: null,
-          morphologicalFamilyJson: [],
           verbTensesJson: null,
-          structuredFamilyJson: null,
           domainCategory: 'Uso General',
           alternateSensesJson: null,
           graduatedExamples: {
@@ -68,9 +66,7 @@ describe('VocabRepository Integration Tests', () => {
           phoneticEdEnding: null,
           isFalseFriend: 0,
           falseFriendNote: null,
-          morphologicalFamilyJson: [],
           verbTensesJson: null,
-          structuredFamilyJson: null,
           domainCategory: 'Uso General',
           alternateSensesJson: null,
           graduatedExamples: {
@@ -107,7 +103,6 @@ describe('VocabRepository Integration Tests', () => {
       phoneticEdEnding: '/d/',
       isFalseFriend: false,
       falseFriendNote: null,
-      morphologicalFamilyJson: ['thriving', 'thrived'],
       verbTensesJson: {
         infinitive: 'thrive',
         pastSimple: 'thrived',
@@ -117,7 +112,6 @@ describe('VocabRepository Integration Tests', () => {
         isIrregular: false,
         edPhoneticEnding: '/d/',
       },
-      structuredFamilyJson: null,
       domainCategory: 'Negocios',
       alternateSensesJson: null,
     });
@@ -198,9 +192,7 @@ describe('VocabRepository Integration Tests', () => {
       phoneticEdEnding: null,
       isFalseFriend: false,
       falseFriendNote: null,
-      morphologicalFamilyJson: [],
       verbTensesJson: null,
-      structuredFamilyJson: null,
       domainCategory: 'Literatura',
       alternateSensesJson: null,
     });
@@ -327,7 +319,6 @@ describe('VocabRepository Integration Tests', () => {
       phoneticEdEnding: null,
       isFalseFriend: false,
       falseFriendNote: null,
-      morphologicalFamilyJson: [],
     });
 
     const item2 = await repo.createVocab({
@@ -347,7 +338,6 @@ describe('VocabRepository Integration Tests', () => {
       phoneticEdEnding: null,
       isFalseFriend: false,
       falseFriendNote: null,
-      morphologicalFamilyJson: [],
     });
 
     // 2. Add context examples
@@ -438,5 +428,62 @@ describe('VocabRepository Integration Tests', () => {
       .selectAll()
       .execute();
     expect(remainingLogs).toHaveLength(0);
+  });
+
+  it('batches context examples retrieval in a single query with getContextExamplesForVocabs', async () => {
+    // Insert two test vocab items with examples
+    const v1 = await repo.createVocab({
+      word: 'batchone',
+      translationEs: 'lote uno',
+      definitionEn: 'first batch item',
+      ipaGeneralAmerican: 'bætʃ wʌn',
+      isFalseFriend: false,
+      cefrLevel: 'A1',
+      partOfSpeech: 'NOUN',
+      grammaticalDimension: 'CONTENT',
+      isCore: false,
+      masteryStatus: 'LEARNING',
+    });
+    const v2 = await repo.createVocab({
+      word: 'batchtwo',
+      translationEs: 'lote dos',
+      definitionEn: 'second batch item',
+      ipaGeneralAmerican: 'bætʃ tuː',
+      isFalseFriend: false,
+      cefrLevel: 'B1',
+      partOfSpeech: 'VERB',
+      grammaticalDimension: 'CONTENT',
+      isCore: false,
+      masteryStatus: 'LEARNING',
+    });
+
+    await repo.addContextExample({
+      vocabId: v1.id,
+      sentenceEn: 'This is batch one.',
+      sentenceEs: 'Este es el lote uno.',
+      clozeTarget: 'batchone',
+      cefrLevel: 'A1',
+    });
+
+    await repo.addContextExample({
+      vocabId: v2.id,
+      sentenceEn: 'This is batch two.',
+      sentenceEs: 'Este es el lote dos.',
+      clozeTarget: 'batchtwo',
+      cefrLevel: 'B1',
+    });
+
+    const results = await repo.getContextExamplesForVocabs([v1.id, v2.id]);
+    expect(results[v1.id]).toBeDefined();
+    expect(results[v1.id]).toHaveLength(1);
+    expect(results[v1.id][0].sentenceEn).toBe('This is batch one.');
+
+    expect(results[v2.id]).toBeDefined();
+    expect(results[v2.id]).toHaveLength(1);
+    expect(results[v2.id][0].sentenceEn).toBe('This is batch two.');
+
+    // Empty array returns empty map
+    const emptyResult = await repo.getContextExamplesForVocabs([]);
+    expect(emptyResult).toEqual({});
   });
 });

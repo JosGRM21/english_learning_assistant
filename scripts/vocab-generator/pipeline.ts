@@ -76,10 +76,17 @@ export class VocabGeneratorPipeline {
 
         const items: GeneratedVocabWord[] = batchResponse.items.map((raw, idx) => {
           const inputLemma = lemmas[idx];
-          const frequencyBand =
-            inputLemma && typeof inputLemma !== 'string' && inputLemma.frequencyBand
-              ? (inputLemma.frequencyBand as GeneratedVocabWord['frequencyBand'])
-              : raw.frequencyBand;
+          let frequencyBand: GeneratedVocabWord['frequencyBand'] = raw.frequencyBand;
+
+          // Derivar banda de frecuencia matemática desde rank para cumplir con el esquema Zod sin redundancia
+          if (inputLemma && typeof inputLemma !== 'string') {
+            if ('rank' in inputLemma && typeof (inputLemma as any).rank === 'number') {
+              const r = (inputLemma as any).rank;
+              frequencyBand = r <= 500 ? 'TOP_500' : r <= 1000 ? 'TOP_1000' : r <= 3000 ? 'TOP_3000' : 'TOP_5000';
+            } else if ('frequencyBand' in inputLemma && (inputLemma as any).frequencyBand) {
+              frequencyBand = (inputLemma as any).frequencyBand;
+            }
+          }
 
           return {
             ...raw,
@@ -192,8 +199,10 @@ export class VocabGeneratorPipeline {
 
           const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
           const percent = ((completedCount / batches.length) * 100).toFixed(1);
+          const remainingBatches = batches.length - completedCount;
+          const etaMinutes = ((remainingBatches * Math.max(parseFloat(elapsedSec), 4.1)) / (60 * concurrency)).toFixed(1);
           console.log(
-            `[Progreso ${percent}%] [Worker ${workerId}] Lote ${task.batchId} (${task.lemmas.length} palabras) completado en ${elapsedSec}s. (${completedCount}/${batches.length})`
+            `[Progreso ${percent}% | ETA ~${etaMinutes}m] [Worker ${workerId}] Lote ${task.batchId} (${task.lemmas.length} palabras) completado en ${elapsedSec}s. (${completedCount}/${batches.length})`
           );
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);

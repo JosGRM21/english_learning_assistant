@@ -14,7 +14,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 1420,
+    port: 1421,
     strictPort: true,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
@@ -25,7 +25,7 @@ export default defineConfig({
     },
   },
   preview: {
-    port: 1420,
+    port: 1421,
     strictPort: true,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',

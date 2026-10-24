@@ -9,42 +9,25 @@ import {
   GrammaticalDimension,
   PartOfSpeech,
   VerbTenses,
-  StructuredWordFamily,
   VocabSense,
   VocabMasteryStatus,
+  PhrasalVerbItem,
 } from '../../../core/types/vocab';
 import {
   searchCoreCorpusLocally,
   getCoreCorpusWord,
+  getCorePhrasalUnits,
   toDomainCoreVocab,
   CORE_VOCAB_DATA,
 } from '@/data/core-vocab-corpus';
 
 export function mapVocabRowToDomain(row: Selectable<VocabItemsTable>): VocabItem {
-  let morphologicalFamily: string[] = [];
-  if (row.morphological_family_json) {
-    try {
-      morphologicalFamily = JSON.parse(row.morphological_family_json);
-    } catch {
-      morphologicalFamily = [];
-    }
-  }
-
   let verbTenses: VerbTenses | null = null;
   if (row.verb_tenses_json) {
     try {
       verbTenses = JSON.parse(row.verb_tenses_json);
     } catch {
       verbTenses = null;
-    }
-  }
-
-  let structuredFamily: StructuredWordFamily | null = null;
-  if (row.structured_family_json) {
-    try {
-      structuredFamily = JSON.parse(row.structured_family_json);
-    } catch {
-      structuredFamily = null;
     }
   }
 
@@ -88,6 +71,18 @@ export function mapVocabRowToDomain(row: Selectable<VocabItemsTable>): VocabItem
     ...(alternateSenses || []),
   ];
 
+  const corePhrasals = getCorePhrasalUnits(row.id);
+  const phrasalVerbsJson: PhrasalVerbItem[] = corePhrasals.map((p) => ({
+    id: p.id,
+    text: p.text,
+    meaningEs: p.meaningEs,
+    type: p.phrasalVerbType || 'TYPE_3_INSEPARABLE',
+    pronounMustSplit: Boolean(p.pronounMustSplit),
+    cefrLevel: p.cefrLevel,
+    example1: p.example1,
+    example2: p.example2,
+  }));
+
   return {
     id: row.id,
     word: row.word,
@@ -108,12 +103,11 @@ export function mapVocabRowToDomain(row: Selectable<VocabItemsTable>): VocabItem
     phoneticEdEnding: (row.phonetic_ed_ending as '/t/' | '/d/' | '/ɪd/' | null) ?? null,
     isFalseFriend: Boolean(row.is_false_friend),
     falseFriendNote: row.false_friend_note,
-    morphologicalFamilyJson: morphologicalFamily,
     verbTensesJson: verbTenses,
-    structuredFamilyJson: structuredFamily,
     domainCategory: row.domain_category ?? null,
     alternateSensesJson: alternateSenses,
     sensesJson,
+    phrasalVerbsJson,
     createdAt: row.created_at,
   };
 }
@@ -249,6 +243,59 @@ export class VocabRepository implements IVocabRepository {
     return [];
   }
 
+  async getContextExamplesForVocabs(vocabIds: string[]): Promise<Record<string, VocabContextExample[]>> {
+    if (vocabIds.length === 0) return {};
+
+    const rows = await this.db
+      .selectFrom('vocab_context_examples')
+      .selectAll()
+      .where('vocab_id', 'in', vocabIds)
+      .execute();
+
+    const map: Record<string, VocabContextExample[]> = {};
+    for (const row of rows) {
+      if (row.vocab_id) {
+        if (!map[row.vocab_id]) {
+          map[row.vocab_id] = [];
+        }
+        map[row.vocab_id].push(this.toDomainContext(row));
+      }
+    }
+
+    // Synthesize graduated examples for missing IDs from in-memory core corpus fallback
+    for (const vocabId of vocabIds) {
+      if (!map[vocabId] || map[vocabId].length === 0) {
+        const coreWord = CORE_VOCAB_DATA.find((item) => item.id === vocabId);
+        if (coreWord?.graduatedExamples) {
+          const basicCloze = coreWord.graduatedExamples.clozeTargetBasic || coreWord.word;
+          const advCloze = coreWord.graduatedExamples.clozeTargetAdvanced || coreWord.word;
+          map[vocabId] = [
+            {
+              id: `ctx_core_${vocabId}_basic`,
+              vocabId,
+              sentenceEn: coreWord.graduatedExamples.sentenceBasicEn,
+              sentenceEs: coreWord.graduatedExamples.sentenceBasicEs,
+              clozeTarget: basicCloze,
+              cefrLevel: 'A2',
+              createdAt: new Date().toISOString(),
+            },
+            {
+              id: `ctx_core_${vocabId}_adv`,
+              vocabId,
+              sentenceEn: coreWord.graduatedExamples.sentenceAdvancedEn,
+              sentenceEs: coreWord.graduatedExamples.sentenceAdvancedEs,
+              clozeTarget: advCloze,
+              cefrLevel: 'B2',
+              createdAt: new Date().toISOString(),
+            },
+          ];
+        }
+      }
+    }
+
+    return map;
+  }
+
   async findExistingByWord(word: string): Promise<VocabItem[]> {
     const clean = word.trim().toLowerCase();
     if (!clean) return [];
@@ -270,14 +317,17 @@ export class VocabRepository implements IVocabRepository {
     return [];
   }
 
-  async getAllVocabs(limit = 100): Promise<VocabItem[]> {
-    const rows = await this.db
+  async getAllVocabs(limit?: number): Promise<VocabItem[]> {
+    let query = this.db
       .selectFrom('vocab_items')
       .selectAll()
-      .orderBy('cefr_level', 'asc')
-      .limit(limit)
-      .execute();
+      .orderBy('cefr_level', 'asc');
 
+    if (limit !== undefined && limit > 0) {
+      query = query.limit(limit);
+    }
+
+    const rows = await query.execute();
     return rows.map((row) => this.toDomainVocab(row));
   }
 
@@ -466,9 +516,7 @@ export class VocabRepository implements IVocabRepository {
   async createVocab(vocab: CreateVocabInput): Promise<VocabItem> {
     const id = vocab.id ?? `voc_custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const createdAt = new Date().toISOString();
-    const morphJson = vocab.morphologicalFamilyJson ? JSON.stringify(vocab.morphologicalFamilyJson) : JSON.stringify([]);
     const verbTensesJson = vocab.verbTensesJson ? JSON.stringify(vocab.verbTensesJson) : null;
-    const structuredFamilyJson = vocab.structuredFamilyJson ? JSON.stringify(vocab.structuredFamilyJson) : null;
     const alternateSensesJson = vocab.alternateSensesJson ? JSON.stringify(vocab.alternateSensesJson) : null;
     const collocationsJson = vocab.collocationsJson ? JSON.stringify(vocab.collocationsJson) : JSON.stringify([]);
 
@@ -505,9 +553,7 @@ export class VocabRepository implements IVocabRepository {
         phonetic_ed_ending: vocab.phoneticEdEnding ?? null,
         is_false_friend: vocab.isFalseFriend ? 1 : 0,
         false_friend_note: vocab.falseFriendNote?.trim() || null,
-        morphological_family_json: morphJson,
         verb_tenses_json: verbTensesJson,
-        structured_family_json: structuredFamilyJson,
         domain_category: vocab.domainCategory ?? null,
         alternate_senses_json: alternateSensesJson,
       })
@@ -532,9 +578,7 @@ export class VocabRepository implements IVocabRepository {
       phoneticEdEnding: vocab.phoneticEdEnding ?? null,
       isFalseFriend: vocab.isFalseFriend,
       falseFriendNote: vocab.falseFriendNote?.trim() || null,
-      morphologicalFamilyJson: vocab.morphologicalFamilyJson ?? [],
       verbTensesJson: vocab.verbTensesJson ?? null,
-      structuredFamilyJson: vocab.structuredFamilyJson ?? null,
       domainCategory: vocab.domainCategory ?? null,
       alternateSensesJson: vocab.alternateSensesJson ?? null,
       createdAt,
@@ -599,14 +643,8 @@ export class VocabRepository implements IVocabRepository {
     if (updates.isFalseFriend !== undefined) updateValues.is_false_friend = updates.isFalseFriend ? 1 : 0;
     if (updates.falseFriendNote !== undefined) updateValues.false_friend_note = updates.falseFriendNote?.trim() || null;
     if (updates.domainCategory !== undefined) updateValues.domain_category = updates.domainCategory;
-    if (updates.morphologicalFamilyJson !== undefined) {
-      updateValues.morphological_family_json = JSON.stringify(updates.morphologicalFamilyJson);
-    }
     if (updates.verbTensesJson !== undefined) {
       updateValues.verb_tenses_json = updates.verbTensesJson ? JSON.stringify(updates.verbTensesJson) : null;
-    }
-    if (updates.structuredFamilyJson !== undefined) {
-      updateValues.structured_family_json = updates.structuredFamilyJson ? JSON.stringify(updates.structuredFamilyJson) : null;
     }
     if (updates.alternateSensesJson !== undefined) {
       updateValues.alternate_senses_json = updates.alternateSensesJson ? JSON.stringify(updates.alternateSensesJson) : null;
@@ -673,13 +711,39 @@ export class VocabRepository implements IVocabRepository {
   }
 
   async clearAllVocabs(): Promise<number> {
-    // 1. Delete all SRS cards for vocab & phrase targets (cascades to review_logs)
+    // 1. Find all SRS cards for vocab & phrase targets
+    const associatedCards = await this.db
+      .selectFrom('srs_cards')
+      .select('id')
+      .where('target_type', 'in', ['VOCAB', 'PHRASE'])
+      .execute();
+
+    // 2. Delete review logs first for data integrity
+    if (associatedCards.length > 0) {
+      const cardIds = associatedCards.map((c) => c.id);
+      await this.db
+        .deleteFrom('review_logs')
+        .where('card_id', 'in', cardIds)
+        .execute();
+    }
+
+    // 3. Delete all SRS cards for vocab & phrase targets
     await this.db
       .deleteFrom('srs_cards')
       .where('target_type', 'in', ['VOCAB', 'PHRASE'])
       .execute();
 
-    // 2. Delete all vocab items (cascades to vocab_context_examples and phraseological_units)
+    // 4. Delete context examples
+    await this.db
+      .deleteFrom('vocab_context_examples')
+      .execute();
+
+    // 5. Delete phraseological units
+    await this.db
+      .deleteFrom('phraseological_units')
+      .execute();
+
+    // 6. Delete all vocab items
     const result = await this.db
       .deleteFrom('vocab_items')
       .executeTakeFirst();

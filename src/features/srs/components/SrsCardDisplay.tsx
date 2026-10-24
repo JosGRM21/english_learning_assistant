@@ -79,9 +79,14 @@ export function SrsCardDisplay({
                 <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 tracking-tight">
                   Nivel {selectedVocab.cefrLevel}
                 </span>
-                {selectedVocab.phoneticEdEnding && (
+                {(selectedVocab.phoneticEdEnding || selectedVocab.verbTensesJson?.edPhoneticEnding) && (
                   <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400 bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50">
-                    -ed: {selectedVocab.phoneticEdEnding}
+                    -ed: {selectedVocab.phoneticEdEnding || selectedVocab.verbTensesJson?.edPhoneticEnding}
+                  </span>
+                )}
+                {selectedVocab.ipaWeakForm && (
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/50 dark:border-indigo-800/50">
+                    débil: /{selectedVocab.ipaWeakForm}/
                   </span>
                 )}
                 {selectedVocab.isFalseFriend && (
@@ -194,17 +199,40 @@ export function SrsCardDisplay({
                 )}
               </div>
 
-              {/* Collocation Clue for Polysemy disambiguation (RF-SRS-04) */}
-              {selectedVocab.collocationsJson && selectedVocab.collocationsJson.length > 0 && (
-                <div className="flex items-center justify-center pt-1.5">
-                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50 text-xs">
-                    <span className="text-slate-400 dark:text-slate-500 font-medium">Pista de colocación:</span>
-                    <span className="italic font-editorial font-medium text-slate-800 dark:text-slate-200">
-                      &ldquo;{selectedVocab.collocationsJson[0]}&rdquo;
-                    </span>
+              {/* Contextual Disambiguation Hint or Collocation Clue (RF-SRS-04, RF-VOC-03, RF-VOC-05) */}
+              {(() => {
+                const primarySense = selectedVocab.sensesJson?.[0];
+                const hint = primarySense?.contextualHint;
+                const colloc =
+                  selectedVocab.collocationsJson && selectedVocab.collocationsJson.length > 0
+                    ? selectedVocab.collocationsJson[0]
+                    : primarySense?.collocations && primarySense.collocations.length > 0
+                    ? primarySense.collocations[0]
+                    : null;
+
+                if (!hint && !colloc) return null;
+
+                return (
+                  <div className="flex items-center justify-center pt-1.5 flex-wrap gap-2">
+                    {hint && (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200/50 dark:border-indigo-800/50 text-xs">
+                        <span className="text-indigo-500 dark:text-indigo-400 font-semibold">Pista:</span>
+                        <span className="font-medium text-indigo-900 dark:text-indigo-200">
+                          {hint}
+                        </span>
+                      </div>
+                    )}
+                    {colloc && (
+                      <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50 text-xs">
+                        <span className="text-slate-400 dark:text-slate-500 font-medium">Pista de colocación:</span>
+                        <span className="italic font-editorial font-medium text-slate-800 dark:text-slate-200">
+                          &ldquo;{colloc}&rdquo;
+                        </span>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Audio Controls with Keyboard shortcut cues */}
               <div className="flex items-center justify-center gap-2.5 pt-2">

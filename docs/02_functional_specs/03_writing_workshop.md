@@ -14,7 +14,7 @@ Guiar al usuario en el desarrollo de sus habilidades de escritura y producción 
 
 - **RF-WRT-01: Modalidades de Producción Escrita**:
 
-  - El sistema debe permitir al usuario seleccionar entre tres modalidades:
+  - El sistema debe permitir al usuario seleccionar entre dos modalidades:
     - *Escritura Libre*: Redacción abierta sin consigna previa.
     - *Lectura para Escribir*: Redacción basada en la lectura previa de un texto de referencia que sirve como modelo léxico, temático y estilístico.
 

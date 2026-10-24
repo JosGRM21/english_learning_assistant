@@ -10,6 +10,7 @@ import {
 } from '@/data/reading-to-write-catalog';
 import { WritingSubmissionEntity } from '@/core/repositories/IWritingRepository';
 import { isTargetWordUsedInText } from '@/core/text/WeakVocabMatcher';
+import { CefrLevel } from '@/core/types/vocab';
 
 export type WritingStudioTab = 'STUDIO' | 'HISTORY';
 export type SubmissionMode = 'FREE' | 'READING_TO_WRITE';
@@ -21,6 +22,7 @@ export interface TargetWordItem {
   domainCategory?: string;
   isUsed: boolean;
   cardId?: string;
+  recommendedContext?: string;
 }
 
 export interface WritingState {
@@ -35,7 +37,7 @@ export interface WritingState {
   selectedMission: WritingMission | null;
   draft1: string;
   draft2: string;
-  targetCefr: 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
+  targetCefr: CefrLevel;
 
   // Weak vocabulary target activation
   targetWords: TargetWordItem[];
@@ -45,10 +47,6 @@ export interface WritingState {
   isLoading: boolean;
   socraticResult: SocraticFeedbackResponse | null;
   evalResult: WritingEvaluationResponse | null;
-
-  // Error Drill station state
-  activeErrorIndex: number;
-  errorDrillsCompleted: Record<string, boolean>;
 
   // History & Archive state
   historySubmissions: WritingSubmissionEntity[];
@@ -63,7 +61,7 @@ export interface WritingState {
   setSelectedMission: (mission: WritingMission | null) => void;
   setDraft1: (text: string) => void;
   setDraft2: (text: string) => void;
-  setTargetCefr: (cefr: 'A1' | 'A2' | 'B1' | 'B2' | 'C1') => void;
+  setTargetCefr: (cefr: CefrLevel) => void;
   setTargetWords: (words: TargetWordItem[]) => void;
   setAvailableWeakPool: (pool: TargetWordItem[]) => void;
   replaceTargetWord: (index: number) => void;
@@ -71,8 +69,6 @@ export interface WritingState {
   setIsLoading: (loading: boolean) => void;
   setSocraticResult: (result: SocraticFeedbackResponse | null) => void;
   setEvalResult: (result: WritingEvaluationResponse | null) => void;
-  setActiveErrorIndex: (idx: number) => void;
-  setErrorDrillCompleted: (errorSpan: string, completed: boolean) => void;
   setHistorySubmissions: (subs: WritingSubmissionEntity[]) => void;
   setIsLoadingHistory: (loading: boolean) => void;
 
@@ -97,8 +93,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
   isLoading: false,
   socraticResult: null,
   evalResult: null,
-  activeErrorIndex: 0,
-  errorDrillsCompleted: {},
   historySubmissions: [],
   isLoadingHistory: false,
 
@@ -159,11 +153,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
   setIsLoading: (loading) => set({ isLoading: loading }),
   setSocraticResult: (result) => set({ socraticResult: result }),
   setEvalResult: (result) => set({ evalResult: result }),
-  setActiveErrorIndex: (idx) => set({ activeErrorIndex: idx }),
-  setErrorDrillCompleted: (errorSpan, completed) =>
-    set((state) => ({
-      errorDrillsCompleted: { ...state.errorDrillsCompleted, [errorSpan]: completed },
-    })),
   setHistorySubmissions: (subs) => set({ historySubmissions: subs }),
   setIsLoadingHistory: (loading) => set({ isLoadingHistory: loading }),
 
@@ -178,8 +167,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
       currentStage: 1,
       socraticResult: null,
       evalResult: null,
-      activeErrorIndex: 0,
-      errorDrillsCompleted: {},
     }),
 
   loadSubmissionIntoStudio: (item) => {
@@ -198,8 +185,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
         socraticResult: item.socraticResult ?? null,
         currentStage: 3,
         activeTab: 'STUDIO',
-        activeErrorIndex: 0,
-        errorDrillsCompleted: {},
       });
     } else if (item.socraticResult) {
       set({
@@ -213,8 +198,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
         evalResult: null,
         currentStage: 2,
         activeTab: 'STUDIO',
-        activeErrorIndex: 0,
-        errorDrillsCompleted: {},
       });
     } else {
       set({
@@ -228,8 +211,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
         activeTab: 'STUDIO',
         socraticResult: null,
         evalResult: null,
-        activeErrorIndex: 0,
-        errorDrillsCompleted: {},
       });
     }
   },
@@ -245,8 +226,6 @@ export const useWritingStore = create<WritingState>((set, get) => ({
       submissionMode: 'FREE',
       socraticResult: null,
       evalResult: null,
-      activeErrorIndex: 0,
-      errorDrillsCompleted: {},
     }),
 }));
 

@@ -247,7 +247,7 @@ export function NotificationSettingsCard() {
                   </div>
                   <div>
                     <h5 className="text-base font-bold text-gray-900 dark:text-white">
-                      Repaso de Tarjetas (FSRS & Fonética)
+                      Repaso de Tarjetas (FSRS Vocabulario)
                     </h5>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
                       Recordatorio para sesiones de tarjetas y consolidación de vocabulario activo.

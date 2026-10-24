@@ -31,13 +31,8 @@ export interface DefossilizationItem {
   srsCard?: SrsCard;
 }
 
-export function normalizeInput(str: string): string {
-  return str
-    .trim()
-    .toLowerCase()
-    .replace(/[.,!?;:'"«»]/g, '')
-    .replace(/\s+/g, ' ');
-}
+import { normalizeInput } from '@/shared/utils/text';
+export { normalizeInput };
 
 export function useDefossilizationSession() {
   const { writingRepo, cardRepo, isReady } = useDatabase();
@@ -62,7 +57,7 @@ export function useDefossilizationSession() {
 
   // Fetch data from SQLite
   const refreshData = useCallback(async () => {
-    if (!writingRepo || !cardRepo) return;
+    if (!writingRepo || !cardRepo) return null;
     setIsLoading(true);
     try {
       const [errors, dues] = await Promise.all([
@@ -71,8 +66,10 @@ export function useDefossilizationSession() {
       ]);
       setAllErrors(errors);
       setDueCards(dues);
+      return { errors, dues };
     } catch (err) {
       console.warn('Failed to load defossilization data:', err);
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -163,6 +160,13 @@ export function useDefossilizationSession() {
     return { total, fossilized, learning, internalized, dueCount };
   }, [allErrors, dueItems]);
 
+  // Safety bounds clamp
+  useEffect(() => {
+    if (filteredItems.length > 0 && currentIndex >= filteredItems.length) {
+      setCurrentIndex(Math.max(0, filteredItems.length - 1));
+    }
+  }, [filteredItems.length, currentIndex]);
+
   const currentItem: DefossilizationItem | undefined = filteredItems[currentIndex];
 
   // Initialize chunks for CHUNK_SCRAMBLE format
@@ -214,8 +218,17 @@ export function useDefossilizationSession() {
         normalizeInput(userAnswer) === normalizeInput(targetToken);
     } else if (currentItem.drillFormat === 'SENTENCE_REWRITE') {
       const keyword = currentItem.drillData.rewriteKeyword || '';
-      const hasKeyword = keyword ? userAnswer.toLowerCase().includes(keyword.toLowerCase()) : true;
-      correct = userAnswer.trim().length > 3 && hasKeyword;
+      const hasKeyword = keyword ? userAnswer.toLowerCase().includes(keyword.toLowerCase().trim()) : true;
+      const targetSentence = currentItem.drillData.rewriteTargetSentence || currentItem.nativeReformulation || targetToken;
+      const normUser = normalizeInput(userAnswer);
+      const normTarget = normalizeInput(targetSentence);
+      const normToken = normalizeInput(targetToken);
+      correct =
+        hasKeyword &&
+        userAnswer.trim().length > 3 &&
+        (normUser === normTarget ||
+          (normTarget.length > 0 && normUser.includes(normTarget)) ||
+          (normToken.length > 0 && normUser.includes(normToken)));
     } else {
       // CONTEXTUAL_CLOZE
       correct = normalizeInput(userAnswer) === normalizeInput(targetToken);
@@ -265,15 +278,46 @@ export function useDefossilizationSession() {
         await writingRepo.updateErrorMastery(currentItem.id, 'RECIDIVIST');
       }
 
-      // Refresh data and move to next or stay in bounds
-      await refreshData();
-      if (currentIndex < filteredItems.length - 1) {
-        setCurrentIndex((prev) => prev + 1);
-      } else {
-        setCurrentIndex(0);
+      const reviewedId = currentItem.id;
+      // Refresh data and move to next or stay in bounds without skipping cards
+      const refreshed = await refreshData();
+      if (refreshed) {
+        let newLength = 0;
+        let itemStillInList = false;
+
+        if (activeFilter === 'DUE') {
+          const dueList = refreshed.dues.filter((d) => d.writingError);
+          newLength = dueList.length;
+          itemStillInList = dueList.some((d) => d.writingError?.id === reviewedId);
+        } else if (activeFilter === 'ALL') {
+          newLength = refreshed.errors.length;
+          itemStillInList = refreshed.errors.some((e) => e.id === reviewedId);
+        } else if (activeFilter === 'FOSSILIZED') {
+          const fossilized = refreshed.errors.filter((e) => e.isFossilizedAlert || e.timesRecidivist >= 2);
+          newLength = fossilized.length;
+          itemStillInList = fossilized.some((e) => e.id === reviewedId);
+        } else if (activeFilter === 'LEARNING') {
+          const learning = refreshed.errors.filter((e) => e.masteryStatus === 'LEARNING');
+          newLength = learning.length;
+          itemStillInList = learning.some((e) => e.id === reviewedId);
+        } else if (activeFilter === 'INTERNALIZED') {
+          const internalized = refreshed.errors.filter((e) => e.masteryStatus === 'INTERNALIZED');
+          newLength = internalized.length;
+          itemStillInList = internalized.some((e) => e.id === reviewedId);
+        }
+
+        if (newLength === 0) {
+          setCurrentIndex(0);
+        } else if (itemStillInList) {
+          setCurrentIndex((prev) => (prev + 1) % newLength);
+        } else {
+          // If the item left the list (scheduled into the future or mastered),
+          // the next card has shifted into currentIndex position. Clamp to newLength - 1.
+          setCurrentIndex((prev) => Math.min(prev, newLength - 1));
+        }
       }
     },
-    [currentItem, cardRepo, writingRepo, scheduler, refreshData, currentIndex, filteredItems.length],
+    [currentItem, cardRepo, writingRepo, scheduler, refreshData, activeFilter],
   );
 
   // Audio Playback

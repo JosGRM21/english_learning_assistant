@@ -128,7 +128,7 @@ export class FsrsScheduler {
 
     const target = new Date(now);
     const isBeforeCutoff = target.getHours() < cutoffHour;
-    const daysToAdd = isBeforeCutoff ? Math.max(1, intervalDays) : intervalDays;
+    const daysToAdd = isBeforeCutoff ? Math.max(0, intervalDays - 1) : intervalDays;
 
     target.setDate(target.getDate() + daysToAdd);
     target.setHours(cutoffHour, 0, 0, 0);

@@ -1,4 +1,8 @@
-import { IAiGateway } from './IAiGateway';
+import {
+  IAiGateway,
+  SocraticContextualInfo,
+  WritingEvaluationContextualInfo,
+} from './IAiGateway';
 import {
   SocraticFeedbackResponse,
   SocraticFeedbackResponseSchema,
@@ -14,6 +18,7 @@ export class MockAiGateway implements IAiGateway {
   public async evaluateSocraticPhase1(
     userText: string,
     _cefrTarget = 'B1',
+    _contextualInfo?: SocraticContextualInfo,
   ): Promise<SocraticFeedbackResponse> {
     // Artificial slight latency simulation (sub-50ms in mock)
     await new Promise((r) => setTimeout(r, 40));
@@ -26,6 +31,7 @@ export class MockAiGateway implements IAiGateway {
       clues.push({
         paragraph_index: 1,
         clue_type: 'PREPOSITION',
+        is_l1_spanish_transfer: true,
         hint_question_es:
           "Revisa el verbo 'depend': en español decimos 'depende de', pero en inglés siempre se apoya sobre una superficie figurada. ¿Cuál es esa preposición?",
         highlighted_area: area,
@@ -47,6 +53,7 @@ export class MockAiGateway implements IAiGateway {
       clues.push({
         paragraph_index: 1,
         clue_type: 'AGREEMENT',
+        is_l1_spanish_transfer: true,
         hint_question_es:
           "En inglés, 'agree' ya es una acción/verbo por sí mismo. ¿Es necesario añadir el verbo 'to be' antes de él?",
         highlighted_area: area,
@@ -63,6 +70,7 @@ export class MockAiGateway implements IAiGateway {
       clues.push({
         paragraph_index: 1,
         clue_type: 'FALSE_FRIEND',
+        is_l1_spanish_transfer: true,
         hint_question_es:
           "'Actually' es un falso amigo muy engañoso. ¿Recuerdas qué adverbio usamos en inglés para expresar 'en este momento/en la actualidad'?",
         highlighted_area: 'actually',
@@ -80,6 +88,7 @@ export class MockAiGateway implements IAiGateway {
       clues.push({
         paragraph_index: 1,
         clue_type: 'TENSE_ASPECT',
+        is_l1_spanish_transfer: true,
         hint_question_es:
           "¿Recuerdas cómo conceptualiza el idioma inglés la edad? ¿Se 'tiene' la edad o se 'es' de esa edad?",
         highlighted_area: haveMatch[0],
@@ -96,7 +105,8 @@ export class MockAiGateway implements IAiGateway {
     if (clues.length === 0) {
       clues.push({
         paragraph_index: 1,
-        clue_type: 'WORD_CHOICE',
+        clue_type: 'COHESION_LINKERS',
+        is_l1_spanish_transfer: false,
         hint_question_es:
           "Tu idea se entiende claramente. ¿Podrías enriquecer esta oración utilizando un conector formal como 'furthermore' o 'on the other hand'?",
         highlighted_area: userText.slice(0, Math.min(25, userText.length)),
@@ -128,7 +138,7 @@ export class MockAiGateway implements IAiGateway {
     draft1: string,
     draft2: string,
     cefrTarget = 'B1',
-    contextualInfo?: { readingContext?: string; targetWords?: string[] },
+    contextualInfo?: WritingEvaluationContextualInfo,
   ): Promise<WritingEvaluationResponse> {
     await new Promise((r) => setTimeout(r, 60));
 
@@ -315,13 +325,6 @@ export class MockAiGateway implements IAiGateway {
         exampleSentenceEs: 'El hotel ofrece un alojamiento confortable para viajeros de negocios.',
         isFalseFriend: false,
         falseFriendNote: null,
-        morphologicalFamily: ['accommodate', 'accommodating'],
-        structuredFamily: {
-          nouns: ['accommodation'],
-          verbs: ['accommodate'],
-          adjectives: ['accommodating'],
-          adverbs: [],
-        },
         spellingCorrection: {
           hasCorrection: true,
           originalInput: 'acomodation',
@@ -347,13 +350,6 @@ export class MockAiGateway implements IAiGateway {
         exampleSentenceEs: 'Definitivamente me uniré a ti para la presentación del proyecto mañana.',
         isFalseFriend: false,
         falseFriendNote: null,
-        morphologicalFamily: ['define', 'definite', 'definition'],
-        structuredFamily: {
-          nouns: ['definition'],
-          verbs: ['define'],
-          adjectives: ['definite'],
-          adverbs: ['definitely'],
-        },
         spellingCorrection: {
           hasCorrection: true,
           originalInput: 'definitly',
@@ -379,13 +375,6 @@ export class MockAiGateway implements IAiGateway {
         exampleSentenceEs: 'Ella se mantuvo resiliente frente a numerosos desafíos profesionales.',
         isFalseFriend: false,
         falseFriendNote: null,
-        morphologicalFamily: ['resilience', 'resiliently'],
-        structuredFamily: {
-          nouns: ['resilience'],
-          verbs: [],
-          adjectives: ['resilient'],
-          adverbs: ['resiliently'],
-        },
         senses: [],
         isValidEnglishWord: true,
       },
@@ -402,13 +391,6 @@ export class MockAiGateway implements IAiGateway {
         exampleSentenceEs: 'Intento correr cinco kilómetros en el parque cada mañana.',
         isFalseFriend: false,
         falseFriendNote: null,
-        morphologicalFamily: ['runner', 'running'],
-        structuredFamily: {
-          nouns: ['runner', 'running'],
-          verbs: ['run'],
-          adjectives: [],
-          adverbs: [],
-        },
         verbTenses: {
           infinitive: 'run',
           pastSimple: 'ran',
@@ -455,13 +437,6 @@ export class MockAiGateway implements IAiGateway {
         exampleSentenceEs: 'Ten cuidado de no romper el delicado jarrón de cristal.',
         isFalseFriend: false,
         falseFriendNote: null,
-        morphologicalFamily: ['breakage', 'breakable', 'unbreakable'],
-        structuredFamily: {
-          nouns: ['breakage', 'break'],
-          verbs: ['break'],
-          adjectives: ['breakable', 'unbreakable'],
-          adverbs: [],
-        },
         verbTenses: {
           infinitive: 'break',
           pastSimple: 'broke',
@@ -498,13 +473,6 @@ export class MockAiGateway implements IAiGateway {
         exampleSentenceEs: 'Pensé que el examen era mañana, pero en realidad es hoy.',
         isFalseFriend: true,
         falseFriendNote: "No significa 'actualmente' (en este momento), sino 'en realidad' o 'de hecho'. Para 'actualmente', usa 'currently' o 'at present'.",
-        morphologicalFamily: ['actual', 'actuality'],
-        structuredFamily: {
-          nouns: ['actuality'],
-          verbs: [],
-          adjectives: ['actual'],
-          adverbs: ['actually'],
-        },
         senses: [],
         isValidEnglishWord: true,
       },
@@ -521,13 +489,6 @@ export class MockAiGateway implements IAiGateway {
         exampleSentenceEs: 'Los científicos lograron un avance crucial en el almacenamiento de energía renovable.',
         isFalseFriend: false,
         falseFriendNote: null,
-        morphologicalFamily: ['break through'],
-        structuredFamily: {
-          nouns: ['breakthrough'],
-          verbs: ['break through'],
-          adjectives: [],
-          adverbs: [],
-        },
         senses: [],
         isValidEnglishWord: true,
       },
@@ -544,13 +505,6 @@ export class MockAiGateway implements IAiGateway {
         exampleSentenceEs: 'Ellos rara vez van a restaurantes entre semana.',
         isFalseFriend: false,
         falseFriendNote: null,
-        morphologicalFamily: [],
-        structuredFamily: {
-          nouns: [],
-          verbs: [],
-          adjectives: [],
-          adverbs: ['seldom'],
-        },
         senses: [],
         isValidEnglishWord: true,
       },
@@ -567,13 +521,6 @@ export class MockAiGateway implements IAiGateway {
         exampleSentenceEs: 'Espero con entusiasmo saber de ti pronto.',
         isFalseFriend: false,
         falseFriendNote: null,
-        morphologicalFamily: [],
-        structuredFamily: {
-          nouns: [],
-          verbs: ['look forward to'],
-          adjectives: [],
-          adverbs: [],
-        },
         verbTenses: {
           infinitive: 'look forward to',
           pastSimple: 'looked forward to',
@@ -599,13 +546,6 @@ export class MockAiGateway implements IAiGateway {
         exampleSentenceEs: 'Él se sintió avergonzado cuando olvidó el nombre de su colega.',
         isFalseFriend: true,
         falseFriendNote: "No significa 'embarazada' (que en inglés es 'pregnant'), sino 'avergonzado/a' o 'apenado/a'.",
-        morphologicalFamily: ['embarrass', 'embarrassment', 'embarrassing'],
-        structuredFamily: {
-          nouns: ['embarrassment'],
-          verbs: ['embarrass'],
-          adjectives: ['embarrassed', 'embarrassing'],
-          adverbs: ['embarrassingly'],
-        },
         senses: [],
         isValidEnglishWord: true,
       },
@@ -650,13 +590,6 @@ export class MockAiGateway implements IAiGateway {
       exampleSentenceEs: `Aprender a usar "${cleanWord}" correctamente mejora la fluidez.`,
       isFalseFriend: false,
       falseFriendNote: null,
-      morphologicalFamily: [],
-      structuredFamily: {
-        nouns: detectedPos === 'NOUN' ? [cleanWord] : [],
-        verbs: detectedPos === 'VERB' ? [cleanWord] : [],
-        adjectives: detectedPos === 'ADJECTIVE' ? [cleanWord] : [],
-        adverbs: detectedPos === 'ADVERB' ? [cleanWord] : [],
-      },
       verbTenses: fallbackVerbTenses,
       senses: [],
       isValidEnglishWord: true,

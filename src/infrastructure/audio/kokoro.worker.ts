@@ -180,7 +180,10 @@ async function initKokoro(): Promise<boolean> {
 
       try {
         const { env } = await import('@huggingface/transformers');
-        env.allowLocalModels = true;
+        const useLocalModels =
+          typeof import.meta !== 'undefined' &&
+          (import.meta as any).env?.VITE_USE_LOCAL_MODELS === 'true';
+        env.allowLocalModels = useLocalModels;
         env.allowRemoteModels = true;
 
         // Lightweight Cache API availability check without disk I/O probe

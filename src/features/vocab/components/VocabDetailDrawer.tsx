@@ -4,10 +4,13 @@ import {
   Volume2,
   Volume1,
   AlertTriangle,
+  AlertCircle,
   Brain,
   Trash2,
   Edit3,
   Check,
+  CheckCircle,
+  ExternalLink,
   ChevronLeft,
   ChevronRight,
   PlusCircle,
@@ -43,7 +46,6 @@ import { useAudio } from '@/shared/hooks/useAudio';
 import { useDatabase } from '@/shared/hooks/useDatabase';
 import { SenseBlock } from './SenseBlock';
 import { VerbTensesTable } from './VerbTensesTable';
-import { StructuredFamilyCard } from './StructuredFamilyCard';
 
 export interface VocabDetailDrawerProps {
   vocab: VocabItem | null;
@@ -56,6 +58,7 @@ export interface VocabDetailDrawerProps {
   onDeleteWord?: (id: string) => Promise<boolean>;
   onUpdateWord?: (id: string, updates: Partial<VocabItem>) => Promise<VocabItem | null>;
   onActivateWord?: (id: string) => Promise<VocabItem | null>;
+  onActivatePhrase?: (phraseId: string) => Promise<boolean>;
   onNavigateWord?: (direction: 'prev' | 'next') => void;
   hasPrev?: boolean;
   hasNext?: boolean;
@@ -73,6 +76,7 @@ export function VocabDetailDrawer({
   onDeleteWord,
   onUpdateWord,
   onActivateWord,
+  onActivatePhrase,
   onNavigateWord,
   hasPrev = false,
   hasNext = false,
@@ -316,17 +320,10 @@ export function VocabDetailDrawer({
     (ex) => Boolean(ex?.sentenceEn) && !displayedSentenceTexts.has(ex.sentenceEn.trim().toLowerCase()),
   );
 
-  // Check if word has verb tenses or word family for Tab 2
+  // Check if word has verb tenses or phrasal verbs for Tab 2
   const hasVerbTenses = Boolean(currentVocab.verbTensesJson);
-  const hasWordFamily = Boolean(
-    (currentVocab.structuredFamilyJson &&
-      (currentVocab.structuredFamilyJson.nouns?.length ||
-        currentVocab.structuredFamilyJson.verbs?.length ||
-        currentVocab.structuredFamilyJson.adjectives?.length ||
-        currentVocab.structuredFamilyJson.adverbs?.length)) ||
-      (currentVocab.morphologicalFamilyJson && currentVocab.morphologicalFamilyJson.length > 0),
-  );
-  const hasGrammarTab = hasVerbTenses || hasWordFamily;
+  const hasPhrasalVerbs = Boolean(currentVocab.phrasalVerbsJson && currentVocab.phrasalVerbsJson.length > 0);
+  const hasGrammarTab = hasVerbTenses || hasPhrasalVerbs;
 
   const edEnding = currentVocab.phoneticEdEnding || currentVocab.verbTensesJson?.edPhoneticEnding;
 
@@ -364,7 +361,7 @@ export function VocabDetailDrawer({
                   <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Ficha de Diccionario
                   </span>
-                  {currentVocab.domainCategory && currentVocab.domainCategory !== 'Uso General' && (
+                  {currentVocab.domainCategory && currentVocab.domainCategory !== 'Uso General' && currentVocab.domainCategory !== 'Phrasal Verb' && (
                     <>
                       <span className="text-gray-300 dark:text-gray-700">·</span>
                       <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
@@ -480,7 +477,9 @@ export function VocabDetailDrawer({
 
                   {/* Domain Category / Uso General */}
                   <span className="px-3 py-1 rounded-xl bg-indigo-950/40 text-indigo-300 font-medium text-xs border border-indigo-500/40">
-                    {currentVocab.domainCategory || 'Uso General'}
+                    {currentVocab.domainCategory && currentVocab.domainCategory !== 'Phrasal Verb'
+                      ? currentVocab.domainCategory
+                      : 'Uso General'}
                   </span>
 
                   {/* Grammatical Dimension / Contenido Léxico */}
@@ -521,6 +520,28 @@ export function VocabDetailDrawer({
                         </div>
                       </>
                     )}
+
+                    {/* Weak form reduction if present (RF-VOC-06) */}
+                    {currentVocab.ipaWeakForm && (
+                      <>
+                        <span className="text-gray-300 dark:text-gray-700 select-none">·</span>
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 text-xs font-phonetic font-medium">
+                          <span className="text-[10px] uppercase font-sans font-bold text-indigo-400">Débil (Schwa):</span>
+                          <span>//{currentVocab.ipaWeakForm}//</span>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Regular verb -ed ending alophone (RF-VOC-06) */}
+                    {edEnding && (
+                      <>
+                        <span className="text-gray-300 dark:text-gray-700 select-none">·</span>
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-medium">
+                          <span className="text-[10px] uppercase font-sans font-bold text-emerald-400">-ed:</span>
+                          <span>{edEnding}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -552,6 +573,19 @@ export function VocabDetailDrawer({
                     <span>0.75x Lento</span>
                   </button>
                 </div>
+
+                {/* Separable Phrasal Verb Strict Pronoun Rule Banner (RF-VOC-04) */}
+                {currentVocab.isSeparable && (
+                  <div className="p-3.5 rounded-2xl bg-indigo-500/10 dark:bg-indigo-950/40 border border-indigo-300/80 dark:border-indigo-700/60 space-y-1 shadow-2xs animate-in fade-in duration-200">
+                    <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-200 font-bold text-xs">
+                      <AlertCircle className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <span>Regla Estricta del Pronombre (Transitivo Separable)</span>
+                    </div>
+                    <p className="text-xs text-indigo-900/90 dark:text-indigo-200/90 leading-relaxed font-sans">
+                      Los pronombres de objeto dividen la partícula obligatoriamente: ej. <strong className="text-emerald-600 dark:text-emerald-400 font-mono">turn it off</strong>, nunca <span className="line-through text-rose-500 dark:text-rose-400 font-mono">*turn off it</span>.
+                    </p>
+                  </div>
+                )}
 
                 {/* False Friend Alert Banner */}
                 {currentVocab.isFalseFriend && (
@@ -802,11 +836,106 @@ export function VocabDetailDrawer({
                     </div>
                   )}
 
-                  {/* Morphological Word Family */}
-                  <StructuredFamilyCard
-                    family={currentVocab.structuredFamilyJson}
-                    legacyFamily={currentVocab.morphologicalFamilyJson}
-                  />
+                  {/* Satellite Phrasal Verbs (RF-VOC-04) */}
+                  {currentVocab.phrasalVerbsJson && currentVocab.phrasalVerbsJson.length > 0 && (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#141824] border border-gray-200/80 dark:border-white/[0.06] space-y-3 shadow-2xs">
+                      <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-white/[0.06]">
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                            <BookOpen className="w-3.5 h-3.5" />
+                          </span>
+                          <h4 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                            Verbos Frasales Satélites ({currentVocab.phrasalVerbsJson.length})
+                          </h4>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {currentVocab.phrasalVerbsJson.map((pv, idx) => {
+                          const matchingPhraseWord = allWords.find(
+                            (w) => (pv.id && w.id === pv.id) || w.word.toLowerCase() === pv.text.toLowerCase(),
+                          );
+                          const isPhraseActive = matchingPhraseWord
+                            ? matchingPhraseWord.masteryStatus !== 'INACTIVE'
+                            : false;
+                          const phraseTargetId = pv.id || matchingPhraseWord?.id;
+
+                          return (
+                            <div
+                              key={idx}
+                              className="p-3.5 rounded-xl bg-gray-50/70 dark:bg-[#10131E] border border-gray-200/60 dark:border-white/[0.04] space-y-2"
+                            >
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 font-mono">
+                                  {pv.text}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-gray-200/60 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                                    {pv.cefrLevel}
+                                  </span>
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
+                                    {pv.type}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <p className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                                {pv.meaningEs}
+                              </p>
+
+                              {pv.pronounMustSplit && (
+                                <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                                  Separable: el pronombre divide obligatoriamente la partícula (ej. <em>turn it off</em>).
+                                </p>
+                              )}
+
+                              {pv.example1 && (
+                                <p className="text-[11px] font-editorial italic text-gray-500 dark:text-gray-400 pt-0.5">
+                                  &ldquo;{pv.example1}&rdquo;
+                                </p>
+                              )}
+
+                              {/* Action buttons: SRS status / Activation / Ver Ficha */}
+                              <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-100 dark:border-white/[0.04]">
+                                <div>
+                                  {isPhraseActive ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                                      <CheckCircle className="w-3 h-3 text-emerald-500" />
+                                      <span>En Repaso SRS</span>
+                                    </span>
+                                  ) : (
+                                    onActivatePhrase && phraseTargetId && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onActivatePhrase(phraseTargetId)}
+                                        className="h-6 px-2.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/60 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                        title="Activar en el mazo de repaso espaciado FSRS"
+                                      >
+                                        <PlusCircle className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />
+                                        <span>Activar en SRS</span>
+                                      </button>
+                                    )
+                                  )}
+                                </div>
+
+                                {matchingPhraseWord && onSelectWord && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onSelectWord(matchingPhraseWord)}
+                                    className="h-6 px-2 rounded-md hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                                    title="Ver ficha completa de este phrasal verb"
+                                  >
+                                    <span>Ver Ficha</span>
+                                    <ExternalLink className="w-3 h-3 text-gray-400" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

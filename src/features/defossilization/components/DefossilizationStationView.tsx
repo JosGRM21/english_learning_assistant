@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   RotateCcw,
   Volume2,
-  ArrowRight,
   BookOpen,
   Check,
   X,

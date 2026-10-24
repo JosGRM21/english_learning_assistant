@@ -182,4 +182,23 @@ describe('SrsSessionEngine', () => {
     expect(engine.getCurrentCard()?.vocab?.word).toBe('date');
     expect(engine.getRemainingCount()).toBe(5);
   });
+
+  it('removes card from completedCards when jumpToCard revisits an already completed card', () => {
+    const engine = new SrsSessionEngine(cards);
+    const firstCard = cards[0];
+
+    // Complete first card
+    engine.processRating(3, firstCard.card, 1000);
+    expect(engine.getCompletedCount()).toBe(1);
+
+    // Jump back to the completed card
+    engine.jumpToCard(firstCard);
+    expect(engine.getCompletedCount()).toBe(0);
+    expect(engine.getCurrentCard()?.vocab?.word).toBe(firstCard.vocab?.word);
+
+    // Rate it again
+    engine.processRating(3, firstCard.card, 1000);
+    expect(engine.getCompletedCount()).toBe(1);
+    expect(engine.getStats().successfulRecalls).toBe(1);
+  });
 });

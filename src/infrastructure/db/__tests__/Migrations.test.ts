@@ -38,7 +38,7 @@ describe('Database Migrations Engine', () => {
     expect(rows.rows[1].id).toBe('row2');
   });
 
-  it('cleans up legacy temporary tables and sets user_version to 4', async () => {
+  it('cleans up legacy temporary tables and sets user_version to 5', async () => {
     // 1. Create a dummy legacy table that should be cleaned up
     await sql.raw(`CREATE TABLE users_new (id TEXT PRIMARY KEY)`).execute(db);
 
@@ -49,9 +49,9 @@ describe('Database Migrations Engine', () => {
     // Run migrations
     await runMigrations(db);
 
-    // Version should now be 4
-    const v4 = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
-    expect(v4.rows[0]?.user_version).toBe(4);
+    // Version should now be 5
+    const v5 = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
+    expect(v5.rows[0]?.user_version).toBe(5);
 
     // Legacy table should be dropped
     const checkLegacy = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='users_new'`.execute(db);
@@ -67,8 +67,8 @@ describe('Database Migrations Engine', () => {
 
     // Running migrations again is idempotent
     await runMigrations(db);
-    const v4Idempotent = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
-    expect(v4Idempotent.rows[0]?.user_version).toBe(4);
+    const v5Idempotent = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
+    expect(v5Idempotent.rows[0]?.user_version).toBe(5);
   });
 
   it('migrates pre-existing vocab_items table without is_core column cleanly without throwing error', async () => {
@@ -162,6 +162,75 @@ describe('Database Migrations Engine', () => {
       SELECT id FROM writing_submissions WHERE id = 'sub_new'
     `.execute(db);
     expect(checkNew.rows).toHaveLength(1);
+  });
+
+  it('safely migrates writing_evaluations with legacy grammar_score NOT NULL column to modern schema', async () => {
+    // 1. Simulate legacy writing_evaluations schema containing grammar_score NOT NULL without defaults
+    await sql.raw(`
+      CREATE TABLE writing_submissions (
+        id TEXT PRIMARY KEY,
+        user_text TEXT NOT NULL,
+        word_count INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'DRAFT'
+      );
+
+      CREATE TABLE writing_evaluations (
+        id TEXT PRIMARY KEY,
+        submission_id TEXT NOT NULL UNIQUE,
+        model_used TEXT NOT NULL DEFAULT 'gemini-3.8-flash',
+        estimated_cefr TEXT NOT NULL,
+        grammar_score REAL NOT NULL,
+        vocabulary_score REAL NOT NULL,
+        coherence_score REAL NOT NULL,
+        overall_feedback_es TEXT NOT NULL,
+        corrections_json TEXT NOT NULL,
+        FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO writing_submissions (id, user_text, word_count) VALUES ('sub_test_eval', 'Hello world', 2);
+
+      INSERT INTO writing_evaluations (
+        id, submission_id, estimated_cefr, grammar_score, vocabulary_score, coherence_score, overall_feedback_es, corrections_json
+      ) VALUES (
+        'eval_legacy', 'sub_test_eval', 'B1', 8.5, 7.5, 8.0, 'Buen trabajo', '[]'
+      );
+    `).execute(db);
+
+    // 2. Run migrations
+    await runMigrations(db);
+
+    // 3. Verify table structure: grammar_score column should no longer exist or be required
+    const tableInfo = await sql<{ name: string; notnull: number }>`PRAGMA table_info(writing_evaluations)`.execute(db);
+    const colNames = tableInfo.rows.map((r: any) => r.name.toLowerCase());
+    expect(colNames).not.toContain('grammar_score');
+    expect(colNames).not.toContain('vocabulary_score');
+    expect(colNames).not.toContain('coherence_score');
+    expect(colNames).toContain('accuracy_score');
+    expect(colNames).toContain('range_precision_score');
+    expect(colNames).toContain('cohesion_flow_score');
+    expect(colNames).toContain('pragmatics_complexity_score');
+
+    // 4. Verify existing record was migrated and mapped into modern CEFR dimensions
+    const legacyRow = await sql<{ id: string; accuracy_score: number; range_precision_score: number; cohesion_flow_score: number }>`
+      SELECT id, accuracy_score, range_precision_score, cohesion_flow_score FROM writing_evaluations WHERE id = 'eval_legacy'
+    `.execute(db);
+    expect(legacyRow.rows).toHaveLength(1);
+    expect(legacyRow.rows[0].accuracy_score).toBe(8.5);
+    expect(legacyRow.rows[0].range_precision_score).toBe(7.5);
+    expect(legacyRow.rows[0].cohesion_flow_score).toBe(8.0);
+
+    // 5. Verify modern INSERT without grammar_score succeeds seamlessly
+    await sql.raw(`
+      INSERT INTO writing_submissions (id, user_text, word_count) VALUES ('sub_modern', 'Modern test', 2);
+      INSERT INTO writing_evaluations (
+        id, submission_id, estimated_cefr, accuracy_score, range_precision_score, cohesion_flow_score, pragmatics_complexity_score, overall_feedback_es, corrections_json
+      ) VALUES (
+        'eval_modern', 'sub_modern', 'B2', 9.0, 8.5, 9.0, 8.0, 'Excelente', '[]'
+      );
+    `).execute(db);
+
+    const modernRow = await sql<{ id: string }>`SELECT id FROM writing_evaluations WHERE id = 'eval_modern'`.execute(db);
+    expect(modernRow.rows).toHaveLength(1);
   });
 });
 

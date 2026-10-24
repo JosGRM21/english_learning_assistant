@@ -86,9 +86,9 @@ describe('HabitsManager', () => {
         userId: 'user_1',
         currentStreak: 7,
         longestStreak: 12,
-        lastActivityDate: '2026-09-25', // 4 days ago
+        lastActivityDate: '2026-09-27', // 1 day skipped (2 days difference)
         availableFreezes: 2,
-        updatedAt: '2026-09-25T10:00:00Z',
+        updatedAt: '2026-09-27T10:00:00Z',
       };
 
       const result = habits.updateStreak(missedStreak, '2026-09-29');
@@ -97,6 +97,44 @@ describe('HabitsManager', () => {
       expect(result.streakReset).toBe(false);
       expect(result.streak.availableFreezes).toBe(1); // 1 freeze consumed
       expect(result.streak.currentStreak).toBe(8); // streak continued!
+    });
+
+    it('consumes multiple freezes when multiple days are skipped', () => {
+      const multiMissed: UserStreak = {
+        id: 'streak_1',
+        userId: 'user_1',
+        currentStreak: 10,
+        longestStreak: 15,
+        lastActivityDate: '2026-09-26', // 2 days skipped (3 days difference)
+        availableFreezes: 3,
+        updatedAt: '2026-09-26T10:00:00Z',
+      };
+
+      const result = habits.updateStreak(multiMissed, '2026-09-29');
+
+      expect(result.freezeConsumed).toBe(true);
+      expect(result.streakReset).toBe(false);
+      expect(result.streak.availableFreezes).toBe(1); // 2 freezes consumed (3 - 2 = 1)
+      expect(result.streak.currentStreak).toBe(11);
+      expect(result.message).toContain('2 Streak Freezes');
+    });
+
+    it('resets streak to 1 when missed days exceed available freezes', () => {
+      const insufficientFreezes: UserStreak = {
+        id: 'streak_1',
+        userId: 'user_1',
+        currentStreak: 10,
+        longestStreak: 15,
+        lastActivityDate: '2026-09-25', // 3 days skipped (4 days difference)
+        availableFreezes: 2, // only 2 freezes for 3 missed days
+        updatedAt: '2026-09-25T10:00:00Z',
+      };
+
+      const result = habits.updateStreak(insufficientFreezes, '2026-09-29');
+
+      expect(result.streakReset).toBe(true);
+      expect(result.streak.currentStreak).toBe(1);
+      expect(result.freezeConsumed).toBe(false);
     });
 
     it('resets streak to 1 when a day is skipped and no freeze is available', () => {

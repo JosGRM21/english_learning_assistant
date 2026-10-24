@@ -43,13 +43,6 @@ describe('Writing Studio Components & Store', () => {
           estimated_cefr: 'B2' as const,
           successful_repairs: [],
           corrections: [],
-          micro_challenge: {
-            question_es: 'Q?',
-            sentence_with_blank: 'Sentence ___',
-            options: ['A', 'B'],
-            correct_option_index: 0,
-            explanation_es: 'Expl',
-          },
         },
       };
 
@@ -68,6 +61,7 @@ describe('Writing Studio Components & Store', () => {
     const mockClue: SocraticClue = {
       paragraph_index: 1,
       clue_type: 'PREPOSITION',
+      is_l1_spanish_transfer: true,
       hint_question_es: "¿Cuál es la preposición que rige 'depend'?",
       highlighted_area: 'depend of',
       sentence_context: 'It will depend of the weather.',
@@ -77,142 +71,88 @@ describe('Writing Studio Components & Store', () => {
       zpd_native_model: 'Colocación nativa: depend on.',
     };
 
-    it('renders initial Nivel 1 guiding question', () => {
+    it('renders L1 Spanish transfer badge when is_l1_spanish_transfer is true (RF-WRT-09)', () => {
       render(<ZpdScaffoldingCard clue={mockClue} index={0} />);
-      expect(screen.getByText("¿Cuál es la preposición que rige 'depend'?")).toBeDefined();
-      expect(screen.getByText(/Nivel 1: Pregunta Guía/i)).toBeDefined();
+      expect(screen.getByText(/Interferencia L1 \(Español\)/i)).toBeDefined();
     });
 
-    it('navigates to Nivel 2 and displays contrastive explanation', () => {
+    it('renders direct natural expression and explanation for idiomatic conventions (Gaps)', () => {
       render(<ZpdScaffoldingCard clue={mockClue} index={0} />);
-      const lvl2Btn = screen.getByRole('button', { name: /^Nivel 2$/i });
-      fireEvent.click(lvl2Btn);
 
+      // Shows natural recommended form directly without rigid level tabs
+      expect(screen.getByText(/Forma recomendada en inglés:/i)).toBeDefined();
+      expect(screen.getByText('on')).toBeDefined();
       expect(screen.getByText(/En inglés se dice depend on, no depend of./i)).toBeDefined();
+
+      // Ensure NO rigid level 1, 2, 3, 4 tabs exist
+      expect(screen.queryByRole('button', { name: /^Nivel 1$/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /^Nivel 2$/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /^Nivel 3$/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /^Nivel 4$/i })).toBeNull();
+
+      // Ensure NO technical pedagogical jargon is exposed to user
+      expect(screen.queryByText(/Estrategia de Reformulación/i)).toBeNull();
+      expect(screen.queryByText(/Desliz de Monitoreo/i)).toBeNull();
     });
 
-    it('navigates to Nivel 3, validates cloze input, and ensures apply button is removed', () => {
-      render(
-        <ZpdScaffoldingCard
-          clue={mockClue}
-          index={0}
-        />,
-      );
-      const lvl3Btn = screen.getByRole('button', { name: /Nivel 3/i });
-      fireEvent.click(lvl3Btn);
-
-      const input = screen.getByPlaceholderText(/Escribe la corrección/i);
-      const submitBtn = screen.getByRole('button', { name: /Comprobar/i });
-
-      fireEvent.change(input, { target: { value: 'on' } });
-      fireEvent.click(submitBtn);
-
-      expect(screen.getByText(/¡Exacto! Asimilaste la estructura/i)).toBeDefined();
-
-      // Ensure 'Aplicar cambio al Borrador 2' button is removed
-      expect(screen.queryByRole('button', { name: /Aplicar cambio al Borrador 2/i })).toBeNull();
-    });
-
-    it('rejects partial substring input in cloze validation and requires exact token', () => {
+    it('toggles interactive cloze practice and validates input for idiomatic conventions', () => {
       render(<ZpdScaffoldingCard clue={mockClue} index={0} />);
-      const lvl3Btn = screen.getByRole('button', { name: /Nivel 3/i });
-      fireEvent.click(lvl3Btn);
+
+      // Practice is initially closed
+      expect(screen.queryByPlaceholderText(/Escribe la corrección/i)).toBeNull();
+
+      // Toggle practice
+      const toggleBtn = screen.getByRole('button', { name: /Practicar en una oración/i });
+      fireEvent.click(toggleBtn);
 
       const input = screen.getByPlaceholderText(/Escribe la corrección/i);
       const submitBtn = screen.getByRole('button', { name: /Comprobar/i });
 
-      // Partial substring 'o' of 'on' must NOT pass
+      // Partial input fails
       fireEvent.change(input, { target: { value: 'o' } });
       fireEvent.click(submitBtn);
-
-      expect(screen.getByText(/Intenta nuevamente o avanza al Nivel 4/i)).toBeDefined();
+      expect(screen.getByText(/Intenta nuevamente/i)).toBeDefined();
       expect(screen.queryByText(/¡Exacto! Asimilaste la estructura/i)).toBeNull();
 
-      // Exact token 'on' must pass
+      // Correct input passes
       fireEvent.change(input, { target: { value: 'on' } });
       fireEvent.click(submitBtn);
-
       expect(screen.getByText(/¡Exacto! Asimilaste la estructura/i)).toBeDefined();
+    });
+
+    it('renders guiding question for slips and provides progressive disclosure', () => {
+      const slipClue: SocraticClue = {
+        paragraph_index: 1,
+        clue_type: 'AGREEMENT',
+        is_l1_spanish_transfer: false,
+        hint_question_es: 'Revisa la concordancia del sujeto con el verbo.',
+        highlighted_area: 'he like',
+        sentence_context: 'He like apples.',
+        zpd_contrastive_es: 'En presente simple de tercera persona se añade -s.',
+        zpd_cloze_sentence: 'He [ ___ ] apples.',
+        zpd_expected_token: 'likes',
+        zpd_native_model: 'He likes apples.',
+      };
+
+      render(<ZpdScaffoldingCard clue={slipClue} index={0} />);
+
+      // Shows reflection question
+      expect(screen.getByText('Revisa la concordancia del sujeto con el verbo.')).toBeDefined();
+
+      // Does not expose direct answer right away
+      expect(screen.queryByText(/Forma recomendada en inglés:/i)).toBeNull();
+
+      // Can reveal solution when requested
+      const showSolBtn = screen.getByRole('button', { name: /Ver solución/i });
+      fireEvent.click(showSolBtn);
+      expect(screen.getByText(/Solución de referencia:/i)).toBeDefined();
+      expect(screen.getByText('He')).toBeDefined();
+      expect(screen.getByText('likes')).toBeDefined();
     });
 
     it('renders applied status badge when isApplied is true', () => {
       render(<ZpdScaffoldingCard clue={mockClue} index={0} isApplied={true} />);
-      expect(screen.getByText(/Aplicado en Borrador 2/i)).toBeDefined();
-    });
-
-    it('navigates through levels using brief "Siguiente", "Anterior", and "Reiniciar" buttons', () => {
-      render(<ZpdScaffoldingCard clue={mockClue} index={0} />);
-
-      // Level 1 has a compact "Siguiente" button
-      const nextBtnLvl1 = screen.getByRole('button', { name: /^Siguiente$/i });
-      fireEvent.click(nextBtnLvl1);
-
-      // Now on Level 2: has "Anterior" and "Siguiente"
-      expect(screen.getByText(/Nivel 2: Diferencias con el Español/i)).toBeDefined();
-      const prevBtnLvl2 = screen.getByRole('button', { name: /^Anterior$/i });
-      const nextBtnLvl2 = screen.getByRole('button', { name: /^Siguiente$/i });
-      expect(prevBtnLvl2).toBeDefined();
-      expect(nextBtnLvl2).toBeDefined();
-
-      // Go back to Level 1
-      fireEvent.click(prevBtnLvl2);
-      expect(screen.getByText(/Nivel 1: Pregunta Guía/i)).toBeDefined();
-
-      // Go forward to Level 3
-      fireEvent.click(screen.getByRole('button', { name: /^Siguiente$/i }));
-      fireEvent.click(screen.getByRole('button', { name: /^Siguiente$/i }));
-      expect(screen.getByText(/Nivel 3: Completa el Espacio en Blanco/i)).toBeDefined();
-
-      // Go to Level 4
-      fireEvent.click(screen.getByRole('button', { name: /^Siguiente$/i }));
-      expect(screen.getByText(/Nivel 4: Oración Resuelta/i)).toBeDefined();
-
-      // In Level 4, check "Anterior" and "Reiniciar"
-      expect(screen.getByRole('button', { name: /^Anterior$/i })).toBeDefined();
-      const resetBtn = screen.getByRole('button', { name: /^Reiniciar$/i });
-      fireEvent.click(resetBtn);
-      expect(screen.getByText(/Nivel 1: Pregunta Guía/i)).toBeDefined();
-    });
-
-    it('ensures consistency between Level 3 cloze and Level 4 resolution', () => {
-      const consistencyClue: SocraticClue = {
-        paragraph_index: 1,
-        clue_type: 'WORD_CHOICE',
-        hint_question_es: '¿Cómo expresas recuperar tu energía en inglés?',
-        highlighted_area: 'take my energy back',
-        sentence_context: 'I need to rest to take my energy back.',
-        zpd_contrastive_es: 'En inglés se usa "get energy back" o "regain energy".',
-        zpd_cloze_sentence: 'I need to rest to [ ___ ] my energy back.',
-        zpd_expected_token: 'get',
-        zpd_native_model: 'get more energy',
-      };
-
-      render(<ZpdScaffoldingCard clue={consistencyClue} index={0} />);
-
-      // Navigate to Level 4
-      const lvl4Btn = screen.getByRole('button', { name: /^Nivel 4$/i });
-      fireEvent.click(lvl4Btn);
-
-      // Verify that the completed cloze sentence is displayed with the resolved token directly
-      expect(screen.getByText(/Nivel 4: Oración Resuelta/i)).toBeDefined();
-      expect(screen.getByText('I need to rest to')).toBeDefined();
-      expect(screen.getByText('get')).toBeDefined();
-      expect(screen.getByText('my energy back.')).toBeDefined();
-
-      // Verify that "Modelo o colocación idiomática" label is NOT rendered
-      expect(screen.queryByText(/Modelo o colocación idiomática:/i)).toBeNull();
-      expect(screen.queryByText('get more energy')).toBeNull();
-    });
-
-    it('displays Level 2 without amber alert styling or nested container', () => {
-      const { container } = render(<ZpdScaffoldingCard clue={mockClue} index={0} />);
-      const lvl2Btn = screen.getByRole('button', { name: /^Nivel 2$/i });
-      fireEvent.click(lvl2Btn);
-
-      // Check that amber classes are not used in Level 2
-      expect(container.querySelector('.bg-amber-50')).toBeNull();
-      expect(container.querySelector('.border-amber-200')).toBeNull();
-      expect(container.querySelector('.text-amber-600')).toBeNull();
+      expect(screen.getByText(/Modificado en Borrador 2/i)).toBeDefined();
     });
   });
 
@@ -231,6 +171,7 @@ Finally, today I will finish everything.`;
         {
           paragraph_index: 2,
           clue_type: 'AGREEMENT',
+          is_l1_spanish_transfer: false,
           hint_question_es: 'Observa el uso de la letra "i" minúscula.',
           highlighted_area: 'i',
           sentence_context: 'Yesterday i went to the store and i bought an apple.',
@@ -361,13 +302,6 @@ Finally, today I will finish everything.`;
           },
         ],
         corrections: [],
-        micro_challenge: {
-          question_es: '¿Preposición?',
-          sentence_with_blank: 'depend ___ it',
-          options: ['of', 'on'],
-          correct_option_index: 1,
-          explanation_es: 'depend on',
-        },
       };
 
       render(
@@ -379,7 +313,7 @@ Finally, today I will finish everything.`;
         />,
       );
 
-      expect(screen.getByText(/Logros de Auto-Corrección \(Learner Uptake\)/i)).toBeDefined();
+      expect(screen.getByText(/Mejoras aplicadas con éxito/i)).toBeDefined();
       expect(screen.getByText(/"depends on"/i)).toBeDefined();
       expect(screen.getByText(/Corregiste la preposición fija a 'depend on'/i)).toBeDefined();
     });
@@ -472,13 +406,6 @@ Finally, today I will finish everything.`;
       const state = useWritingStore.getState();
       expect(state.targetWords[0].word).toBe('persistent');
       expect(state.availableWeakPool[0].word).toBe('reluctant');
-    });
-
-    it('records error drill completion by errorSpan', () => {
-      useWritingStore.getState().setErrorDrillCompleted('depend of', true);
-
-      const state = useWritingStore.getState();
-      expect(state.errorDrillsCompleted['depend of']).toBe(true);
     });
   });
 });

@@ -20,14 +20,13 @@ import {
   PartOfSpeech,
   PART_OF_SPEECH_LABELS_ES,
   VerbTenses,
-  StructuredWordFamily,
   VocabSense,
   SpellingCorrectionInfo,
   VocabItem,
+  PhrasalVerbItem,
 } from '@/core/types/vocab';
 import { NewVocabPayload } from '../hooks/useVocabList';
 import { useAiGateway } from '@/shared/hooks/useAiGateway';
-import { StructuredFamilyCard } from './StructuredFamilyCard';
 
 export interface AddVocabModalProps {
   isOpen: boolean;
@@ -53,6 +52,14 @@ export function AddVocabModal({
   const [translationEs, setTranslationEs] = useState('');
   const [definitionEn, setDefinitionEn] = useState('');
   const [ipaGeneralAmerican, setIpaGeneralAmerican] = useState('');
+  const [ipaReceivedPronunciation, setIpaReceivedPronunciation] = useState('');
+  const [ipaWeakForm, setIpaWeakForm] = useState('');
+  const [phoneticEdEnding, setPhoneticEdEnding] = useState<'/t/' | '/d/' | '/ɪd/' | null>(null);
+  const [grammarPattern, setGrammarPattern] = useState('');
+  const [countability, setCountability] = useState<'COUNTABLE' | 'UNCOUNTABLE' | 'BOTH' | null>(null);
+  const [collocations, setCollocations] = useState<string[]>([]);
+  const [collocationsText, setCollocationsText] = useState('');
+  const [phrasalVerbs, setPhrasalVerbs] = useState<PhrasalVerbItem[]>([]);
   const [cefrLevel, setCefrLevel] = useState<CefrLevel>('B1');
   const [partOfSpeech, setPartOfSpeech] = useState<PartOfSpeech>('NOUN');
   const [grammaticalDimension, setGrammaticalDimension] = useState<GrammaticalDimension>('CONTENT');
@@ -65,8 +72,6 @@ export function AddVocabModal({
 
   // Rich lexical data
   const [verbTenses, setVerbTenses] = useState<VerbTenses | null>(null);
-  const [structuredFamily, setStructuredFamily] = useState<StructuredWordFamily | null>(null);
-  const [morphologicalFamily, setMorphologicalFamily] = useState<string[]>([]);
   const [senses, setSenses] = useState<VocabSense[]>([]);
   const [selectedSenseIds, setSelectedSenseIds] = useState<string[]>([]);
   const [includePrimarySense, setIncludePrimarySense] = useState(true);
@@ -93,6 +98,14 @@ export function AddVocabModal({
     setTranslationEs('');
     setDefinitionEn('');
     setIpaGeneralAmerican('');
+    setIpaReceivedPronunciation('');
+    setIpaWeakForm('');
+    setPhoneticEdEnding(null);
+    setGrammarPattern('');
+    setCountability(null);
+    setCollocations([]);
+    setCollocationsText('');
+    setPhrasalVerbs([]);
     setCefrLevel('B1');
     setPartOfSpeech('NOUN');
     setGrammaticalDimension('CONTENT');
@@ -103,8 +116,6 @@ export function AddVocabModal({
     setIsFalseFriend(false);
     setFalseFriendNote('');
     setVerbTenses(null);
-    setStructuredFamily(null);
-    setMorphologicalFamily([]);
     setSenses([]);
     setSelectedSenseIds([]);
     setIncludePrimarySense(true);
@@ -144,6 +155,25 @@ export function AddVocabModal({
       setTranslationEs(data.translationEs);
       setDefinitionEn(data.definitionEn);
       setIpaGeneralAmerican(data.ipaGeneralAmerican);
+      setIpaReceivedPronunciation(data.ipaReceivedPronunciation || '');
+      setIpaWeakForm(data.ipaWeakForm || '');
+      setPhoneticEdEnding(data.phoneticEdEnding ?? null);
+      setPhrasalVerbs(data.phrasalVerbs || []);
+
+      const enrichedCollocs = (data.collocations && data.collocations.length > 0)
+        ? data.collocations
+        : (data.senses?.[0]?.collocations || []);
+      setCollocations(enrichedCollocs);
+      setCollocationsText(enrichedCollocs.join(', '));
+
+      if (data.senses && data.senses.length > 0) {
+        setGrammarPattern(data.senses[0].grammarPattern || '');
+        setCountability(data.senses[0].countability || null);
+      } else {
+        setGrammarPattern('');
+        setCountability(null);
+      }
+
       setCefrLevel(data.cefrLevel);
       setPartOfSpeech(data.partOfSpeech);
       setGrammaticalDimension(data.grammaticalDimension);
@@ -154,8 +184,6 @@ export function AddVocabModal({
       setIsFalseFriend(data.isFalseFriend);
       setFalseFriendNote(data.falseFriendNote || '');
       setVerbTenses(data.verbTenses ?? null);
-      setStructuredFamily(data.structuredFamily ?? null);
-      setMorphologicalFamily(data.morphologicalFamily || []);
 
       if (data.senses && data.senses.length > 0) {
         setSenses(data.senses);
@@ -243,6 +271,13 @@ export function AddVocabModal({
     let curTranslation = translationEs.trim();
     let curDefinition = definitionEn.trim();
     let curIpa = ipaGeneralAmerican.trim();
+    let curIpaRp = ipaReceivedPronunciation.trim();
+    let curIpaWeakForm = ipaWeakForm.trim();
+    let curPhoneticEdEnding = phoneticEdEnding;
+    let curGrammarPattern = grammarPattern.trim();
+    let curCountability = countability;
+    let curCollocations = collocations;
+    let curPhrasalVerbs = phrasalVerbs;
     let curCefr = cefrLevel;
     let curPos = partOfSpeech;
     let curDim = grammaticalDimension;
@@ -252,8 +287,6 @@ export function AddVocabModal({
     let curIsFalseFriend = isFalseFriend;
     let curFalseNote = falseFriendNote.trim();
     let curVerbTenses = verbTenses;
-    let curStructuredFamily = structuredFamily;
-    let curMorph = morphologicalFamily;
     let curSenses = senses;
 
     // If no translation yet, auto-enrich with AI
@@ -273,6 +306,15 @@ export function AddVocabModal({
         curTranslation = data.translationEs;
         curDefinition = data.definitionEn;
         curIpa = data.ipaGeneralAmerican;
+        curIpaRp = data.ipaReceivedPronunciation || '';
+        curIpaWeakForm = data.ipaWeakForm || '';
+        curPhoneticEdEnding = data.phoneticEdEnding ?? null;
+        curPhrasalVerbs = data.phrasalVerbs || [];
+        curCollocations = (data.collocations && data.collocations.length > 0)
+          ? data.collocations
+          : (data.senses?.[0]?.collocations || []);
+        curGrammarPattern = data.senses?.[0]?.grammarPattern || '';
+        curCountability = data.senses?.[0]?.countability || null;
         curCefr = data.cefrLevel;
         curPos = data.partOfSpeech;
         curDim = data.grammaticalDimension;
@@ -282,8 +324,6 @@ export function AddVocabModal({
         curIsFalseFriend = data.isFalseFriend;
         curFalseNote = data.falseFriendNote || '';
         curVerbTenses = data.verbTenses ?? null;
-        curStructuredFamily = data.structuredFamily ?? null;
-        curMorph = data.morphologicalFamily || [];
         curSenses = data.senses || [];
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : 'Error al consultar a la IA');
@@ -301,8 +341,10 @@ export function AddVocabModal({
         curDefinition = curTranslation || curWord;
       }
 
-      // Check if user selected multiple senses to save
+      // Check if user selected multiple senses to save as standalone cards
       const selectedAlternateSenses = curSenses.filter((s) => s.id && selectedSenseIds.includes(s.id));
+      // Senses not extracted as standalone cards remain with the primary card
+      const remainingAlternateSenses = curSenses.slice(1).filter((s) => !selectedSenseIds.includes(s.id || ''));
 
       const payloadsToCreate: NewVocabPayload[] = [];
 
@@ -313,6 +355,12 @@ export function AddVocabModal({
           translationEs: curTranslation,
           definitionEn: curDefinition,
           ipaGeneralAmerican: curIpa || undefined,
+          ipaReceivedPronunciation: curIpaRp || undefined,
+          ipaWeakForm: curIpaWeakForm || undefined,
+          phoneticEdEnding: curPhoneticEdEnding || null,
+          grammarPattern: curGrammarPattern || curSenses[0]?.grammarPattern || undefined,
+          countability: curCountability || curSenses[0]?.countability || undefined,
+          collocations: curCollocations.length > 0 ? curCollocations : (curSenses[0]?.collocations || undefined),
           cefrLevel: curCefr,
           partOfSpeech: curPos,
           grammaticalDimension: curDim,
@@ -323,8 +371,9 @@ export function AddVocabModal({
           isFalseFriend: curIsFalseFriend,
           falseFriendNote: curIsFalseFriend ? curFalseNote : undefined,
           verbTenses: curVerbTenses,
-          structuredFamily: curStructuredFamily,
-          morphologicalFamily: curMorph,
+          alternateSenses: remainingAlternateSenses.length > 0 ? remainingAlternateSenses : undefined,
+          senses: curSenses.length > 0 ? [curSenses[0], ...remainingAlternateSenses] : undefined,
+          phrasalVerbs: curPhrasalVerbs.length > 0 ? curPhrasalVerbs : undefined,
           createSrsCard: true,
         });
       }
@@ -336,6 +385,13 @@ export function AddVocabModal({
           translationEs: sense.translationEs,
           definitionEn: sense.definitionEn,
           ipaGeneralAmerican: curIpa || undefined,
+          ipaReceivedPronunciation: curIpaRp || undefined,
+          ipaWeakForm: curIpaWeakForm || undefined,
+          phoneticEdEnding: curPhoneticEdEnding || null,
+          grammarPattern: sense.grammarPattern || undefined,
+          countability: sense.countability || undefined,
+          connotation: sense.connotation || undefined,
+          collocations: sense.collocations && sense.collocations.length > 0 ? sense.collocations : undefined,
           cefrLevel: sense.cefrLevel,
           partOfSpeech: sense.partOfSpeech,
           grammaticalDimension: curDim,
@@ -346,8 +402,6 @@ export function AddVocabModal({
           isFalseFriend: curIsFalseFriend,
           falseFriendNote: curIsFalseFriend ? curFalseNote : undefined,
           verbTenses: curVerbTenses,
-          structuredFamily: curStructuredFamily,
-          morphologicalFamily: curMorph,
           createSrsCard: true,
         });
       }
@@ -640,7 +694,7 @@ export function AddVocabModal({
                   {senses.length === 0 && (
                     <div className="p-4 rounded-2xl bg-gray-50/80 dark:bg-[#161B28]/80 border border-gray-200/80 dark:border-white/[0.08] space-y-3">
                       <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-gray-200/60 dark:border-white/[0.06]">
-                        <div className="flex items-baseline gap-2">
+                        <div className="flex items-baseline gap-2 flex-wrap">
                           <span className="text-2xl font-bold text-gray-900 dark:text-white font-sans">
                             {word}
                           </span>
@@ -652,9 +706,35 @@ export function AddVocabModal({
                               /{ipaGeneralAmerican}/
                             </span>
                           )}
+                          {ipaWeakForm && (
+                            <span
+                              className="font-phonetic text-xs px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800"
+                              title="Forma débil (weak form)"
+                            >
+                              deb: /{ipaWeakForm}/
+                            </span>
+                          )}
+                          {phoneticEdEnding && (
+                            <span
+                              className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800"
+                              title="Alófono -ed pasado regular"
+                            >
+                              -ed: {phoneticEdEnding}
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-1.5 flex-wrap">
+                          {grammarPattern && (
+                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                              {grammarPattern}
+                            </span>
+                          )}
+                          {countability && (
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                              {countability === 'COUNTABLE' ? '[C]' : countability === 'UNCOUNTABLE' ? '[U]' : '[C/U]'}
+                            </span>
+                          )}
                           {/* Automatic Domain Category Badge assigned by AI */}
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                             {domainCategory}
@@ -691,6 +771,25 @@ export function AddVocabModal({
                         <p className="text-xs text-gray-600 dark:text-gray-300 font-sans">
                           {definitionEn}
                         </p>
+                      )}
+
+                      {/* Collocations */}
+                      {collocations.length > 0 && (
+                        <div className="pt-1">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1">
+                            Colocaciones Habituales:
+                          </label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {collocations.map((colloc, cIdx) => (
+                              <span
+                                key={cIdx}
+                                className="text-[11px] px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-medium"
+                              >
+                                {colloc}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       )}
 
                       {/* Context sentence for primary sense */}
@@ -844,6 +943,16 @@ export function AddVocabModal({
                                 1. {translationEs} (Principal)
                               </span>
                               <div className="flex items-center gap-1.5 flex-wrap">
+                                {grammarPattern && (
+                                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                    {grammarPattern}
+                                  </span>
+                                )}
+                                {countability && (
+                                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    {countability === 'COUNTABLE' ? '[C]' : countability === 'UNCOUNTABLE' ? '[U]' : '[C/U]'}
+                                  </span>
+                                )}
                                 <span
                                   className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border ${getCefrBadgeStyle(
                                     cefrLevel,
@@ -862,6 +971,18 @@ export function AddVocabModal({
                             <p className="text-[11px] text-gray-600 dark:text-gray-400">
                               {definitionEn}
                             </p>
+                            {collocations.length > 0 && (
+                              <div className="flex flex-wrap gap-1 pt-0.5">
+                                {collocations.map((colloc, cIdx) => (
+                                  <span
+                                    key={cIdx}
+                                    className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 font-medium"
+                                  >
+                                    {colloc}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                             {exampleSentenceEn && (
                               <p className="text-[11px] font-editorial italic text-gray-700 dark:text-gray-300">
                                 &ldquo;{exampleSentenceEn}&rdquo;
@@ -902,6 +1023,16 @@ export function AddVocabModal({
                                     {idx + 2}. {sense.translationEs}
                                   </span>
                                   <div className="flex items-center gap-1.5 flex-wrap">
+                                    {sense.grammarPattern && (
+                                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                        {sense.grammarPattern}
+                                      </span>
+                                    )}
+                                    {sense.countability && (
+                                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                        {sense.countability === 'COUNTABLE' ? '[C]' : sense.countability === 'UNCOUNTABLE' ? '[U]' : '[C/U]'}
+                                      </span>
+                                    )}
                                     <span
                                       className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border ${getCefrBadgeStyle(
                                         sense.cefrLevel || 'B1',
@@ -920,6 +1051,18 @@ export function AddVocabModal({
                                 <p className="text-[11px] text-gray-600 dark:text-gray-400">
                                   {sense.definitionEn}
                                 </p>
+                                {sense.collocations && sense.collocations.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 pt-0.5">
+                                    {sense.collocations.map((colloc, cIdx) => (
+                                      <span
+                                        key={cIdx}
+                                        className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 font-medium"
+                                      >
+                                        {colloc}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                                 <p className="text-[11px] font-editorial italic text-gray-700 dark:text-gray-300">
                                   &ldquo;{sense.exampleSentenceEn}&rdquo;
                                 </p>
@@ -935,12 +1078,6 @@ export function AddVocabModal({
                       </div>
                     </div>
                   )}
-
-                  {/* Morphological Word Family Card */}
-                  <StructuredFamilyCard
-                    family={structuredFamily}
-                    legacyFamily={morphologicalFamily}
-                  />
                 </div>
               ) : (
                 /* MANUAL SETTINGS TAB */
@@ -969,6 +1106,36 @@ export function AddVocabModal({
                         placeholder="ej: /rɪˈzɪljənt/"
                         className="w-full px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700 text-xs font-mono text-gray-900 dark:text-white"
                       />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                        Forma Débil (Weak Form)
+                      </label>
+                      <input
+                        type="text"
+                        value={ipaWeakForm}
+                        onChange={(e) => setIpaWeakForm(e.target.value)}
+                        placeholder="ej: /wəz/, /kən/"
+                        className="w-full px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700 text-xs font-mono text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                        Alófono Pasado (-ed)
+                      </label>
+                      <select
+                        value={phoneticEdEnding ?? ''}
+                        onChange={(e) => setPhoneticEdEnding((e.target.value as '/t/' | '/d/' | '/ɪd/') || null)}
+                        className="w-full px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white font-mono"
+                      >
+                        <option value="">Ninguno / No aplica</option>
+                        <option value="/t/">/t/ (sordo: stopped, watched)</option>
+                        <option value="/d/">/d/ (sonoro: played, lived)</option>
+                        <option value="/ɪd/">/ɪd/ (dental: wanted, needed)</option>
+                      </select>
                     </div>
                   </div>
 
@@ -1034,6 +1201,60 @@ export function AddVocabModal({
                         <option value="CHUNK">Expresión / Frase</option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* Grammar Pattern & Countability */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                        Régimen / Patrón Sintáctico
+                      </label>
+                      <input
+                        type="text"
+                        value={grammarPattern}
+                        onChange={(e) => setGrammarPattern(e.target.value)}
+                        placeholder="ej: depend + ON, verb + -ing"
+                        className="w-full px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700 text-xs font-mono text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                        Contabilidad (Sustantivos)
+                      </label>
+                      <select
+                        value={countability ?? ''}
+                        onChange={(e) => setCountability((e.target.value as 'COUNTABLE' | 'UNCOUNTABLE' | 'BOTH') || null)}
+                        className="w-full px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white"
+                      >
+                        <option value="">No aplica / N/A</option>
+                        <option value="COUNTABLE">Contable [C]</option>
+                        <option value="UNCOUNTABLE">Incontable [U]</option>
+                        <option value="BOTH">Contable e Incontable [C/U]</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Collocations */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                      Colocaciones Habituales (separadas por coma)
+                    </label>
+                    <input
+                      type="text"
+                      value={collocationsText}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCollocationsText(val);
+                        setCollocations(
+                          val
+                            .split(',')
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        );
+                      }}
+                      placeholder="ej: make a decision, take a decision, heavy rain"
+                      className="w-full px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white"
+                    />
                   </div>
 
                   {/* Domain Category Input */}

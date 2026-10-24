@@ -142,14 +142,6 @@ export class RestoreService {
           (vocabRaw.false_friend_note as string) ||
           null;
 
-        let morphJson = '[]';
-        const rawMorph = vocabRaw.morphologicalFamilyJson ?? vocabRaw.morphological_family_json;
-        if (Array.isArray(rawMorph)) {
-          morphJson = JSON.stringify(rawMorph);
-        } else if (typeof rawMorph === 'string' && rawMorph.trim()) {
-          morphJson = rawMorph.trim();
-        }
-
         const createdAt =
           (vocabRaw.createdAt as string) ||
           (vocabRaw.created_at as string) ||
@@ -185,7 +177,6 @@ export class RestoreService {
           cefr_level: cefrLevel,
           is_false_friend: isFalseFriend,
           false_friend_note: falseFriendNote,
-          morphological_family_json: morphJson,
         };
 
         if (existingById || existingByWord) {

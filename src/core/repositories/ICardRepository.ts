@@ -20,6 +20,7 @@ export interface ICardRepository {
   getCardById(cardId: string): Promise<SrsCard | null>;
   getCardByTargetId(targetId: string, targetType?: TargetType): Promise<SrsCard | null>;
   createCard(card: CreateCardInput): Promise<SrsCard>;
+  activatePhraseCard(phraseId: string): Promise<SrsCard>;
   updateCard(card: SrsCard): Promise<void>;
   resetLeechStatus(cardId: string): Promise<void>;
   recordReviewLog(log: ReviewLog): Promise<void>;

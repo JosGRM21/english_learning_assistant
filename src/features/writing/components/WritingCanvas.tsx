@@ -193,7 +193,7 @@ export function WritingCanvas({
           ) : (
             <>
               <Sparkles className="w-4 h-4" />
-              <span>Solicitar Pistas y Orientación Socrática</span>
+              <span>Solicitar Pistas de Mejora</span>
             </>
           )}
         </Button>

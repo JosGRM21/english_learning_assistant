@@ -31,6 +31,21 @@ describe('WeakVocabMatcher', () => {
       expect(tokens).toContain('depended on');
       expect(tokens).toContain('depending on');
     });
+
+    it('generates correct irregular past and participle forms without non-words', () => {
+      const takeTokens = extractTargetWordTokens('take');
+      expect(takeTokens).toContain('take');
+      expect(takeTokens).toContain('took');
+      expect(takeTokens).toContain('taken');
+      expect(takeTokens).toContain('takes');
+      expect(takeTokens).toContain('taking');
+      expect(takeTokens).not.toContain('taked');
+
+      const goTokens = extractTargetWordTokens('go on');
+      expect(goTokens).toContain('went on');
+      expect(goTokens).toContain('gone on');
+      expect(goTokens).not.toContain('goed on');
+    });
   });
 
   describe('isTargetWordUsedInText', () => {

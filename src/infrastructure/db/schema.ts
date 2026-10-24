@@ -22,9 +22,7 @@ CREATE TABLE IF NOT EXISTS vocab_items (
     phonetic_ed_ending TEXT,
     is_false_friend INTEGER NOT NULL DEFAULT 0 CHECK(is_false_friend IN (0, 1)),
     false_friend_note TEXT,
-    morphological_family_json TEXT,
     verb_tenses_json TEXT,
-    structured_family_json TEXT,
     domain_category TEXT,
     alternate_senses_json TEXT,
     created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
@@ -44,10 +42,15 @@ CREATE TABLE IF NOT EXISTS phraseological_units (
     chunk_type TEXT NOT NULL CHECK(chunk_type IN ('COLLOCATION', 'PHRASAL_VERB', 'IDIOM', 'BINOMIAL', 'SENTENCE_FRAME')),
     text TEXT NOT NULL,
     meaning_es TEXT NOT NULL,
+    definition_en TEXT NOT NULL DEFAULT '',
+    ipa_general_american TEXT,
+    ipa_received_pronunciation TEXT,
     phrasal_verb_type TEXT CHECK(phrasal_verb_type IN ('TYPE_1_INTRANSITIVE', 'TYPE_2_SEPARABLE', 'TYPE_3_INSEPARABLE', 'TYPE_4_THREE_PART')),
     pronoun_must_split INTEGER NOT NULL DEFAULT 0 CHECK(pronoun_must_split IN (0, 1)),
     example_1 TEXT NOT NULL,
+    example_1_es TEXT NOT NULL DEFAULT '',
     example_2 TEXT,
+    example_2_es TEXT,
     cefr_level TEXT NOT NULL CHECK(cefr_level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
     created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
     FOREIGN KEY (primary_vocab_id) REFERENCES vocab_items(id) ON DELETE SET NULL
@@ -160,7 +163,6 @@ CREATE TABLE IF NOT EXISTS writing_evaluations (
     overall_feedback_es TEXT NOT NULL,
     qualitative_recommendations_es TEXT NOT NULL DEFAULT '',
     corrections_json TEXT NOT NULL,
-    micro_challenge_json TEXT,
     successful_repairs_json TEXT,
     evaluated_at TEXT NOT NULL DEFAULT (DATETIME('now')),
     FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE
@@ -253,7 +255,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
     updated_at TEXT NOT NULL DEFAULT (DATETIME('now'))
 );
 
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;
 `;
 
 export const CLEANUP_OBSOLETE_TABLES_SQL = `

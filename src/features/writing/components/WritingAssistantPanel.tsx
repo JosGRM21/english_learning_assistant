@@ -55,7 +55,7 @@ export function WritingAssistantPanel({
 
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
 
-  const connectors = DISCOURSE_CONNECTORS[targetCefr] ?? DISCOURSE_CONNECTORS.B1;
+  const connectors = (DISCOURSE_CONNECTORS[targetCefr] ?? DISCOURSE_CONNECTORS.B1) || [];
   const categories = Array.from(new Set(connectors.map((c) => c.category)));
   const filteredConnectors =
     categoryFilter === 'ALL'
@@ -72,7 +72,7 @@ export function WritingAssistantPanel({
               <Compass className="w-4 h-4" />
             </div>
             <span className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-              Asistente Pedagógico
+              Asistente de Redacción
             </span>
           </div>
 
@@ -293,6 +293,14 @@ export function WritingAssistantPanel({
                       {item.translationEs && (
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
                           {item.translationEs}
+                        </p>
+                      )}
+                      {item.recommendedContext && (
+                        <p
+                          className="text-[10px] text-indigo-600/90 dark:text-indigo-400/90 italic truncate max-w-[200px]"
+                          title={`Contexto recomendado: ${item.recommendedContext}`}
+                        >
+                          💡 {item.recommendedContext}
                         </p>
                       )}
                     </div>

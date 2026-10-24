@@ -135,13 +135,14 @@ export class HabitsManager {
       };
     }
 
-    // 4. Inactivity (> 1 day): check if freeze is available
+    // 4. Inactivity (> 1 day): check if enough freezes are available for missed days
     if (diffDays > 1) {
-      if (currentStreakState.availableFreezes > 0) {
-        // Freeze protects the streak!
+      const missedDays = diffDays - 1;
+      if (currentStreakState.availableFreezes >= missedDays) {
+        // Freezes protect the streak!
         const updated: UserStreak = {
           ...currentStreakState,
-          availableFreezes: currentStreakState.availableFreezes - 1,
+          availableFreezes: currentStreakState.availableFreezes - missedDays,
           currentStreak: currentStreakState.currentStreak + 1,
           longestStreak: Math.max(currentStreakState.currentStreak + 1, currentStreakState.longestStreak),
           lastActivityDate: todayStr,
@@ -152,10 +153,13 @@ export class HabitsManager {
           streakIncremented: true,
           freezeConsumed: true,
           streakReset: false,
-          message: '¡Un Streak Freeze salvó tu racha de reiniciarse!',
+          message:
+            missedDays === 1
+              ? '¡Un Streak Freeze salvó tu racha de reiniciarse!'
+              : `¡${missedDays} Streak Freezes salvaron tu racha de reiniciarse!`,
         };
       } else {
-        // No freezes available: reset streak to 1
+        // Not enough freezes available: reset streak to 1
         const updated: UserStreak = {
           ...currentStreakState,
           currentStreak: 1,

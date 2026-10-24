@@ -45,7 +45,7 @@ export function HomeView({ onNavigateTab }: HomeEmptyViewProps) {
           <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-2.5 group-hover:scale-110 transition-transform">
             <Sparkles className="w-5 h-5" />
           </div>
-          <span className="font-semibold text-xs text-gray-900 dark:text-gray-100">SRS & Fonética</span>
+          <span className="font-semibold text-xs text-gray-900 dark:text-gray-100">Repaso SRS</span>
           <span className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1 group-hover:text-purple-500">
             Repaso diario <ArrowRight className="w-3 h-3" />
           </span>

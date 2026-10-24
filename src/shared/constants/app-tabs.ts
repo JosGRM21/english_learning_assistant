@@ -2,6 +2,7 @@ import {
   Home,
   BookmarkCheck,
   Sparkles,
+  AudioWaveform,
   PenTool,
   ShieldAlert,
   Cpu,
@@ -22,6 +23,7 @@ export type AppTab =
   | 'home'
   | 'vocab'
   | 'srs'
+  | 'phonetics_lab'
   | 'writing'
   | 'defossilization'
   | 'quota_matrix'
@@ -50,10 +52,17 @@ export const APP_TABS: TabDefinition[] = [
   },
   {
     id: 'srs',
-    label: 'SRS & Fonética',
+    label: 'Repaso SRS',
     icon: Sparkles,
     activeColorClass: 'text-indigo-600 dark:text-indigo-400',
-    description: 'Repaso espaciado inteligente con tarjetas interactivas y fonética aplicada',
+    description: 'Repaso espaciado ágil de tarjetas de vocabulario y expresiones (FSRS 5.0)',
+  },
+  {
+    id: 'phonetics_lab',
+    label: 'Laboratorio de Fonética',
+    icon: AudioWaveform,
+    activeColorClass: 'text-indigo-600 dark:text-indigo-400',
+    description: 'Laboratorio de fonética, discriminación auditiva y habla conectada',
   },
   {
     id: 'writing',
@@ -99,7 +108,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     name: 'Aprendizaje',
-    tabs: ['vocab', 'srs'],
+    tabs: ['vocab', 'srs', 'phonetics_lab'],
   },
   {
     name: 'Producción & Práctica',

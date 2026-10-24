@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const SocraticClueTypeEnum = z.enum([
+export const CANONICAL_TAXONOMY_CODES = [
   'PREPOSITION',
   'TENSE_ASPECT',
   'FALSE_FRIEND',
@@ -11,13 +11,16 @@ export const SocraticClueTypeEnum = z.enum([
   'SYNTACTIC_VARIETY',
   'REGISTER',
   'SPELLING',
-  // Legacy / synonym fallbacks
-  'WORD_CHOICE',
-  'COLLOCATION',
-  'GRAMMAR',
-]);
+] as const;
 
+export const TaxonomyErrorCodeEnum = z.enum(CANONICAL_TAXONOMY_CODES);
+export type TaxonomyErrorCode = z.infer<typeof TaxonomyErrorCodeEnum>;
+
+export const SocraticClueTypeEnum = TaxonomyErrorCodeEnum;
 export type SocraticClueType = z.infer<typeof SocraticClueTypeEnum>;
+
+export const CorrectionErrorTypeEnum = TaxonomyErrorCodeEnum;
+export type CorrectionErrorType = z.infer<typeof CorrectionErrorTypeEnum>;
 
 export const stripLeadingGreetings = (val: unknown): string => {
   if (typeof val !== 'string') return '';
@@ -31,40 +34,25 @@ export const stripLeadingGreetings = (val: unknown): string => {
 export const SocraticClueSchema = z.object({
   paragraph_index: z.number().int().default(1),
   clue_type: z.preprocess((val) => {
-    if (typeof val !== 'string') return 'WORD_CHOICE';
+    if (typeof val !== 'string') return 'AGREEMENT';
     const upper = val.trim().toUpperCase().replace(/[\s-]+/g, '_');
-    const valid: string[] = [
-      'PREPOSITION',
-      'TENSE_ASPECT',
-      'FALSE_FRIEND',
-      'AGREEMENT',
-      'LEXICAL_COLLOCATION',
-      'WORD_ORDER',
-      'COHESION_LINKERS',
-      'SYNTACTIC_VARIETY',
-      'REGISTER',
-      'SPELLING',
-      'WORD_CHOICE',
-      'COLLOCATION',
-      'GRAMMAR',
-    ];
-    if (valid.includes(upper)) return upper;
+    if ((CANONICAL_TAXONOMY_CODES as readonly string[]).includes(upper)) return upper;
     if (upper.includes('PREP')) return 'PREPOSITION';
     if (upper.includes('TENSE') || upper.includes('ASPECT') || upper.includes('VERB')) return 'TENSE_ASPECT';
     if (upper.includes('AGREE')) return 'AGREEMENT';
     if (upper.includes('FALSE') || upper.includes('FRIEND')) return 'FALSE_FRIEND';
-    if (upper.includes('ORDER') || upper.includes('SYNTAX')) return 'WORD_ORDER';
-    if (upper.includes('COLLOC') || upper.includes('LEXIC') || upper.includes('VOCAB')) return 'LEXICAL_COLLOCATION';
+    if (upper.includes('COLLOC') || upper.includes('LEXIC') || upper.includes('VOCAB') || upper.includes('CHOICE')) return 'LEXICAL_COLLOCATION';
+    if (upper.includes('ORDER')) return 'WORD_ORDER';
     if (upper.includes('COHESION') || upper.includes('LINKER') || upper.includes('CONNECTOR')) return 'COHESION_LINKERS';
-    if (upper.includes('VARIETY') || upper.includes('COMPLEX')) return 'SYNTACTIC_VARIETY';
+    if (upper.includes('VARIETY') || upper.includes('COMPLEX') || upper.includes('SYNTAX')) return 'SYNTACTIC_VARIETY';
     if (upper.includes('REGISTER') || upper.includes('TONE')) return 'REGISTER';
     if (upper.includes('SPELL')) return 'SPELLING';
-    if (upper.includes('GRAM')) return 'GRAMMAR';
-    return 'WORD_CHOICE';
-  }, SocraticClueTypeEnum.catch('WORD_CHOICE')),
+    return 'AGREEMENT';
+  }, SocraticClueTypeEnum.catch('AGREEMENT')),
   hint_question_es: z.preprocess(stripLeadingGreetings, z.string()),
   highlighted_area: z.string(),
   sentence_context: z.preprocess((val) => (typeof val === 'string' ? val.trim() : ''), z.string().min(1, 'sentence_context is required')),
+  is_l1_spanish_transfer: z.boolean().default(false),
   zpd_contrastive_es: z.string().optional(),
   zpd_cloze_sentence: z.string().optional(),
   zpd_expected_token: z.string().optional(),
@@ -80,41 +68,6 @@ export const SocraticFeedbackResponseSchema = z.object({
 
 export type SocraticFeedbackResponse = z.infer<typeof SocraticFeedbackResponseSchema>;
 export type SocraticClue = z.infer<typeof SocraticClueSchema>;
-
-export const TaxonomyErrorCodeEnum = z.enum([
-  'PREPOSITION',
-  'TENSE_ASPECT',
-  'FALSE_FRIEND',
-  'AGREEMENT',
-  'LEXICAL_COLLOCATION',
-  'WORD_ORDER',
-  'COHESION_LINKERS',
-  'SYNTACTIC_VARIETY',
-  'REGISTER',
-  'SPELLING',
-]);
-
-export type TaxonomyErrorCode = z.infer<typeof TaxonomyErrorCodeEnum>;
-
-export const CorrectionErrorTypeEnum = z.enum([
-  'PREPOSITION',
-  'TENSE_ASPECT',
-  'FALSE_FRIEND',
-  'AGREEMENT',
-  'LEXICAL_COLLOCATION',
-  'WORD_ORDER',
-  'COHESION_LINKERS',
-  'SYNTACTIC_VARIETY',
-  'REGISTER',
-  'SPELLING',
-  // Normalized legacy / synonym fallbacks:
-  'GRAMMAR',
-  'LEXICON',
-  'WORD_CHOICE',
-  'COLLOCATION',
-]);
-
-export type CorrectionErrorType = z.infer<typeof CorrectionErrorTypeEnum>;
 
 export const PositiveDrillFormatEnum = z.enum([
   'CONTEXTUAL_CLOZE',
@@ -151,8 +104,6 @@ export const PositiveDrillSchema = z.object({
 });
 
 export type PositiveDrill = z.infer<typeof PositiveDrillSchema>;
-export const ErrorPracticeDrillSchema = PositiveDrillSchema;
-export type ErrorPracticeDrill = PositiveDrill;
 
 export const CorrectionItemSchema = z.preprocess(
   (raw: any) => {
@@ -170,34 +121,36 @@ export const CorrectionItemSchema = z.preprocess(
     error_type: z.preprocess((val) => {
       if (typeof val !== 'string') return 'AGREEMENT';
       const upper = val.trim().toUpperCase().replace(/[\s-]+/g, '_');
-      const valid: string[] = [
-        'PREPOSITION',
-        'TENSE_ASPECT',
-        'FALSE_FRIEND',
-        'AGREEMENT',
-        'LEXICAL_COLLOCATION',
-        'WORD_ORDER',
-        'COHESION_LINKERS',
-        'SYNTACTIC_VARIETY',
-        'REGISTER',
-        'SPELLING',
-      ];
-      if (valid.includes(upper)) return upper;
+      if ((CANONICAL_TAXONOMY_CODES as readonly string[]).includes(upper)) return upper;
       if (upper.includes('PREP')) return 'PREPOSITION';
       if (upper.includes('TENSE') || upper.includes('ASPECT') || upper.includes('VERB')) return 'TENSE_ASPECT';
       if (upper.includes('AGREE')) return 'AGREEMENT';
       if (upper.includes('FALSE') || upper.includes('FRIEND')) return 'FALSE_FRIEND';
-      if (upper.includes('COLLOC') || upper.includes('LEXIC') || upper.includes('WORD_CHOICE') || upper.includes('VOCAB')) return 'LEXICAL_COLLOCATION';
-      if (upper.includes('ORDER') || upper.includes('SYNTAX')) return 'WORD_ORDER';
+      if (upper.includes('COLLOC') || upper.includes('LEXIC') || upper.includes('VOCAB') || upper.includes('CHOICE')) return 'LEXICAL_COLLOCATION';
+      if (upper.includes('ORDER')) return 'WORD_ORDER';
       if (upper.includes('COHESION') || upper.includes('LINKER') || upper.includes('CONNECTOR')) return 'COHESION_LINKERS';
-      if (upper.includes('VARIETY') || upper.includes('COMPLEX')) return 'SYNTACTIC_VARIETY';
+      if (upper.includes('VARIETY') || upper.includes('COMPLEX') || upper.includes('SYNTAX')) return 'SYNTACTIC_VARIETY';
       if (upper.includes('REGISTER') || upper.includes('TONE')) return 'REGISTER';
       if (upper.includes('SPELL')) return 'SPELLING';
-      if (upper.includes('GRAM')) return 'AGREEMENT';
       return 'AGREEMENT';
     }, CorrectionErrorTypeEnum.catch('AGREEMENT')),
-    taxonomy_code: z.string().default('PREPOSITION'),
-    is_l1_spanish_transfer: z.boolean().default(true),
+    taxonomy_code: z.preprocess((val) => {
+      if (typeof val !== 'string') return 'AGREEMENT';
+      const upper = val.trim().toUpperCase().replace(/[\s-]+/g, '_');
+      if ((CANONICAL_TAXONOMY_CODES as readonly string[]).includes(upper)) return upper;
+      if (upper.includes('PREP')) return 'PREPOSITION';
+      if (upper.includes('TENSE') || upper.includes('ASPECT') || upper.includes('VERB')) return 'TENSE_ASPECT';
+      if (upper.includes('AGREE')) return 'AGREEMENT';
+      if (upper.includes('FALSE') || upper.includes('FRIEND')) return 'FALSE_FRIEND';
+      if (upper.includes('COLLOC') || upper.includes('LEXIC') || upper.includes('VOCAB') || upper.includes('CHOICE')) return 'LEXICAL_COLLOCATION';
+      if (upper.includes('ORDER')) return 'WORD_ORDER';
+      if (upper.includes('COHESION') || upper.includes('LINKER') || upper.includes('CONNECTOR')) return 'COHESION_LINKERS';
+      if (upper.includes('VARIETY') || upper.includes('COMPLEX') || upper.includes('SYNTAX')) return 'SYNTACTIC_VARIETY';
+      if (upper.includes('REGISTER') || upper.includes('TONE')) return 'REGISTER';
+      if (upper.includes('SPELL')) return 'SPELLING';
+      return 'AGREEMENT';
+    }, TaxonomyErrorCodeEnum.catch('AGREEMENT')),
+    is_l1_spanish_transfer: z.boolean().default(false),
     explanation_es: z.string().default(''),
     native_reformulation: z.string().default(''),
     original_sentence: z.string().default(''),
@@ -205,6 +158,90 @@ export const CorrectionItemSchema = z.preprocess(
     drill: PositiveDrillSchema.optional(),
   }),
 );
+
+/**
+ * Detects whether a string is composed entirely of punctuation characters or whitespace.
+ */
+export function isPunctuationOnlyToken(token?: string | null): boolean {
+  if (!token) return false;
+  const stripped = token.trim();
+  if (!stripped) return false;
+  return /^[\s,.:;!?'"¿¡`´\-_/\\()[\]{}«»“”‘’—–…]+$/.test(stripped);
+}
+
+/**
+ * Detects whether a socratic clue inappropriately targets punctuation marks.
+ * Per RF-WRT-09, punctuation is strictly excluded from writing workshop feedback.
+ */
+export function isPunctuationClue(clue: SocraticClue): boolean {
+  if (isPunctuationOnlyToken(clue.highlighted_area)) return true;
+  if (isPunctuationOnlyToken(clue.zpd_expected_token)) return true;
+
+  const questionLower = (clue.hint_question_es || '').toLowerCase();
+  const punctuationPatterns = [
+    /signo\s+de\s+puntuaci[oó]n/,
+    /\bpuntuaci[oó]n\b/,
+    /\bcomas?\b/,
+    /\bpunto\s+y\s+coma\b/,
+    /\bcomma\s+splice\b/,
+    /\bcomma\b/,
+    /\bpunto\s+final\b/,
+    /\bap[oó]strofe\b/,
+    /\bsemicolon\b/,
+  ];
+
+  return punctuationPatterns.some((pattern) => pattern.test(questionLower));
+}
+
+/**
+ * Detects whether a correction item inappropriately targets punctuation.
+ */
+export function isPunctuationCorrection(corr: CorrectionItem): boolean {
+  if (isPunctuationOnlyToken(corr.error_span)) return true;
+  if (isPunctuationOnlyToken(corr.native_reformulation)) return true;
+
+  const strippedError = corr.error_span.replace(/[.,/#!$%^&*;:{}=\-_`~()'"?]/g, '').trim().toLowerCase();
+  const strippedReform = corr.native_reformulation.replace(/[.,/#!$%^&*;:{}=\-_`~()'"?]/g, '').trim().toLowerCase();
+  if (strippedError.length > 0 && strippedError === strippedReform) {
+    return true;
+  }
+
+  const expLower = (corr.explanation_es || '').toLowerCase();
+  const punctuationPatterns = [
+    /signo\s+de\s+puntuaci[oó]n/,
+    /\bpuntuaci[oó]n\b/,
+    /\bfalta\s+(?:una\s+)?coma\b/,
+    /\bcoma\s+faltante\b/,
+    /\bseparar\s+con\s+coma\b/,
+    /\bcomma\s+splice\b/,
+    /\bsemicolon\b/,
+  ];
+  return punctuationPatterns.some((pattern) => pattern.test(expLower));
+}
+
+export function sanitizeSocraticFeedback(response: SocraticFeedbackResponse): SocraticFeedbackResponse {
+  const filteredClues = (response.scaffolded_clues || [])
+    .filter((clue) => !isPunctuationClue(clue))
+    .slice(0, 3);
+
+  return {
+    ...response,
+    scaffolded_clues: filteredClues,
+    error_count: filteredClues.length,
+  };
+}
+
+export function sanitizeWritingEvaluation(response: WritingEvaluationResponse): WritingEvaluationResponse {
+  const filteredCorrections = (response.corrections || []).filter(
+    (corr) => !isPunctuationCorrection(corr),
+  );
+
+  return {
+    ...response,
+    corrections: filteredCorrections,
+  };
+}
+
 
 export const RubricScoresSchema = z.object({
   accuracy: z.number().min(0).max(10),
@@ -222,14 +259,6 @@ export const NoticingTheGapItemSchema = z.object({
 });
 
 export type NoticingTheGapItem = z.infer<typeof NoticingTheGapItemSchema>;
-
-export const MicroChallengeSchema = z.object({
-  question_es: z.string().optional(),
-  sentence_with_blank: z.string().optional(),
-  options: z.array(z.string()).optional(),
-  correct_option_index: z.number().int().optional(),
-  explanation_es: z.string().optional(),
-});
 
 export const SuccessfulRepairItemSchema = z.preprocess((val) => {
   if (typeof val === 'string') {
@@ -286,14 +315,11 @@ export const WritingEvaluationResponseSchema = z.object({
   }, z.string().default('')),
   successful_repairs: z.array(SuccessfulRepairItemSchema).default([]),
   corrections: z.array(CorrectionItemSchema).default([]),
-  micro_challenge: MicroChallengeSchema.optional(),
-  micro_challenges: z.array(MicroChallengeSchema).optional(),
   target_words_feedback: z.array(TargetWordFeedbackSchema).optional(),
 });
 
 export type WritingEvaluationResponse = z.infer<typeof WritingEvaluationResponseSchema>;
 export type CorrectionItem = z.infer<typeof CorrectionItemSchema>;
-export type MicroChallenge = z.infer<typeof MicroChallengeSchema>;
 
 export const SpellingCorrectionSchema = z.object({
   hasCorrection: z.boolean().default(false),
@@ -319,13 +345,6 @@ export const VerbTensesSchema = z.object({
   }, z.enum(['/t/', '/d/', '/ɪd/']).nullable().optional()),
 });
 
-export const StructuredFamilySchema = z.object({
-  nouns: z.array(z.string()).default([]),
-  verbs: z.array(z.string()).default([]),
-  adjectives: z.array(z.string()).default([]),
-  adverbs: z.array(z.string()).default([]),
-});
-
 export const ExampleSentenceItemSchema = z.object({
   sentenceEn: z.string(),
   sentenceEs: z.string(),
@@ -333,8 +352,42 @@ export const ExampleSentenceItemSchema = z.object({
 
 export type ExampleSentenceItem = z.infer<typeof ExampleSentenceItemSchema>;
 
+export const GraduatedExamplesItemSchema = z.object({
+  sentenceBasicEn: z.string().describe('Oración pedagógica básica (A1-B1) contextualizando este sentido'),
+  sentenceBasicEs: z.string().describe('Traducción fiel y natural al español'),
+  clozeTargetBasic: z.string().optional().describe('Fragmento exacto de la palabra meta a ocultar'),
+  sentenceAdvancedEn: z.string().describe('Oración pedagógica avanzada (B2-C1) en un contexto formal o enriquecido'),
+  sentenceAdvancedEs: z.string().describe('Traducción fiel y natural al español'),
+  clozeTargetAdvanced: z.string().optional().describe('Fragmento exacto a ocultar'),
+});
+
+export type GraduatedExamplesItem = z.infer<typeof GraduatedExamplesItemSchema>;
+
+export const PhrasalVerbItemSchema = z.object({
+  text: z.string().describe('Texto completo del phrasal verb ej. run out of, give up'),
+  meaningEs: z.string().describe('Significado preciso en español'),
+  definitionEn: z.string().default('').describe('Definición pedagógica concisa en Learner English'),
+  ipaGeneralAmerican: z.string().default('').describe('Transcripción fonética IPA GA con acentuación ej. ˌraɪt ˈdaʊn'),
+  ipaReceivedPronunciation: z.string().nullable().optional().describe('Transcripción IPA RP británica o null si no difiere'),
+  type: z.enum([
+    'TYPE_1_INTRANSITIVE',
+    'TYPE_2_SEPARABLE',
+    'TYPE_3_INSEPARABLE',
+    'TYPE_4_THREE_PART',
+  ]).describe('Tipo sintáctico del phrasal verb'),
+  pronounMustSplit: z.boolean().default(false).describe('True si los pronombres deben dividir la partícula obligatoriamente (separable)'),
+  cefrLevel: z.enum(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']).default('B1').describe('Nivel CEFR del phrasal verb'),
+  example1: z.string().describe('Oración de ejemplo 1'),
+  example1Es: z.string().default('').describe('Traducción fiel y natural al español de la oración 1'),
+  example2: z.string().nullable().optional().describe('Oración de ejemplo 2 opcional o null'),
+  example2Es: z.string().nullable().optional().describe('Traducción fiel al español de la oración 2 o null'),
+});
+
+export type PhrasalVerbItemData = z.infer<typeof PhrasalVerbItemSchema>;
+
 export const VocabSenseSchema = z.object({
   id: z.string().default(() => `sns_${Math.random().toString(36).slice(2, 7)}`),
+  contextualHint: z.string().optional(),
   domainCategory: z.string().default('Uso General'),
   translationEs: z.string(),
   definitionEn: z.string(),
@@ -349,10 +402,15 @@ export const VocabSenseSchema = z.object({
     'PRONOUN',
     'INTERJECTION',
   ]).default('NOUN'),
-  exampleSentenceEn: z.string(),
-  exampleSentenceEs: z.string(),
-  additionalExamples: z.array(ExampleSentenceItemSchema).optional(),
   cefrLevel: z.enum(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']).default('B1'),
+  grammarPattern: z.string().nullable().optional(),
+  countability: z.enum(['COUNTABLE', 'UNCOUNTABLE', 'BOTH']).nullable().optional(),
+  connotation: z.enum(['POSITIVE', 'NEUTRAL', 'NEGATIVE']).default('NEUTRAL').optional(),
+  collocations: z.array(z.string()).default([]).optional(),
+  graduatedExamples: GraduatedExamplesItemSchema.optional(),
+  exampleSentenceEn: z.string().default(''),
+  exampleSentenceEs: z.string().default(''),
+  additionalExamples: z.array(ExampleSentenceItemSchema).optional(),
 });
 
 export const VocabEnrichmentResponseSchema = z.object({
@@ -360,7 +418,9 @@ export const VocabEnrichmentResponseSchema = z.object({
   translationEs: z.string(),
   definitionEn: z.string(),
   ipaGeneralAmerican: z.string(),
-  ipaReceivedPronunciation: z.string().optional(),
+  ipaReceivedPronunciation: z.string().nullable().optional(),
+  ipaWeakForm: z.string().nullable().optional(),
+  phoneticEdEnding: z.enum(['/t/', '/d/', '/ɪd/']).nullable().optional(),
   cefrLevel: z.enum(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']),
   partOfSpeech: z.enum([
     'NOUN',
@@ -386,18 +446,16 @@ export const VocabEnrichmentResponseSchema = z.object({
   additionalExamples: z.array(ExampleSentenceItemSchema).optional(),
   isFalseFriend: z.boolean(),
   falseFriendNote: z.string().nullable().optional(),
-  morphologicalFamily: z.array(z.string()).default([]),
   domainCategory: z.string().default('Uso General'),
   verbTenses: VerbTensesSchema.nullable().optional(),
-  structuredFamily: StructuredFamilySchema.default({ nouns: [], verbs: [], adjectives: [], adverbs: [] }),
   senses: z.array(VocabSenseSchema).default([]),
+  phrasalVerbs: z.array(PhrasalVerbItemSchema).default([]).optional(),
   spellingCorrection: SpellingCorrectionSchema.optional(),
   isValidEnglishWord: z.boolean().default(true),
 });
 
 export type VocabEnrichmentResponse = z.infer<typeof VocabEnrichmentResponseSchema>;
 export type VerbTensesData = z.infer<typeof VerbTensesSchema>;
-export type StructuredFamilyData = z.infer<typeof StructuredFamilySchema>;
 export type VocabSenseData = z.infer<typeof VocabSenseSchema>;
 export type SpellingCorrectionData = z.infer<typeof SpellingCorrectionSchema>;
 

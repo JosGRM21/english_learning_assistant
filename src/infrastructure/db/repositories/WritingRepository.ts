@@ -133,7 +133,6 @@ export class WritingRepository implements IWritingRepository {
           overall_feedback_es: input.evaluation.overall_feedback_es,
           qualitative_recommendations_es: input.evaluation.qualitative_recommendations_es || '',
           corrections_json: JSON.stringify(input.evaluation.corrections),
-          micro_challenge_json: input.evaluation.micro_challenge ? JSON.stringify(input.evaluation.micro_challenge) : null,
           successful_repairs_json: JSON.stringify(input.evaluation.successful_repairs ?? []),
         })
         .where('id', '=', existing.id)
@@ -158,7 +157,6 @@ export class WritingRepository implements IWritingRepository {
           overall_feedback_es: input.evaluation.overall_feedback_es,
           qualitative_recommendations_es: input.evaluation.qualitative_recommendations_es || '',
           corrections_json: JSON.stringify(input.evaluation.corrections),
-          micro_challenge_json: input.evaluation.micro_challenge ? JSON.stringify(input.evaluation.micro_challenge) : null,
           successful_repairs_json: JSON.stringify(input.evaluation.successful_repairs ?? []),
         })
         .execute();
@@ -199,9 +197,6 @@ export class WritingRepository implements IWritingRepository {
           ? JSON.parse(evalRow.successful_repairs_json)
           : [],
         corrections: JSON.parse(evalRow.corrections_json),
-        micro_challenge: evalRow.micro_challenge_json
-          ? JSON.parse(evalRow.micro_challenge_json)
-          : null,
       };
     } catch {
       return null;
@@ -393,18 +388,26 @@ export class WritingRepository implements IWritingRepository {
       const cardId = `card_err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const now = new Date().toISOString();
 
-      // Check previous occurrences
-      const recidivism = await this.checkRecidivism(userId, corr.taxonomy_code);
+      // Check previous occurrences of this specific error pattern (RF-ERR-07)
+      const recidivism = await this.checkRecidivism(userId, corr.taxonomy_code, corr.error_span);
       const timesRecidivist = recidivism.count + 1;
       const isFossilized = timesRecidivist >= 2;
 
       // Positive Drill format
-      const drillFormat: PositiveDrillFormat = 'CONTEXTUAL_CLOZE';
+      const drillFormat: PositiveDrillFormat = corr.drill?.format ?? 'CONTEXTUAL_CLOZE';
       const drillData: PositiveDrillData = {
         format: drillFormat,
         clozeSentence: corr.drill?.cloze_sentence || contextText,
         expectedToken: corr.drill?.expected_token || corr.native_reformulation,
-        explanationEs: corr.explanation_es,
+        cTestPrompt: corr.drill?.sentence_with_prefix,
+        cTestPrefix: corr.drill?.c_test_prefix,
+        expectedLength: corr.drill?.expected_length,
+        rewriteBaseSentence: corr.drill?.source_sentence,
+        rewriteKeyword: corr.drill?.mandatory_keyword,
+        rewriteTargetSentence: corr.drill?.model_solution,
+        scrambledChunks: corr.drill?.scrambled_chunks,
+        expectedSequence: corr.drill?.correct_sequence,
+        explanationEs: corr.explanation_es || corr.drill?.explanation_es || '',
         sentenceContext: contextText || corr.drill?.cloze_sentence || '',
       };
 
@@ -456,14 +459,25 @@ export class WritingRepository implements IWritingRepository {
     }
   }
 
-  async checkRecidivism(userId: string, taxonomyCode: string): Promise<{ isRecidivist: boolean; count: number }> {
-    const existing = await this.db
+  async checkRecidivism(
+    userId: string,
+    taxonomyCode: string,
+    errorSpan?: string,
+  ): Promise<{ isRecidivist: boolean; count: number }> {
+    let query = this.db
       .selectFrom('writing_error_logs')
       .select((eb) => eb.fn.count('id').as('count'))
       .where('user_id', '=', userId)
-      .where('taxonomy_code', '=', taxonomyCode)
-      .executeTakeFirst();
+      .where('taxonomy_code', '=', taxonomyCode);
 
+    if (errorSpan && errorSpan.trim()) {
+      const normalizedSpan = errorSpan.trim().toLowerCase();
+      query = query.where((eb) =>
+        eb(eb.fn('lower', ['error_span']), '=', normalizedSpan),
+      );
+    }
+
+    const existing = await query.executeTakeFirst();
     const count = Number(existing?.count ?? 0);
     return {
       isRecidivist: count >= 2,

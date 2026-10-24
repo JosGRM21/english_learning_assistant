@@ -3,53 +3,45 @@ import {
   Award,
   AlertTriangle,
   ArrowRight,
-  Check,
   RotateCcw,
   Volume2,
-  BookmarkPlus,
   Trophy,
   GitCompare,
   CheckCircle2,
   ShieldAlert,
+  Sparkles,
+  Target,
 } from 'lucide-react';
 import {
   WritingEvaluationResponse,
-  CorrectionItem,
 } from '@/infrastructure/ai/schemas';
 import { DiffVisualizer } from './DiffVisualizer';
+import { DoubleRecastPanel } from './DoubleRecastPanel';
 
 export interface WritingStageThreeProps {
   evalResult: WritingEvaluationResponse;
   draft1: string;
   draft2: string;
   isPlayingTts?: boolean;
-  srsSuccessMessage?: string | null;
   onPlayTts?: (text: string) => void;
-  onAddToSrs?: (correction: CorrectionItem, draftContext?: string) => void;
   onNavigateToDefossilization?: () => void;
   onReset: () => void;
 }
 
-type StageThreeViewTab = 'DIFF' | 'CORRECTIONS';
+type StageThreeViewTab = 'RECAST' | 'DIFF' | 'CORRECTIONS';
 
 export function WritingStageThree({
   evalResult,
   draft1,
   draft2,
   isPlayingTts = false,
-  srsSuccessMessage,
   onPlayTts,
-  onAddToSrs,
   onNavigateToDefossilization,
   onReset,
 }: WritingStageThreeProps) {
-  const [activeTab, setActiveTab] = useState<StageThreeViewTab>('DIFF');
-  const [addedItems, setAddedItems] = useState<Record<string, boolean>>({});
-
-  const handleAddSrsCard = (corr: CorrectionItem) => {
-    onAddToSrs?.(corr, draft2);
-    setAddedItems((prev) => ({ ...prev, [corr.error_span]: true }));
-  };
+  const [activeTab, setActiveTab] = useState<StageThreeViewTab>(
+    evalResult.native_recast_version || evalResult.clean_structural_version ? 'RECAST' : 'DIFF'
+  );
 
   const rubric = evalResult.rubric_scores || {
     accuracy: 8,
@@ -60,13 +52,6 @@ export function WritingStageThree({
 
   return (
     <div className="space-y-6">
-      {/* Toast Notification Banner for SRS success */}
-      {srsSuccessMessage && (
-        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold text-emerald-800 dark:text-emerald-200 flex items-center gap-2 animate-in fade-in duration-200 shadow-2xs">
-          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{srsSuccessMessage}</span>
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* 1. HERO SCOREBOARD, CEFR & 4-AXIS RUBRIC */}
@@ -80,7 +65,7 @@ export function WritingStageThree({
               </div>
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                  Evaluación Final Socrática
+                  Evaluación y Diagnóstico
                 </span>
                 <div className="flex items-center gap-3 mt-0.5">
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
@@ -181,6 +166,62 @@ export function WritingStageThree({
         </div>
       </section>
 
+      {/* ========================================================================= */}
+      {/* 2. TARGET VOCABULARY OUTCOME (RF-WRT-03) */}
+      {/* ========================================================================= */}
+      {evalResult.target_words_feedback && evalResult.target_words_feedback.length > 0 && (
+        <section aria-label="Incorporación de vocabulario meta" className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-indigo-100 dark:border-indigo-950/60 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
+              <Target className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span>
+                Metas Léxicas del Mazo SRS ({evalResult.target_words_feedback.filter((t) => t.used).length} / {evalResult.target_words_feedback.length} activadas)
+              </span>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed font-sans">
+            Evaluación de naturalidad e integración de las palabras frágiles que seleccionaste para activar en esta sesión:
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+            {evalResult.target_words_feedback.map((item, idx) => (
+              <div
+                key={idx}
+                className={`p-4 rounded-2xl border space-y-2 shadow-2xs ${
+                  item.used
+                    ? item.is_natural
+                      ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40'
+                      : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40'
+                    : 'bg-gray-50/60 dark:bg-[#181D2A] border-gray-200/80 dark:border-gray-800 opacity-70'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+                  <span className="font-mono font-bold text-gray-900 dark:text-white">
+                    "{item.word}"
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      item.used
+                        ? item.is_natural
+                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                        : 'bg-gray-200 dark:bg-gray-800 text-gray-500'
+                    }`}
+                  >
+                    {item.used ? (item.is_natural ? 'Uso Natural' : 'Uso Forzado') : 'No Utilizada'}
+                  </span>
+                </div>
+                {item.feedback_es && (
+                  <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed font-sans">
+                    {item.feedback_es}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ========================================================================= */}
       {/* 3. LEARNER UPTAKE & SELF-REPAIR CELEBRATION */}
@@ -190,7 +231,7 @@ export function WritingStageThree({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
               <Trophy className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Logros de Auto-Corrección (Learner Uptake) ({evalResult.successful_repairs.length})</span>
+              <span>Mejoras aplicadas con éxito ({evalResult.successful_repairs.length})</span>
             </div>
             <span className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 px-3 py-1 rounded-full bg-emerald-100/80 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 self-start sm:self-auto flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -237,13 +278,28 @@ export function WritingStageThree({
       {/* ========================================================================= */}
       <section aria-label="Análisis detallado" className="space-y-4">
         {/* Section Navigation Tabs */}
-        <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 dark:bg-[#181D2A] rounded-2xl border border-gray-200/80 dark:border-gray-800 w-fit">
+        <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 dark:bg-[#181D2A] rounded-2xl border border-gray-200/80 dark:border-gray-800 w-fit flex-wrap">
+          {(evalResult.native_recast_version || evalResult.clean_structural_version) && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('RECAST')}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === 'RECAST'
+                  ? 'bg-white dark:bg-[#121620] text-gray-900 dark:text-white shadow-2xs font-bold'
+                  : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Versiones de Referencia</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setActiveTab('DIFF')}
             className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === 'DIFF'
-                ? 'bg-white dark:bg-[#121620] text-gray-900 dark:text-white shadow-2xs'
+                ? 'bg-white dark:bg-[#121620] text-gray-900 dark:text-white shadow-2xs font-bold'
                 : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
             }`}
           >
@@ -257,20 +313,34 @@ export function WritingStageThree({
               onClick={() => setActiveTab('CORRECTIONS')}
               className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'CORRECTIONS'
-                  ? 'bg-white dark:bg-[#121620] text-gray-900 dark:text-white shadow-2xs'
+                  ? 'bg-white dark:bg-[#121620] text-gray-900 dark:text-white shadow-2xs font-bold'
                   : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
               }`}
             >
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
-              <span>Interferencias del Español</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+              <span>Puntos de Mejora</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
                 {evalResult.corrections.length}
               </span>
             </button>
           )}
         </div>
 
-        {/* Tab 1: Diff Visualizer */}
+        {/* Tab 1: Double Recast & Noticing the Gap (RF-WRT-07 & RF-WRT-11) */}
+        {activeTab === 'RECAST' && (
+          <div className="animate-in fade-in duration-150">
+            <DoubleRecastPanel
+              cleanStructuralVersion={evalResult.clean_structural_version}
+              nativeRecastVersion={evalResult.native_recast_version}
+              noticingContrasts={evalResult.noticing_the_gap_contrasts}
+              userDraft={draft2 || draft1}
+              onPlayTts={onPlayTts}
+              isPlayingTts={isPlayingTts}
+            />
+          </div>
+        )}
+
+        {/* Tab 2: Diff Visualizer */}
         {activeTab === 'DIFF' && (
           <div className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-gray-200/90 dark:border-gray-800 shadow-xs animate-in fade-in duration-150">
             <DiffVisualizer
@@ -282,88 +352,65 @@ export function WritingStageThree({
           </div>
         )}
 
-        {/* Tab 2: Detailed L1 Transfer Breakdown */}
+        {/* Tab 3: Detailed Corrections Breakdown */}
         {activeTab === 'CORRECTIONS' && evalResult.corrections.length > 0 && (
           <div className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-gray-200/90 dark:border-gray-800 shadow-xs space-y-4 animate-in fade-in duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800/80">
-              <div className="text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+              <div className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
                 <AlertTriangle className="w-4 h-4" />
-                <span>Interferencias Detectadas del Español ({evalResult.corrections.length})</span>
+                <span>Correcciones y Puntos de Mejora ({evalResult.corrections.length})</span>
               </div>
-              <span className="text-[11px] text-gray-400">
-                Guarda los patrones más engañosos directamente en tu mazo SRS
+              <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                Guardados automáticamente en tu Corrector de Hábitos para afianzar y desfosilizar
               </span>
             </div>
 
             <div className="divide-y divide-gray-100 dark:divide-gray-800/80">
-              {evalResult.corrections.map((corr, idx) => {
-                const isAdded = addedItems[corr.error_span];
-
-                return (
-                  <div
-                    key={idx}
-                    className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs px-2.5 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold line-through">
-                          {corr.error_span}
+              {evalResult.corrections.map((corr, idx) => (
+                <div
+                  key={idx}
+                  className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs px-2.5 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold line-through">
+                        {corr.error_span}
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5 text-gray-400" />
+                      <span className="font-mono text-xs px-2.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold">
+                        {corr.native_reformulation}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 font-medium">
+                        {corr.taxonomy_code}
+                      </span>
+                      {corr.is_l1_spanish_transfer && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/40">
+                          Influencia del Español
                         </span>
-                        <ArrowRight className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="font-mono text-xs px-2.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold">
-                          {corr.native_reformulation}
-                        </span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500">
-                          {corr.taxonomy_code}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed font-sans">
-                        {corr.explanation_es}
-                      </p>
-                    </div>
-
-                    {/* Actions for this correction */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      {onPlayTts && (
-                        <button
-                          type="button"
-                          onClick={() => onPlayTts(corr.native_reformulation)}
-                          className="p-2 rounded-xl text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                          title="Escuchar pronunciación nativa"
-                        >
-                          <Volume2 className="w-4 h-4" />
-                        </button>
-                      )}
-
-                      {onAddToSrs && (
-                        <button
-                          type="button"
-                          onClick={() => handleAddSrsCard(corr)}
-                          disabled={isAdded}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
-                            isAdded
-                              ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 cursor-default'
-                              : 'bg-gray-100 dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-gray-700 dark:text-gray-200 hover:text-indigo-600'
-                          }`}
-                        >
-                          {isAdded ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>En mazo SRS</span>
-                            </>
-                          ) : (
-                            <>
-                              <BookmarkPlus className="w-3.5 h-3.5" />
-                              <span>Guardar en SRS</span>
-                            </>
-                          )}
-                        </button>
                       )}
                     </div>
+
+                    <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed font-sans">
+                      {corr.explanation_es}
+                    </p>
                   </div>
-                );
-              })}
+
+                  {/* Actions for this correction */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {onPlayTts && (
+                      <button
+                        type="button"
+                        onClick={() => onPlayTts(corr.native_reformulation)}
+                        className="p-2 rounded-xl text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        title="Escuchar pronunciación nativa"
+                        aria-label={`Escuchar pronunciación de ${corr.native_reformulation}`}
+                      >
+                        <Volume2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

@@ -12,8 +12,9 @@ import {
   PositiveDrillData,
   PositiveDrillFormat,
 } from '../../../core/types/srs';
-import { CefrLevel, GrammaticalDimension, PartOfSpeech, ChunkType, PhrasalVerbType, VocabContextExample, VerbTenses, StructuredWordFamily, VocabSense } from '../../../core/types/vocab';
+import { CefrLevel, GrammaticalDimension, PartOfSpeech, ChunkType, PhrasalVerbType, VocabContextExample, VerbTenses, VocabSense } from '../../../core/types/vocab';
 import { mapVocabRowToDomain } from './VocabRepository';
+import { CORE_PHRASAL_DATA } from '@/data/core-vocab-corpus';
 
 export class CardRepository implements ICardRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
@@ -127,6 +128,31 @@ export class CardRepository implements ICardRepository {
     };
   }
 
+  async activatePhraseCard(phraseId: string): Promise<SrsCard> {
+    const existing = await this.getCardByTargetId(phraseId, 'PHRASE');
+    if (existing) {
+      return existing;
+    }
+
+    const now = new Date().toISOString();
+    const newCard: CreateCardInput = {
+      id: `card_phr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      userId: 'user_local',
+      targetType: 'PHRASE',
+      targetId: phraseId,
+      state: 'NEW',
+      stability: 0.0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      srsProfile: 'VOCAB_AGILE',
+      lastReviewedAt: null,
+      scheduledFor: now,
+    };
+
+    return this.createCard(newCard);
+  }
+
   async updateCard(card: SrsCard): Promise<void> {
     await this.db
       .updateTable('srs_cards')
@@ -216,54 +242,96 @@ export class CardRepository implements ICardRepository {
           currentContext: contexts[0],
         });
       } else if (card.targetType === 'PHRASE') {
-        // 1. Check phraseological_units
+        // 1. Check phraseological_units in SQLite or fallback to CORE_PHRASAL_DATA
         const phraseRow = await this.db
           .selectFrom('phraseological_units')
           .selectAll()
           .where('id', '=', card.targetId)
           .executeTakeFirst();
 
-        if (phraseRow) {
-          const contexts: VocabContextExample[] = [];
-          if (phraseRow.example_1) {
-            contexts.push({
-              id: `ctx_${phraseRow.id}_1`,
-              phraseId: phraseRow.id,
-              sentenceEn: phraseRow.example_1,
-              sentenceEs: phraseRow.example_2 || phraseRow.meaning_es,
-              clozeTarget: phraseRow.text,
-              cefrLevel: phraseRow.cefr_level as CefrLevel,
-              createdAt: phraseRow.created_at,
-            });
-          }
-
-          results.push({
-            card,
-            phrase: {
+        const phraseItem = phraseRow
+          ? {
               id: phraseRow.id,
               primaryVocabId: phraseRow.primary_vocab_id,
               chunkType: phraseRow.chunk_type as ChunkType,
               text: phraseRow.text,
               meaningEs: phraseRow.meaning_es,
               phrasalVerbType: phraseRow.phrasal_verb_type as PhrasalVerbType | null,
+              pronounMustSplit: Boolean(phraseRow.pronoun_must_split),
               example1: phraseRow.example_1,
+              example1Es: phraseRow.example_1_es,
               example2: phraseRow.example_2,
+              example2Es: phraseRow.example_2_es,
               cefrLevel: phraseRow.cefr_level as CefrLevel,
               createdAt: phraseRow.created_at,
+            }
+          : (() => {
+              const p = CORE_PHRASAL_DATA.find((item) => item.id === card.targetId);
+              if (!p) return null;
+              return {
+                id: p.id,
+                primaryVocabId: p.primaryVocabId,
+                chunkType: p.chunkType as ChunkType,
+                text: p.text,
+                meaningEs: p.meaningEs,
+                definitionEn: p.definitionEn,
+                ipaGeneralAmerican: p.ipaGeneralAmerican,
+                ipaReceivedPronunciation: p.ipaReceivedPronunciation,
+                phrasalVerbType: p.phrasalVerbType as PhrasalVerbType | null,
+                pronounMustSplit: Boolean(p.pronounMustSplit),
+                example1: p.example1,
+                example1Es: p.example1Es,
+                example2: p.example2,
+                example2Es: p.example2Es,
+                cefrLevel: p.cefrLevel as CefrLevel,
+                createdAt: new Date().toISOString(),
+              };
+            })();
+
+        if (phraseItem) {
+          const contexts: VocabContextExample[] = [];
+          if (phraseItem.example1) {
+            contexts.push({
+              id: `ctx_${phraseItem.id}_1`,
+              phraseId: phraseItem.id,
+              sentenceEn: phraseItem.example1,
+              sentenceEs: phraseItem.example1Es || phraseItem.meaningEs,
+              clozeTarget: phraseItem.text,
+              cefrLevel: phraseItem.cefrLevel,
+              createdAt: phraseItem.createdAt,
+            });
+          }
+
+          results.push({
+            card,
+            phrase: {
+              id: phraseItem.id,
+              primaryVocabId: phraseItem.primaryVocabId,
+              chunkType: phraseItem.chunkType,
+              text: phraseItem.text,
+              meaningEs: phraseItem.meaningEs,
+              phrasalVerbType: phraseItem.phrasalVerbType,
+              example1: phraseItem.example1,
+              example2: phraseItem.example2,
+              cefrLevel: phraseItem.cefrLevel,
+              createdAt: phraseItem.createdAt,
             },
             vocab: {
-              id: phraseRow.id,
-              word: phraseRow.text,
+              id: phraseItem.id,
+              word: phraseItem.text,
               grammaticalDimension: 'CHUNK',
-              partOfSpeech: 'NOUN',
-              definitionEn: phraseRow.meaning_es,
-              translationEs: phraseRow.meaning_es,
+              partOfSpeech: phraseItem.chunkType === 'PHRASAL_VERB' ? 'VERB' : 'NOUN',
+              subcategory: phraseItem.chunkType === 'PHRASAL_VERB' ? 'PHRASAL_VERB' : undefined,
+              definitionEn: phraseItem.meaningEs,
+              translationEs: phraseItem.meaningEs,
               ipaGeneralAmerican: '',
-              cefrLevel: phraseRow.cefr_level as CefrLevel,
+              cefrLevel: phraseItem.cefrLevel,
+              isSeparable: phraseItem.pronounMustSplit,
               isFalseFriend: false,
-              isCore: false,
-              masteryStatus: 'NEW',
-              createdAt: phraseRow.created_at,
+              isCore: true,
+              masteryStatus: 'LEARNING',
+              domainCategory: phraseItem.chunkType === 'PHRASAL_VERB' ? 'Phrasal Verb' : 'Expresión',
+              createdAt: phraseItem.createdAt,
             },
             allContexts: contexts,
             currentContext: contexts[0],
@@ -315,16 +383,8 @@ export class CardRepository implements ICardRepository {
                   phoneticEdEnding: (vocabRow.phonetic_ed_ending as any) ?? null,
                   isFalseFriend: Boolean(vocabRow.is_false_friend),
                   falseFriendNote: vocabRow.false_friend_note,
-                  morphologicalFamilyJson: this.parseJsonSafe<string[]>(
-                    vocabRow.morphological_family_json,
-                    [],
-                  ),
                   verbTensesJson: this.parseJsonSafe<VerbTenses | null>(
                     vocabRow.verb_tenses_json,
-                    null,
-                  ),
-                  structuredFamilyJson: this.parseJsonSafe<StructuredWordFamily | null>(
-                    vocabRow.structured_family_json,
                     null,
                   ),
                   domainCategory: vocabRow.domain_category ?? null,
@@ -551,6 +611,7 @@ export class CardRepository implements ICardRepository {
       .selectFrom('srs_cards')
       .selectAll()
       .where('user_id', '=', userId)
+      .where('target_type', 'in', ['VOCAB', 'PHRASE'])
       .where((eb) =>
         eb.or([
           eb('state', 'in', ['NEW', 'LEARNING', 'RELEARNING']),

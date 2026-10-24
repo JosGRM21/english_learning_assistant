@@ -563,20 +563,25 @@ export class QuotaMatrixOrchestrator {
     if (!quota) return;
 
     const lower = errorPayload.toLowerCase();
-    const isRpm =
-      lower.includes('perminute') ||
-      lower.includes('rpm') ||
-      lower.includes('retry-after') ||
-      lower.includes('rate limit');
+    // Daily quota exhaustion (RPD) requires explicit daily indicators.
+    // Unclassified or standard 429 errors (concurrency, bursts, RPM) should trigger
+    // a 30s RPM cooldown instead of locking out the API key until midnight PT.
+    const isDaily =
+      lower.includes('per day') ||
+      lower.includes('perday') ||
+      lower.includes('daily') ||
+      lower.includes('rpd') ||
+      lower.includes('quota per day') ||
+      lower.includes('requests per day');
 
-    if (isRpm) {
-      // 30 seconds RPM cooldown
-      const cooldown = new Date(now.getTime() + 30 * 1000);
-      quota.rpmCooldownUntil = cooldown.toISOString();
-    } else {
+    if (isDaily) {
       // Exhausted until midnight PT (RPD limit reached)
       quota.requestsToday = quota.dailyLimit;
       quota.rpdStatus = 'EXHAUSTED_UNTIL_MIDNIGHT_PT';
+    } else {
+      // 30 seconds RPM cooldown for burst rate limits
+      const cooldown = new Date(now.getTime() + 30 * 1000);
+      quota.rpmCooldownUntil = cooldown.toISOString();
     }
 
     this.persistQuotas();

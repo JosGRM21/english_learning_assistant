@@ -318,5 +318,29 @@ describe('FsrsScheduler', () => {
       expect(updatedCard.consecutiveLapses).toBe(0);
     });
   });
+
+  describe('calculateScheduledDate with daily cutoff', () => {
+    it('schedules on upcoming morning when reviewed before cutoff hour', () => {
+      // 02:00 AM on Wednesday 2026-10-15 (before 04:00 AM cutoff)
+      const lateNightReview = new Date(2026, 9, 15, 2, 0, 0);
+      const scheduled = scheduler.calculateScheduledDate(lateNightReview, 1, 4);
+
+      // 1 day interval before cutoff means the upcoming morning of the same calendar day (04:00 AM)
+      expect(scheduled.getDate()).toBe(15);
+      expect(scheduled.getHours()).toBe(4);
+      expect(scheduled.getMinutes()).toBe(0);
+    });
+
+    it('schedules on next day morning when reviewed after cutoff hour', () => {
+      // 10:00 AM on Wednesday 2026-10-15 (after 04:00 AM cutoff)
+      const dayReview = new Date(2026, 9, 15, 10, 0, 0);
+      const scheduled = scheduler.calculateScheduledDate(dayReview, 1, 4);
+
+      // 1 day interval after cutoff means 04:00 AM on the next calendar day (Thursday 16th)
+      expect(scheduled.getDate()).toBe(16);
+      expect(scheduled.getHours()).toBe(4);
+      expect(scheduled.getMinutes()).toBe(0);
+    });
+  });
 });
 

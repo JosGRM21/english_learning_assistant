@@ -42,7 +42,6 @@ describe('RestoreService', () => {
             ipaReceivedPronunciation: '/ˈæp.l̩/',
             cefrLevel: 'A1',
             isFalseFriend: false,
-            morphologicalFamilyJson: ['apples'],
           },
           contexts: [
             {

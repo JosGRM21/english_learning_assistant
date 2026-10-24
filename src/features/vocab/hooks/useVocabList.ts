@@ -9,15 +9,18 @@ import {
   GrammaticalDimension,
   PartOfSpeech,
   VerbTenses,
-  StructuredWordFamily,
   VocabSense,
+  PhrasalVerbItem,
 } from '@/core/types/vocab';
 import { CoreCorpusCoverage } from '@/core/repositories/IVocabRepository';
 import {
   CORE_VOCAB_DATA,
+  CORE_PHRASAL_DATA,
   clearCoreCorpusMemory,
   searchCoreCorpusLocally,
+  searchCorePhrasalLocally,
   toDomainCoreVocab,
+  toDomainCorePhrase,
 } from '@/data/core-vocab-corpus';
 
 export interface NewVocabPayload {
@@ -29,14 +32,28 @@ export interface NewVocabPayload {
   grammaticalDimension: GrammaticalDimension;
   ipaGeneralAmerican?: string;
   ipaReceivedPronunciation?: string;
+  ipaWeakForm?: string;
+  phoneticEdEnding?: '/t/' | '/d/' | '/ɪd/' | null;
+  collocations?: string[];
+  grammarPattern?: string | null;
+  countability?: 'COUNTABLE' | 'UNCOUNTABLE' | 'BOTH' | null;
+  connotation?: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+  graduatedExamples?: {
+    sentenceBasicEn: string;
+    sentenceBasicEs: string;
+    clozeTargetBasic?: string;
+    sentenceAdvancedEn: string;
+    sentenceAdvancedEs: string;
+    clozeTargetAdvanced?: string;
+  };
   subcategory?: string;
   domainCategory?: string;
   isFalseFriend: boolean;
   falseFriendNote?: string;
-  morphologicalFamily?: string[];
   verbTenses?: VerbTenses | null;
-  structuredFamily?: StructuredWordFamily | null;
   alternateSenses?: VocabSense[] | null;
+  senses?: VocabSense[] | null;
+  phrasalVerbs?: PhrasalVerbItem[] | null;
   exampleSentenceEn?: string;
   exampleSentenceEs?: string;
   additionalExamples?: { sentenceEn: string; sentenceEs: string }[];
@@ -82,7 +99,7 @@ export function useVocabList() {
       setError(null);
 
       // 1. Fetch all SQLite saved words (seeded core words + active core words + personal vault additions)
-      const dbWords = await vocabRepo.getAllVocabs(5000);
+      const dbWords = await vocabRepo.getAllVocabs();
       const dbWordsMap = new Map<string, VocabItem>();
       for (const w of dbWords) {
         dbWordsMap.set(w.id, w);
@@ -113,17 +130,51 @@ export function useVocabList() {
         combinedWords = [...vaultWords, ...fullCoreList];
       }
 
-      setWords(combinedWords);
-
-      // 4. Pre-fetch context examples for active words
-      const exMap: Record<string, VocabContextExample[]> = {};
-      const activeWordsSlice = combinedWords.filter((w) => w.masteryStatus !== 'INACTIVE').slice(0, 100);
-      for (const w of activeWordsSlice) {
-        const contexts = await vocabRepo.getContextExamples(w.id);
-        if (contexts.length > 0) {
-          exMap[w.id] = contexts;
+      // 3. Append core phrasal units so they are first-class items in the catalog
+      let activePhraseIds = new Set<string>();
+      if (cardRepo) {
+        try {
+          const activeCards = await cardRepo.getCardsWithDetails('user_local');
+          activePhraseIds = new Set(
+            activeCards
+              .filter((c) => c.card.targetType === 'PHRASE')
+              .map((c) => c.card.targetId)
+          );
+        } catch {
+          activePhraseIds = new Set();
         }
       }
+
+      const phraseWords: VocabItem[] = CORE_PHRASAL_DATA.map((rawPhr) =>
+        toDomainCorePhrase(rawPhr, activePhraseIds.has(rawPhr.id) ? 'LEARNING' : 'INACTIVE')
+      );
+
+      combinedWords = [...combinedWords, ...phraseWords];
+
+      setWords(combinedWords);
+
+      // 4. Pre-fetch context examples for active words in a single batch query
+      const activeWordsSlice = combinedWords.filter((w) => w.masteryStatus !== 'INACTIVE').slice(0, 100);
+      const activeIds = activeWordsSlice.map((w) => w.id);
+      const exMap = await vocabRepo.getContextExamplesForVocabs(activeIds);
+
+      // Seed context examples for active phrases
+      for (const rawPhr of CORE_PHRASAL_DATA) {
+        if (activePhraseIds.has(rawPhr.id)) {
+          exMap[rawPhr.id] = [
+            {
+              id: `ctx_${rawPhr.id}_1`,
+              phraseId: rawPhr.id,
+              sentenceEn: rawPhr.example1,
+              sentenceEs: rawPhr.example1Es || rawPhr.meaningEs,
+              clozeTarget: rawPhr.text,
+              cefrLevel: rawPhr.cefrLevel,
+              createdAt: new Date().toISOString(),
+            },
+          ];
+        }
+      }
+
       setExamplesMap(exMap);
 
       // 5. Fetch Core Corpus Coverage statistics
@@ -185,13 +236,10 @@ export function useVocabList() {
           // Synchronize SRS store with all newly activated items immediately
           useSrsStore.getState().addBatchVocabItems(activatedItems);
 
-          // Update context examples for the activated batch
-          for (const item of activatedItems) {
-            const contexts = await vocabRepo.getContextExamples(item.id);
-            if (contexts.length > 0) {
-              setExamplesMap((prev) => ({ ...prev, [item.id]: contexts }));
-            }
-          }
+          // Update context examples for the activated batch in a single batch query
+          const activatedIds = activatedItems.map((item) => item.id);
+          const batchContexts = await vocabRepo.getContextExamplesForVocabs(activatedIds);
+          setExamplesMap((prev) => ({ ...prev, ...batchContexts }));
         }
 
         // Reload vocab list and refresh coverage
@@ -208,6 +256,47 @@ export function useVocabList() {
     [vocabRepo, loadVocabData],
   );
 
+  // Activate a Phrasal Verb directly into SRS
+  const activatePhrase = useCallback(
+    async (phraseId: string): Promise<boolean> => {
+      if (!cardRepo) return false;
+      try {
+        await cardRepo.activatePhraseCard(phraseId);
+
+        const targetPhr = CORE_PHRASAL_DATA.find((p) => p.id === phraseId);
+        if (targetPhr) {
+          const phraseVocabItem = toDomainCorePhrase(targetPhr, 'LEARNING');
+          const contextExample: VocabContextExample = {
+            id: `ctx_${targetPhr.id}_1`,
+            phraseId: targetPhr.id,
+            sentenceEn: targetPhr.example1,
+            sentenceEs: targetPhr.example1Es || targetPhr.meaningEs,
+            clozeTarget: targetPhr.text,
+            cefrLevel: targetPhr.cefrLevel,
+            createdAt: new Date().toISOString(),
+          };
+
+          // Update in-memory state
+          setWords((prev) =>
+            prev.map((w) => (w.id === phraseId ? { ...w, masteryStatus: 'LEARNING' } : w))
+          );
+          setExamplesMap((prev) => ({
+            ...prev,
+            [phraseId]: [contextExample],
+          }));
+
+          // Synchronize SRS store
+          useSrsStore.getState().addVocabItem(phraseVocabItem, contextExample, `card_phr_${targetPhr.id}`);
+        }
+        return true;
+      } catch (err) {
+        console.error('Error activating phrase:', err);
+        return false;
+      }
+    },
+    [cardRepo],
+  );
+
   // Instant local suggestions (< 1ms) for search autocomplete dropdown
   const getSuggestions = useCallback(
     (query: string, limit = 8): VocabSuggestion[] => {
@@ -215,7 +304,9 @@ export function useVocabList() {
       if (q.length < 2) return [];
 
       const rawMatches = searchCoreCorpusLocally(q, limit);
-      return rawMatches.map((item) => {
+      const phrasalMatches = searchCorePhrasalLocally(q, 4);
+
+      const vocabSuggestions: VocabSuggestion[] = rawMatches.map((item) => {
         const existing = words.find((w) => w.id === item.id || w.word.toLowerCase() === item.word.toLowerCase());
         const isActive = existing ? existing.masteryStatus !== 'INACTIVE' : false;
         return {
@@ -229,6 +320,23 @@ export function useVocabList() {
           isCore: true,
         };
       });
+
+      const phrasalSuggestions: VocabSuggestion[] = phrasalMatches.map((item) => {
+        const existing = words.find((w) => w.id === item.id || w.word.toLowerCase() === item.text.toLowerCase());
+        const isActive = existing ? existing.masteryStatus !== 'INACTIVE' : false;
+        return {
+          id: item.id,
+          word: item.text,
+          translationEs: item.meaningEs,
+          cefrLevel: item.cefrLevel,
+          partOfSpeech: 'VERB',
+          frequencyBand: 'TOP_3000',
+          isActive,
+          isCore: true,
+        };
+      });
+
+      return [...vocabSuggestions, ...phrasalSuggestions].slice(0, limit);
     },
     [words],
   );
@@ -248,21 +356,45 @@ export function useVocabList() {
         grammaticalDimension: payload.grammaticalDimension,
         ipaGeneralAmerican: payload.ipaGeneralAmerican ?? '',
         ipaReceivedPronunciation: payload.ipaReceivedPronunciation,
+        ipaWeakForm: payload.ipaWeakForm,
+        phoneticEdEnding: payload.phoneticEdEnding,
+        collocationsJson: payload.collocations ?? [],
         subcategory: payload.subcategory,
         domainCategory: payload.domainCategory,
         isFalseFriend: payload.isFalseFriend,
         falseFriendNote: payload.falseFriendNote,
-        morphologicalFamilyJson: payload.morphologicalFamily ?? [],
         verbTensesJson: payload.verbTenses ?? null,
-        structuredFamilyJson: payload.structuredFamily ?? null,
         alternateSensesJson: payload.alternateSenses ?? null,
+        sensesJson: payload.senses ?? null,
+        phrasalVerbsJson: payload.phrasalVerbs ?? null,
         isCore: false,
         masteryStatus: 'NEW',
       });
 
       const createdExamples: VocabContextExample[] = [];
-      // Add primary context example if supplied
-      if (payload.exampleSentenceEn && payload.exampleSentenceEn.trim()) {
+      // Add graduated context examples if supplied
+      if (payload.graduatedExamples) {
+        if (payload.graduatedExamples.sentenceBasicEn) {
+          const basicEx = await vocabRepo.addContextExample({
+            vocabId: created.id,
+            sentenceEn: payload.graduatedExamples.sentenceBasicEn.trim(),
+            sentenceEs: payload.graduatedExamples.sentenceBasicEs?.trim() || '',
+            clozeTarget: payload.graduatedExamples.clozeTargetBasic || created.word,
+            cefrLevel: 'A2',
+          });
+          createdExamples.push(basicEx);
+        }
+        if (payload.graduatedExamples.sentenceAdvancedEn) {
+          const advEx = await vocabRepo.addContextExample({
+            vocabId: created.id,
+            sentenceEn: payload.graduatedExamples.sentenceAdvancedEn.trim(),
+            sentenceEs: payload.graduatedExamples.sentenceAdvancedEs?.trim() || '',
+            clozeTarget: payload.graduatedExamples.clozeTargetAdvanced || created.word,
+            cefrLevel: 'B2',
+          });
+          createdExamples.push(advEx);
+        }
+      } else if (payload.exampleSentenceEn && payload.exampleSentenceEn.trim()) {
         const example = await vocabRepo.addContextExample({
           vocabId: created.id,
           sentenceEn: payload.exampleSentenceEn.trim(),
@@ -557,6 +689,16 @@ export function useVocabList() {
     [words],
   );
 
+  const coreCount = useMemo(
+    () => words.filter((w) => w.isCore).length,
+    [words],
+  );
+
+  const vaultCount = useMemo(
+    () => words.filter((w) => !w.isCore).length,
+    [words],
+  );
+
   const hasActiveFilters = useMemo(
     () =>
       searchQuery.trim().length > 0 ||
@@ -583,6 +725,8 @@ export function useVocabList() {
     words: sortedFilteredWords,
     allWords: words,
     totalCount: words.length,
+    coreCount,
+    vaultCount,
     filteredCount: sortedFilteredWords.length,
     falseFriendsCount,
     hasActiveFilters,
@@ -613,6 +757,7 @@ export function useVocabList() {
     setSortBy,
     resetFilters,
     activateWord,
+    activatePhrase,
     batchActivate,
     getSuggestions,
     addWord,

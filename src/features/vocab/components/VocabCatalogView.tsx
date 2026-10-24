@@ -28,6 +28,8 @@ export function VocabCatalogView() {
     words,
     allWords,
     totalCount,
+    coreCount,
+    vaultCount,
     filteredCount,
     hasActiveFilters,
     examplesMap,
@@ -53,6 +55,7 @@ export function VocabCatalogView() {
     setSortBy,
     resetFilters,
     activateWord,
+    activatePhrase,
     batchActivate,
     getSuggestions,
     addWord,
@@ -198,8 +201,6 @@ export function VocabCatalogView() {
       isFalseFriend: baseWord.isFalseFriend,
       falseFriendNote: baseWord.falseFriendNote || undefined,
       verbTenses: baseWord.verbTensesJson,
-      structuredFamily: baseWord.structuredFamilyJson,
-      morphologicalFamily: baseWord.morphologicalFamilyJson || [],
       createSrsCard: true,
     };
     const created = await addWord(payload);
@@ -219,6 +220,17 @@ export function VocabCatalogView() {
       }
     }
     return activated;
+  };
+
+  const handleActivatePhrase = async (phraseId: string): Promise<boolean> => {
+    const ok = await activatePhrase(phraseId);
+    if (ok) {
+      showToast(`¡Verbo frasal activado para repaso en el mazo FSRS!`);
+      if (selectedWordForDrawer?.id === phraseId) {
+        setSelectedWordForDrawer((prev) => (prev ? { ...prev, masteryStatus: 'LEARNING' } : null));
+      }
+    }
+    return ok;
   };
 
   const handleExecuteBatchActivate = async (
@@ -414,6 +426,8 @@ export function VocabCatalogView() {
           onActivateSuggestionWord={handleActivateWord}
           originFilter={originFilter}
           onOriginChange={setOriginFilter}
+          coreCount={coreCount}
+          vaultCount={vaultCount}
           sortBy={sortBy}
           onSortChange={setSortBy}
           frequencyBandFilter={frequencyBandFilter}
@@ -614,6 +628,7 @@ export function VocabCatalogView() {
         onDeleteWord={handleDeleteWord}
         onUpdateWord={handleUpdateWord}
         onActivateWord={handleActivateWord}
+        onActivatePhrase={handleActivatePhrase}
         onNavigateWord={handleNavigateWord}
         hasPrev={hasPrevWord}
         hasNext={hasNextWord}

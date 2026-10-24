@@ -96,18 +96,16 @@ async function main() {
       lemmas = Object.keys(raw);
     }
   } else {
-    // Si no existe un archivo semilla explícito, intentar extraer del cache de NGSL o Oxford existente
-    console.log(`[Info] No se encontró ${seedFilePath}. Extrayendo lista de NGSL/Oxford en cache...`);
-    const ngslPath = path.resolve('scripts/.cache/ngsl.json');
-    if (fs.existsSync(ngslPath)) {
-      const ngsl = JSON.parse(fs.readFileSync(ngslPath, 'utf-8'));
-      const bands = ['1000', '2000', '3000'];
-      for (const b of bands) {
-        if (ngsl[b]) {
-          lemmas.push(...Object.keys(ngsl[b]));
-        }
-      }
+    // Si no existe un archivo semilla explícito, extraer automáticamente de NGSL oficial
+    console.log(`[Info] No se encontró ${seedFilePath}. Extrayendo lista oficial de NGSL...`);
+    const { extractAllSeedLemmas } = await import('./extract-seed-words');
+    lemmas = await extractAllSeedLemmas();
+    const cacheDir = path.dirname(resolvedSeedPath);
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
     }
+    fs.writeFileSync(resolvedSeedPath, JSON.stringify(lemmas, null, 2), 'utf-8');
+    console.log(`[Info] Semillas generadas y cacheadas en ${resolvedSeedPath}`);
   }
 
   if (lemmas.length === 0) {

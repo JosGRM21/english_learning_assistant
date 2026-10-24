@@ -88,8 +88,8 @@ export function WritingStageOne({
           />
         </section>
 
-        {/* Pedagogical Companion Sidecar (4 cols on large displays) */}
-        <aside aria-label="Asistente pedagógico" className="lg:col-span-4 space-y-4">
+        {/* Writing Assistant Sidecar (4 cols on large displays) */}
+        <aside aria-label="Asistente de redacción" className="lg:col-span-4 space-y-4">
           <WritingAssistantPanel
             targetCefr={targetCefr}
             targetWords={targetWords}

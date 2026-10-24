@@ -5,6 +5,8 @@ import {
   WritingEvaluationResponseSchema,
   VocabEnrichmentResponseSchema,
   stripLeadingGreetings,
+  sanitizeSocraticFeedback,
+  sanitizeWritingEvaluation,
 } from '../schemas';
 
 describe('MockAiGateway', () => {
@@ -38,7 +40,7 @@ describe('MockAiGateway', () => {
 
       expect(() => SocraticFeedbackResponseSchema.parse(response)).not.toThrow();
       expect(response.scaffolded_clues.length).toBe(1);
-      expect(response.scaffolded_clues[0].clue_type).toBe('WORD_CHOICE');
+      expect(response.scaffolded_clues[0].clue_type).toBe('COHESION_LINKERS');
     });
   });
 
@@ -177,7 +179,6 @@ describe('MockAiGateway', () => {
       expect(response.isFalseFriend).toBe(false);
       expect(response.partOfSpeech).toBe('ADJECTIVE');
       expect(response.cefrLevel).toBe('B2');
-      expect(response.morphologicalFamily).toContain('resilience');
     });
 
     it('returns valid fallback enrichment for arbitrary uncataloged words', async () => {
@@ -229,17 +230,101 @@ describe('MockAiGateway', () => {
         scores: { grammar: 8, vocabulary: 8, coherence: 8 },
         successful_repairs: [],
         corrections: [],
-        micro_challenge: {
-          question_es: '¿Preposición?',
-          sentence_with_blank: 'depend ___',
-          options: ['on', 'of'],
-          correct_option_index: 0,
-          explanation_es: 'depend on',
-        },
       };
 
       const parsed = WritingEvaluationResponseSchema.parse(raw);
       expect(parsed.overall_feedback_es).toBe('Has corregido la mayoría de los errores del borrador previo.');
+    });
+  });
+
+  describe('Punctuation exclusion sanitization (RF-WRT-09)', () => {
+    it('filters out Socratic clues targeting punctuation marks or asking punctuation questions', () => {
+      const mockRaw: any = {
+        overall_impression_es: 'Buen avance en el texto.',
+        error_count: 3,
+        allow_self_correction: true,
+        scaffolded_clues: [
+          {
+            paragraph_index: 0,
+            clue_type: 'PREPOSITION',
+            highlighted_area: 'depend of',
+            sentence_context: 'It depends of your effort.',
+            hint_question_es: '¿Qué preposición acompaña al verbo depend en inglés?',
+            zpd_expected_token: 'on',
+            scaffolding_level: 2,
+          },
+          {
+            paragraph_index: 0,
+            clue_type: 'SPELLING',
+            highlighted_area: 'which is also good',
+            sentence_context: 'I have a job, which is also good.',
+            hint_question_es: 'En oraciones explicativas, ¿qué signo de puntuación en inglés suele precederlo o falta una coma?',
+            zpd_expected_token: ',',
+            scaffolding_level: 1,
+          },
+          {
+            paragraph_index: 0,
+            clue_type: 'AGREEMENT',
+            highlighted_area: 'they was',
+            sentence_context: 'They was very satisfied.',
+            hint_question_es: '¿Cuál es la forma del verbo to be en pasado para el sujeto plural they?',
+            zpd_expected_token: 'were',
+            scaffolding_level: 2,
+          },
+        ],
+      };
+
+      const sanitized = sanitizeSocraticFeedback(mockRaw);
+      expect(sanitized.scaffolded_clues.length).toBe(2);
+      expect(sanitized.error_count).toBe(2);
+      expect(sanitized.scaffolded_clues.some((c) => c.zpd_expected_token === ',')).toBe(false);
+      expect(sanitized.scaffolded_clues[0].clue_type).toBe('PREPOSITION');
+      expect(sanitized.scaffolded_clues[1].clue_type).toBe('AGREEMENT');
+    });
+
+    it('filters out corrections targeting commas, periods, or punctuation splices', () => {
+      const mockRaw: any = {
+        overall_feedback_es: 'Análisis final completado.',
+        estimated_cefr: 'B2',
+        rubric_scores: {
+          accuracy: 8,
+          range_and_precision: 8,
+          cohesion_and_flow: 8,
+          pragmatics_and_complexity: 8,
+        },
+        scores: { grammar: 8, vocabulary: 8, coherence: 8 },
+        corrections: [
+          {
+            error_span: 'depend of',
+            error_type: 'PREPOSITION',
+            taxonomy_code: 'L1_PREPOSITION',
+            is_l1_spanish_transfer: true,
+            explanation_es: 'En inglés se dice depend on.',
+            native_reformulation: 'depend on',
+          },
+          {
+            error_span: 'which is',
+            error_type: 'SPELLING',
+            taxonomy_code: 'PUNCTUATION',
+            is_l1_spanish_transfer: false,
+            explanation_es: 'Falta una coma para separar la cláusula relativa explicativa.',
+            native_reformulation: ', which is',
+          },
+          {
+            error_span: ';',
+            error_type: 'COHESION_LINKERS',
+            taxonomy_code: 'PUNCTUATION_SEMICOLON',
+            is_l1_spanish_transfer: false,
+            explanation_es: 'Evita el punto y coma.',
+            native_reformulation: '.',
+          },
+        ],
+      };
+
+      const sanitized = sanitizeWritingEvaluation(mockRaw);
+      expect(sanitized.corrections.length).toBe(1);
+      expect(sanitized.corrections[0].error_span).toBe('depend of');
+      expect(sanitized.corrections[0].error_type).toBe('PREPOSITION');
     });
   });
 });

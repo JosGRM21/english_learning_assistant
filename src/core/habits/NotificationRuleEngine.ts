@@ -50,9 +50,22 @@ export class NotificationRuleEngine {
       return { shouldNotify: false, reason: 'Notificaciones desactivadas en configuración' };
     }
 
+    const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+
     // 2. Quiet hours check
+    // Emergency STREAK_SAVER_2 (23:15 to 23:55) is explicitly exempted from quiet hours
+    // to give the user the critical final chance to preserve their streak before midnight.
+    const isEmergencyStreakWindow =
+      settings.streakSaverEnabled &&
+      !context.isCompletedToday &&
+      !context.sentTodayTypes.includes('STREAK_SAVER_2') &&
+      currentMinutes >= 23 * 60 + 15 &&
+      currentMinutes <= 23 * 60 + 55;
+
     if (this.isWithinQuietHours(currentTime, settings.quietHoursStart, settings.quietHoursEnd)) {
-      return { shouldNotify: false, reason: 'Horario de silencio activo (Quiet Hours)' };
+      if (!isEmergencyStreakWindow) {
+        return { shouldNotify: false, reason: 'Horario de silencio activo (Quiet Hours)' };
+      }
     }
 
     // Helper: Verify cooldown for a specific candidate type
@@ -103,7 +116,6 @@ export class NotificationRuleEngine {
       return false;
     };
 
-    const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
     const effectiveTime = context.effectivePracticeTime || '19:30';
     const [practiceH, practiceM] = effectiveTime.split(':').map(Number);
     const practiceMinutes = (practiceH ?? 19) * 60 + (practiceM ?? 30);

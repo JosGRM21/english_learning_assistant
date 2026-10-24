@@ -206,7 +206,54 @@ export function SrsCardBack({
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 font-semibold border border-slate-200/40 dark:border-slate-700/40">
               {accent}
             </span>
+
+            {/* Weak Form (RF-VOC-06) */}
+            {selectedVocab.ipaWeakForm && (
+              <span className="px-2 py-0.5 rounded-md text-[11px] font-phonetic font-medium bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/50">
+                Débil: /{selectedVocab.ipaWeakForm}/
+              </span>
+            )}
+
+            {/* Phonetic -ed ending (RF-VOC-06) */}
+            {(selectedVocab.phoneticEdEnding || selectedVocab.verbTensesJson?.edPhoneticEnding) && (
+              <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/50">
+                -ed: {selectedVocab.phoneticEdEnding || selectedVocab.verbTensesJson?.edPhoneticEnding}
+              </span>
+            )}
           </div>
+
+          {/* Grammar pattern and countability (RF-VOC-04) */}
+          {(() => {
+            const primarySense = selectedVocab.sensesJson?.[0];
+            const pattern = primarySense?.grammarPattern;
+            const countability = primarySense?.countability;
+
+            if (!pattern && !countability) return null;
+
+            return (
+              <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                {countability && (
+                  <span className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    {countability === 'COUNTABLE' ? '[C] Contable' : countability === 'UNCOUNTABLE' ? '[U] Incontable' : '[C/U]'}
+                  </span>
+                )}
+                {pattern && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/60 text-xs text-emerald-900 dark:text-emerald-200">
+                    <span className="font-bold text-[10px] uppercase text-emerald-600 dark:text-emerald-400 font-sans">Patrón:</span>
+                    <code className="font-mono font-semibold">{pattern}</code>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Separable Phrasal Verb Strict Pronoun Rule (RF-VOC-04) */}
+          {selectedVocab.isSeparable && (
+            <div className="p-2.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/70 text-xs text-indigo-900 dark:text-indigo-200">
+              <strong className="text-indigo-700 dark:text-indigo-300">Regla estricta del pronombre:</strong>{' '}
+              <span>Los pronombres deben dividir la partícula (ej. <em>turn it off</em>, nunca <em>*turn off it</em>).</span>
+            </div>
+          )}
 
           {/* Definición en inglés */}
           {selectedVocab.definitionEn && (
@@ -215,22 +262,32 @@ export function SrsCardBack({
             </p>
           )}
 
-          {/* Colocaciones naturales */}
-          {selectedVocab.collocationsJson && selectedVocab.collocationsJson.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap pt-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Colocaciones:
-              </span>
-              {selectedVocab.collocationsJson.slice(0, 3).map((colloc, idx) => (
-                <span
-                  key={idx}
-                  className="text-xs px-2.5 py-1 rounded-xl bg-slate-100/90 dark:bg-slate-800/70 text-slate-800 dark:text-slate-200 font-medium border border-slate-200/50 dark:border-slate-700/50 italic font-editorial"
-                >
-                  {colloc}
+          {/* Colocaciones naturales (RF-VOC-05) */}
+          {(() => {
+            const primarySense = selectedVocab.sensesJson?.[0];
+            const collocs =
+              (selectedVocab.collocationsJson && selectedVocab.collocationsJson.length > 0
+                ? selectedVocab.collocationsJson
+                : primarySense?.collocations) || [];
+
+            if (collocs.length === 0) return null;
+
+            return (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Colocaciones:
                 </span>
-              ))}
-            </div>
-          )}
+                {collocs.slice(0, 3).map((colloc, idx) => (
+                  <span
+                    key={idx}
+                    className="text-xs px-2.5 py-1 rounded-xl bg-slate-100/90 dark:bg-slate-800/70 text-slate-800 dark:text-slate-200 font-medium border border-slate-200/50 dark:border-slate-700/50 italic font-editorial"
+                  >
+                    {colloc}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Falso amigo (si aplica) */}
           {selectedVocab.isFalseFriend && selectedVocab.falseFriendNote && (

@@ -1,4 +1,3 @@
-import React from 'react';
 import { ArrowRight, Volume2 } from 'lucide-react';
 
 export interface ErrorContrastCardProps {

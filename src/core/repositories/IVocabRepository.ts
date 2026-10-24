@@ -19,6 +19,7 @@ export interface IVocabRepository {
   searchVocabs(query: string, cefrLevel?: CefrLevel): Promise<VocabItem[]>;
   searchLocalCorpus(query: string, limit?: number): Promise<VocabItem[]>;
   getContextExamples(vocabId: string): Promise<VocabContextExample[]>;
+  getContextExamplesForVocabs(vocabIds: string[]): Promise<Record<string, VocabContextExample[]>>;
   getAllVocabs(limit?: number): Promise<VocabItem[]>;
   createVocab(vocab: CreateVocabInput): Promise<VocabItem>;
   activateVocabItem(id: string): Promise<VocabItem>;

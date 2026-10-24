@@ -68,6 +68,8 @@ describe('CatalogTop Components Modular Suite', () => {
           onActivateSuggestionWord={vi.fn()}
           originFilter="ALL"
           onOriginChange={onOriginChange}
+          coreCount={198}
+          vaultCount={15}
           sortBy="RECENT"
           onSortChange={onSortChange}
           frequencyBandFilter="ALL"
@@ -85,9 +87,14 @@ describe('CatalogTop Components Modular Suite', () => {
       expect(onSearchChange).toHaveBeenCalledWith('challenge');
 
       // Origin switcher: Core
-      const coreBtn = screen.getByText('Core (3.5k)');
+      const coreBtn = screen.getByText('Core (198)');
       fireEvent.click(coreBtn);
       expect(onOriginChange).toHaveBeenCalledWith('CORE');
+
+      // Origin switcher: Vault
+      const vaultBtn = screen.getByText('Mi Bóveda (15)');
+      fireEvent.click(vaultBtn);
+      expect(onOriginChange).toHaveBeenCalledWith('VAULT');
 
       // Filter button exists
       const filterBtn = screen.getByText('Filtros');

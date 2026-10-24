@@ -1,4 +1,5 @@
 import { invoke, Channel } from '@tauri-apps/api/core';
+import { isTauri } from '@/shared/utils/platform';
 import { KokoroEngine } from './KokoroEngine';
 
 export interface NativeAudioChunkPayload {
@@ -115,12 +116,7 @@ export class AudioService implements IAudioService {
    * Checks whether the application is running inside the Tauri native runtime.
    */
   public isTauri(): boolean {
-    if (typeof window === 'undefined') return false;
-    return Boolean(
-      (window as unknown as { isTauri?: boolean }).isTauri ||
-      '__TAURI_INTERNALS__' in window ||
-      '__TAURI__' in window,
-    );
+    return isTauri();
   }
 
   /**

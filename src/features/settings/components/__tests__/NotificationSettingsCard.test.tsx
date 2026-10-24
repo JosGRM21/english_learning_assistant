@@ -91,7 +91,7 @@ describe('NotificationSettingsCard Component', () => {
     );
 
     expect(screen.getByText(/Notificaciones y Horarios de Práctica/i)).toBeDefined();
-    expect(screen.getByText(/Repaso de Tarjetas \(FSRS & Fonética\)/i)).toBeDefined();
+    expect(screen.getByText(/Repaso de Tarjetas \(FSRS Vocabulario\)/i)).toBeDefined();
     expect(screen.getByText(/Taller de Redacción Socrática/i)).toBeDefined();
   });
 

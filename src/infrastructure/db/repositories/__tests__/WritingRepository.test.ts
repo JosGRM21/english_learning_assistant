@@ -75,7 +75,7 @@ describe('WritingRepository Integration Tests', () => {
         {
           error_span: 'depend of',
           error_type: 'PREPOSITION',
-          taxonomy_code: 'L1_PREP_DEPEND_ON',
+          taxonomy_code: 'PREPOSITION',
           is_l1_spanish_transfer: true,
           explanation_es: 'En inglés se dice depend on.',
           native_reformulation: 'depends on',
@@ -179,7 +179,7 @@ describe('WritingRepository Integration Tests', () => {
         {
           error_span: 'married with',
           error_type: 'PREPOSITION',
-          taxonomy_code: 'L1_PREP_MARRIED_TO',
+          taxonomy_code: 'PREPOSITION',
           is_l1_spanish_transfer: true,
           explanation_es: 'En inglés se dice married to.',
           native_reformulation: 'married to',
@@ -193,7 +193,7 @@ describe('WritingRepository Integration Tests', () => {
 
     // Verify error was logged and isolated SRS card created
     const stats = await repo.getWritingErrorStats('user_local');
-    expect(stats.find((s) => s.taxonomyCode === 'L1_PREP_MARRIED_TO')?.count).toBe(1);
+    expect(stats.find((s) => s.taxonomyCode === 'PREPOSITION')?.count).toBe(1);
 
     const srsCards = await db
       .selectFrom('srs_cards')
@@ -204,7 +204,7 @@ describe('WritingRepository Integration Tests', () => {
     expect(srsCards[0].srs_profile).toBe('WRITING_ERROR_REFLECTIVE');
 
     // Second occurrence of same error -> recidivism check
-    const recCheckBefore = await repo.checkRecidivism('user_local', 'L1_PREP_MARRIED_TO');
+    const recCheckBefore = await repo.checkRecidivism('user_local', 'PREPOSITION', 'married with');
     expect(recCheckBefore.isRecidivist).toBe(false);
     expect(recCheckBefore.count).toBe(1);
 
@@ -221,7 +221,7 @@ describe('WritingRepository Integration Tests', () => {
         {
           error_span: 'married with',
           error_type: 'PREPOSITION',
-          taxonomy_code: 'L1_PREP_MARRIED_TO',
+          taxonomy_code: 'PREPOSITION',
           is_l1_spanish_transfer: true,
           explanation_es: 'En inglés se dice married to.',
           native_reformulation: 'married to',
@@ -234,7 +234,7 @@ describe('WritingRepository Integration Tests', () => {
     );
 
     // Third check -> now recidivist!
-    const recCheckAfter = await repo.checkRecidivism('user_local', 'L1_PREP_MARRIED_TO');
+    const recCheckAfter = await repo.checkRecidivism('user_local', 'PREPOSITION', 'married with');
     expect(recCheckAfter.isRecidivist).toBe(true);
     expect(recCheckAfter.count).toBe(2);
 

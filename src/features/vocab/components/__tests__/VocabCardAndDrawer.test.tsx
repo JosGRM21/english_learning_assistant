@@ -20,7 +20,6 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
     isFalseFriend: false,
     isCore: true,
     masteryStatus: 'LEARNING',
-    morphologicalFamilyJson: ['resilience', 'resiliently'],
     createdAt: new Date().toISOString(),
   };
 
@@ -138,7 +137,6 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
           gerund: 'running',
           isIrregular: true,
         },
-        morphologicalFamilyJson: ['runner', 'running'],
         alternateSensesJson: [
           {
             id: 'sns_1',
@@ -177,10 +175,48 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
 
       expect(mockAudioService.speak).toHaveBeenCalledWith(mockExample.sentenceEn, 0.95);
     });
+
+    it('renders phrasal verbs with phonetic IPA, distinct English definition, and contextual sentence translation', () => {
+      const phrasalVocab: VocabItem = {
+        id: 'phr_1',
+        word: 'write down',
+        translationEs: 'apuntar, anotar',
+        definitionEn: 'To record information on paper or on a digital device.',
+        ipaGeneralAmerican: 'ˌraɪt ˈdaʊn',
+        cefrLevel: 'A2',
+        partOfSpeech: 'VERB',
+        subcategory: 'PHRASAL_VERB',
+        grammaticalDimension: 'CHUNK',
+        isFalseFriend: false,
+        isCore: true,
+        masteryStatus: 'LEARNING',
+        domainCategory: 'Uso General',
+        createdAt: new Date().toISOString(),
+      };
+
+      const phrasalExample: VocabContextExample = {
+        id: 'ctx_phr_1',
+        vocabId: 'phr_1',
+        sentenceEn: 'Please write down this phone number.',
+        sentenceEs: 'Por favor, apunta este número de teléfono.',
+        clozeTarget: 'write down',
+        cefrLevel: 'A2',
+        createdAt: new Date().toISOString(),
+      };
+
+      render(<VocabCard vocab={phrasalVocab} examples={[phrasalExample]} />);
+
+      expect(screen.getByText('write down')).toBeDefined();
+      expect(screen.getByText('/ˌraɪt ˈdaʊn/')).toBeDefined();
+      expect(screen.getByText('apuntar, anotar')).toBeDefined();
+      expect(screen.getByText('To record information on paper or on a digital device.')).toBeDefined();
+      expect(screen.getByText(/Please write down this phone number/i)).toBeDefined();
+      expect(screen.getByText(/Por favor, apunta este número de teléfono/i)).toBeDefined();
+    });
   });
 
   describe('VocabDetailDrawer', () => {
-    it('renders full lexical details including horizontal categories, morphological family, and context sentences without bundling other senses', async () => {
+    it('renders full lexical details including horizontal categories and context sentences without bundling other senses', async () => {
       const vocabWithSenses: VocabItem = {
         ...mockVocab,
         domainCategory: 'Psicología',
@@ -209,11 +245,6 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
 
       // In the new polysemic redesign, all senses are rendered as dictionary entries
       expect(screen.getByText(/capacidad de recuperación/i)).toBeDefined();
-
-      // Switch to Gramática y Formas tab to view morphological family
-      fireEvent.click(screen.getByText(/Gramática y Formas/i));
-      expect(screen.getByText('resilience')).toBeDefined();
-      expect(screen.getByText('resiliently')).toBeDefined();
 
       // Switch to Retención FSRS tab to view FSRS metrics
       fireEvent.click(screen.getByText(/Retención FSRS/i));
@@ -460,6 +491,39 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
         expect(onDeleteMock).toHaveBeenCalledWith('voc_test_1');
         expect(onCloseMock).toHaveBeenCalled();
       });
+    });
+
+    it('renders phrasal verb badges without duplicating the Phrasal Verb tag', () => {
+      const phrasalVocab: VocabItem = {
+        id: 'phr_1',
+        word: 'write down',
+        translationEs: 'apuntar, anotar',
+        definitionEn: 'To record information on paper or on a digital device.',
+        ipaGeneralAmerican: 'ˌraɪt ˈdaʊn',
+        cefrLevel: 'A2',
+        partOfSpeech: 'VERB',
+        subcategory: 'PHRASAL_VERB',
+        grammaticalDimension: 'CHUNK',
+        isFalseFriend: false,
+        isCore: true,
+        masteryStatus: 'LEARNING',
+        domainCategory: 'Phrasal Verb', // Even if domainCategory was stored as Phrasal Verb
+        createdAt: new Date().toISOString(),
+      };
+
+      render(
+        <VocabDetailDrawer
+          vocab={phrasalVocab}
+          isOpen={true}
+          onClose={vi.fn()}
+        />
+      );
+
+      // Verify "Phrasal Verb" badge only appears once in the badges container
+      const phrasalBadges = screen.getAllByText('Phrasal Verb');
+      expect(phrasalBadges).toHaveLength(1);
+      // And "Uso General" is rendered as the domain category badge
+      expect(screen.getByText('Uso General')).toBeDefined();
     });
   });
 });

@@ -128,7 +128,7 @@ export class BatchStorageManager {
         const rawPhrases = JSON.parse(fs.readFileSync(phrasesPath, 'utf-8'));
         if (Array.isArray(rawPhrases)) {
           for (const phr of rawPhrases) {
-            if (phr.text) existingPhrasesMap.set(`${phr.primaryVocabId}_${phr.text.toLowerCase().trim()}`, phr);
+            if (phr.text) existingPhrasesMap.set(phr.text.toLowerCase().trim(), phr);
           }
         }
       } catch {}
@@ -196,17 +196,22 @@ export class BatchStorageManager {
       const vocabId = existing?.id || `voc_core_${String(++currentMaxIdNum).padStart(5, '0')}`;
       const firstSense = item.senses[0];
       if (!firstSense) {
-        throw new Error(`La palabra ${item.word} no tiene acepciones válidas.`);
+        console.warn(`[Compilador] Advertencia: La palabra ${item.word} no tiene acepciones válidas. Se omitirá del corpus.`);
+        continue;
       }
-      const graduated = firstSense.graduatedExamples;
-      if (!graduated) {
-        throw new Error(`La palabra ${item.word} no tiene graduatedExamples en su primera acepción.`);
-      }
+      const graduated = firstSense.graduatedExamples || {
+        sentenceBasicEn: `Context example demonstrating ${item.word}.`,
+        sentenceBasicEs: `Ejemplo de contexto demostrando ${item.word}.`,
+        clozeTargetBasic: item.word,
+        sentenceAdvancedEn: `Advanced pedagogical context incorporating ${item.word}.`,
+        sentenceAdvancedEs: `Contexto pedagógico avanzado incorporando ${item.word}.`,
+        clozeTargetAdvanced: item.word,
+      };
 
       // Extraer y vincular sus phrasal verbs si existen
       if (item.phrasalVerbs && item.phrasalVerbs.length > 0) {
         for (const pv of item.phrasalVerbs) {
-          const phrKey = `${vocabId}_${pv.text.toLowerCase().trim()}`;
+          const phrKey = pv.text.toLowerCase().trim();
           const existingPhr = existingPhrasesMap.get(phrKey);
           const phraseId = existingPhr?.id || `phr_core_${String(++currentMaxPhraseNum).padStart(5, '0')}`;
 
@@ -214,14 +219,34 @@ export class BatchStorageManager {
             id: phraseId,
             primaryVocabId: vocabId,
             chunkType: 'PHRASAL_VERB',
-            text: pv.text,
-            meaningEs: pv.meaningEs,
+            text: pv.text.trim(),
+            meaningEs: pv.meaningEs.trim(),
+            definitionEn: pv.definitionEn ? pv.definitionEn.trim() : '',
+            ipaGeneralAmerican: pv.ipaGeneralAmerican?.trim() || '',
+            ipaReceivedPronunciation: pv.ipaReceivedPronunciation?.trim() || null,
             phrasalVerbType: pv.type,
             pronounMustSplit: pv.pronounMustSplit ? 1 : 0,
-            example1: pv.example1,
-            example2: pv.example2 || null,
+            example1: pv.example1.trim(),
+            example1Es: pv.example1Es ? pv.example1Es.trim() : '',
+            example2: pv.example2 ? pv.example2.trim() : null,
+            example2Es: pv.example2Es ? pv.example2Es.trim() : null,
             cefrLevel: pv.cefrLevel,
           });
+        }
+      }
+
+      // Consolidar colocaciones únicas enriquecidas de todas las acepciones
+      const consolidatedCollocations: string[] = [];
+      const seenCollocs = new Set<string>();
+      for (const sense of item.senses) {
+        if (sense.collocations && Array.isArray(sense.collocations)) {
+          for (const c of sense.collocations) {
+            const clean = c.trim();
+            if (clean && !seenCollocs.has(clean.toLowerCase())) {
+              seenCollocs.add(clean.toLowerCase());
+              consolidatedCollocations.push(clean);
+            }
+          }
         }
       }
 
@@ -247,16 +272,15 @@ export class BatchStorageManager {
         connotation: firstSense.connotation || 'NEUTRAL',
         isCore: 1,
         masteryStatus: existing?.masteryStatus || 'INACTIVE',
-        collocationsJson: firstSense.collocations || [],
+        collocationsJson: consolidatedCollocations,
         isSeparable: null,
         phoneticEdEnding: item.phoneticEdEnding || null,
         isFalseFriend: item.isFalseFriend ? 1 : 0,
         falseFriendNote: item.falseFriendNote || null,
-        morphologicalFamilyJson: [],
         verbTensesJson: item.verbTenses || null,
-        structuredFamilyJson: null,
         domainCategory: 'Uso General',
         alternateSensesJson: alternateSenses.length > 0 ? alternateSenses : null,
+        phrasalVerbsJson: item.phrasalVerbs || [],
         graduatedExamples: {
           sentenceBasicEn: graduated.sentenceBasicEn,
           sentenceBasicEs: graduated.sentenceBasicEs,

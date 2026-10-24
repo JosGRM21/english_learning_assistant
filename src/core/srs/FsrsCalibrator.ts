@@ -21,7 +21,10 @@ export class FsrsCalibrator {
     logs: ReviewLog[],
     targetRetention = 0.9,
   ): CalibrationReport {
-    const totalReviews = logs.length;
+    // In FSRS, retention rate is measured on REVIEW logs (retrieval attempts of learned material),
+    // excluding initial learning steps (NEW/LEARNING/RELEARNING).
+    const reviewLogs = logs.filter((l) => !l.stateBefore || l.stateBefore === 'REVIEW');
+    const totalReviews = reviewLogs.length;
 
     if (totalReviews === 0) {
       return {
@@ -38,7 +41,7 @@ export class FsrsCalibrator {
     }
 
     // Ratings 2 (Hard), 3 (Good), 4 (Easy) count as successful recall; rating 1 (Again) is a lapse/failure
-    const successfulRecalls = logs.filter((l) => l.rating >= 2).length;
+    const successfulRecalls = reviewLogs.filter((l) => l.rating >= 2).length;
     const actualRetention = Math.round((successfulRecalls / totalReviews) * 1000) / 1000;
     const deficit = Math.round((actualRetention - targetRetention) * 1000) / 1000;
 

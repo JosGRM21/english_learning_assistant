@@ -1,4 +1,4 @@
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import { DatabaseSchema } from '../../core/types/database';
 import { SQLITE_DDL_SCHEMA, CLEANUP_OBSOLETE_TABLES_SQL } from './schema';
 import { SqlJsDialect } from './dialects/SqlJsDialect';
@@ -6,17 +6,7 @@ import { TauriSqliteDialect } from 'kysely-dialect-tauri';
 import Database from '@tauri-apps/plugin-sql';
 import { runMigrations, executeSqlBatch, migrateExistingTableColumns } from './migrations';
 
-/**
- * Checks whether the app is executing inside a Tauri desktop webview runtime.
- */
-export function isTauri(): boolean {
-  if (typeof window === 'undefined') return false;
-  return Boolean(
-    (window as unknown as { isTauri?: boolean }).isTauri ||
-      '__TAURI_INTERNALS__' in window ||
-      '__TAURI__' in window,
-  );
-}
+export { isTauri } from '@/shared/utils/platform';
 
 // Track active initialization promises per Kysely instance to prevent concurrent DDL executions
 const activeInitPromises = new WeakMap<Kysely<DatabaseSchema>, Promise<void>>();
@@ -34,18 +24,22 @@ export async function initializeDatabase(db: Kysely<DatabaseSchema>, seed = true
   }
 
   const initPromise = (async () => {
-    // 1. Drop obsolete tables if any exist
-    await executeSqlBatch(db, CLEANUP_OBSOLETE_TABLES_SQL);
+    const versionRes = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
+    const userVersion = Number(versionRes.rows[0]?.user_version ?? 0);
 
-    // 2. Pre-migrate columns on any existing tables (e.g. is_core on vocab_items, srs_profile on srs_cards)
-    // BEFORE executing base DDL schema so that index creations do not fail with "no such column: is_core"
-    await migrateExistingTableColumns(db);
+    if (userVersion < 5) {
+      // 1. Drop obsolete tables if any exist
+      await executeSqlBatch(db, CLEANUP_OBSOLETE_TABLES_SQL);
 
-    // 3. Execute base DDL schema with comment stripping and clean sequential execution
-    await executeSqlBatch(db, SQLITE_DDL_SCHEMA);
+      // 2. Pre-migrate columns on any existing tables
+      await migrateExistingTableColumns(db);
 
-    // 4. Ensure schema maintenance and pragma user_version
-    await runMigrations(db);
+      // 3. Execute base DDL schema with comment stripping and clean sequential execution
+      await executeSqlBatch(db, SQLITE_DDL_SCHEMA);
+
+      // 4. Ensure schema maintenance and pragma user_version
+      await runMigrations(db);
+    }
 
     // 5. Seed master core vocabulary corpus if DB is clean
     if (seed) {
@@ -81,6 +75,7 @@ export function createTauriDatabase(dbPath = 'sqlite:ela.db'): Kysely<DatabaseSc
   if (!tauriDbSingleton) {
     const dialect = new TauriSqliteDialect({
       database: () => Database.load(dbPath),
+      isQuery: (sql) => /^\s*(SELECT|PRAGMA)/i.test(sql),
     });
     tauriDbSingleton = new Kysely<DatabaseSchema>({ dialect });
   }

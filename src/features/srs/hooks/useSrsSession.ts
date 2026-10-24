@@ -237,17 +237,6 @@ export function useSrsSession() {
       });
   }, [deckCards, searchQuery]);
 
-  // Backward compatibility alias for handleSelectVocab
-  const handleSelectVocab = useCallback(
-    (item: VocabItem) => {
-      const match = deckCards.find((c) => c.vocab?.id === item.id);
-      if (match) {
-        handleSelectCard(match);
-      }
-    },
-    [deckCards, handleSelectCard],
-  );
-
   const isSessionFinished = sessionEngine ? sessionEngine.isFinished() : false;
   const engineStats = sessionEngine ? sessionEngine.getStats() : null;
   const sessionStats: SrsSessionStats = useMemo(() => {
@@ -338,7 +327,6 @@ export function useSrsSession() {
     handleRate,
     handleRotateContext,
     handleSelectCard,
-    handleSelectVocab,
     handleRestartSession,
     handleStartEarlyStudy,
     refreshSession: loadSession,

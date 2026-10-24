@@ -16,6 +16,7 @@
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "vocab:gen": "npx tsx scripts/vocab-generator/cli.ts",
+    "vocab:seeds": "npx tsx scripts/vocab-generator/extract-seed-words.ts",
     "vocab:clean-cache": "npx tsx scripts/vocab-generator/cli.ts --clean-cache",
     "vocab:reset": "npx tsx scripts/vocab-generator/cli.ts --reset-corpus",
     "vocab:compile": "npx tsx scripts/vocab-generator/cli.ts --compile"

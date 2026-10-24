@@ -53,4 +53,20 @@ describe('FsrsCalibrator', () => {
     expect(report.recommendedRequestRetention).toBeGreaterThan(0.9);
     expect(report.recommendationEs).toContain('inferior al 90%');
   });
+
+  it('filters out NEW and LEARNING logs and only evaluates REVIEW retrieval attempts', () => {
+    const reviewLogs: ReviewLog[] = [
+      ...Array.from({ length: 30 }, () => createMockLog(3)),
+    ];
+    const newLogs: ReviewLog[] = [
+      { ...createMockLog(1), stateBefore: 'NEW' },
+      { ...createMockLog(1), stateBefore: 'LEARNING' },
+      { ...createMockLog(1), stateBefore: 'RELEARNING' },
+    ];
+
+    const report = calibrator.calibrate([...reviewLogs, ...newLogs], 0.9);
+    expect(report.totalReviewsEvaluated).toBe(30);
+    expect(report.successfulRecalls).toBe(30);
+    expect(report.actualRetentionRate).toBe(1.0);
+  });
 });

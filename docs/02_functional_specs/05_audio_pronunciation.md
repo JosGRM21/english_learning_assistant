@@ -39,3 +39,7 @@ Proporcionar un servicio transversal de síntesis de voz neuronal de alta fideli
 
 * **RF-AUD-07: Mecanismo de Respaldo (Fallback)**:
   * En caso de que el motor neuronal de alta fidelidad se encuentre inicializando o no esté disponible temporalmente, el sistema debe recurrir automáticamente a la síntesis de voz estándar del sistema operativo para no interrumpir el estudio.
+
+* **RF-AUD-08: Soporte para Bucles de Shadowing y Velocidad Gradual**:
+  * Para nutrir al **Laboratorio de Fonética y Habla Conectada** ([`08_phonetics_connected_speech_lab.md`](./08_phonetics_connected_speech_lab.md)), el servicio de audio debe permitir la reproducción cíclica (*looping*) de fragmentos oracionales cortos y transiciones suaves de velocidad (ej. 0.75x $\rightarrow$ 0.9x $\rightarrow$ 1.0x $\rightarrow$ 1.1x) sin interrupciones de búfer ni latencia perceptible.
+
