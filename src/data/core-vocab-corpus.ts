@@ -1,4 +1,3 @@
-import coreCorpusRaw from './core-vocab-corpus.json';
 import {
   VocabItem,
   CefrLevel,
@@ -23,7 +22,6 @@ export interface RawCoreCorpusItem {
   frequencyBand: FrequencyBand;
   isCore: number;
   masteryStatus: VocabMasteryStatus;
-  collocationsJson: string[];
   isSeparable: boolean | null;
   phoneticEdEnding: '/t/' | '/d/' | '/ɪd/' | null;
   isFalseFriend: number;
@@ -44,7 +42,7 @@ export interface RawCoreCorpusItem {
 export interface RawCorePhrasalUnit {
   id: string;
   primaryVocabId: string;
-  chunkType: 'PHRASAL_VERB' | 'COLLOCATION' | 'IDIOM' | 'BINOMIAL' | 'SENTENCE_FRAME';
+  chunkType: 'PHRASAL_VERB' | 'IDIOM' | 'BINOMIAL' | 'SENTENCE_FRAME';
   text: string;
   meaningEs: string;
   definitionEn?: string;
@@ -57,12 +55,37 @@ export interface RawCorePhrasalUnit {
   example2: string | null;
   example2Es?: string | null;
   cefrLevel: CefrLevel;
+  masteryStatus?: VocabMasteryStatus;
 }
 
-export let CORE_VOCAB_DATA: RawCoreCorpusItem[] = [...(coreCorpusRaw as unknown as RawCoreCorpusItem[])];
+export let CORE_VOCAB_DATA: RawCoreCorpusItem[] = [];
+export let CORE_PHRASAL_DATA: RawCorePhrasalUnit[] = [];
 
-import corePhrasalRaw from './core-phrasal-units.json';
-export let CORE_PHRASAL_DATA: RawCorePhrasalUnit[] = [...(corePhrasalRaw as unknown as RawCorePhrasalUnit[])];
+let inMemoryCorpusPromise: Promise<void> | null = null;
+
+/**
+ * On-demand asynchronous loader for corpus data in testing/evaluation environments.
+ * In production runtime, data is queried directly from persistent SQLite.
+ */
+export async function ensureCoreCorpusLoaded(): Promise<void> {
+  if (CORE_VOCAB_DATA.length > 0) return;
+  if (!inMemoryCorpusPromise) {
+    inMemoryCorpusPromise = (async () => {
+      try {
+        const [corpusMod, phrasalMod] = await Promise.all([
+          import('./core-vocab-corpus.json'),
+          import('./core-phrasal-units.json'),
+        ]);
+        CORE_VOCAB_DATA = [...((corpusMod.default || corpusMod) as unknown as RawCoreCorpusItem[])];
+        CORE_PHRASAL_DATA = [...((phrasalMod.default || phrasalMod) as unknown as RawCorePhrasalUnit[])];
+        rebuildLookupMaps();
+      } catch {
+        // Ignored
+      }
+    })();
+  }
+  return inMemoryCorpusPromise;
+}
 
 // Fast in-memory map for instantaneous O(1) lookups
 const lemmaMap = new Map<string, RawCoreCorpusItem>();
@@ -192,7 +215,6 @@ export function toDomainCoreVocab(raw: RawCoreCorpusItem, activeStatus: VocabMas
     frequencyBand: raw.frequencyBand,
     isCore: true,
     masteryStatus: activeStatus,
-    collocationsJson: raw.collocationsJson,
     isSeparable: raw.isSeparable,
     phoneticEdEnding: raw.phoneticEdEnding,
     isFalseFriend: Boolean(raw.isFalseFriend),
@@ -206,7 +228,6 @@ export function toDomainCoreVocab(raw: RawCoreCorpusItem, activeStatus: VocabMas
         definitionEn: raw.definitionEn,
         partOfSpeech: raw.partOfSpeech,
         cefrLevel: raw.cefrLevel,
-        collocations: raw.collocationsJson || [],
         graduatedExamples: raw.graduatedExamples,
       },
       ...((raw.alternateSensesJson as any) || []),
@@ -236,6 +257,11 @@ export function toDomainCoreVocab(raw: RawCoreCorpusItem, activeStatus: VocabMas
  * Converts a raw core phrasal unit into a domain VocabItem.
  */
 export function toDomainCorePhrase(phrase: RawCorePhrasalUnit, activeStatus: VocabMasteryStatus = 'INACTIVE'): VocabItem {
+  const hasDistinctAdv = Boolean(
+    phrase.example2 &&
+      phrase.example2.trim().toLowerCase() !== phrase.example1.trim().toLowerCase(),
+  );
+
   return {
     id: phrase.id,
     word: phrase.text,
@@ -251,7 +277,6 @@ export function toDomainCorePhrase(phrase: RawCorePhrasalUnit, activeStatus: Voc
     frequencyBand: 'TOP_3000',
     isCore: true,
     masteryStatus: activeStatus,
-    collocationsJson: [],
     isSeparable: Boolean(phrase.pronounMustSplit),
     phoneticEdEnding: null,
     isFalseFriend: false,
@@ -271,9 +296,9 @@ export function toDomainCorePhrase(phrase: RawCorePhrasalUnit, activeStatus: Voc
           sentenceBasicEn: phrase.example1,
           sentenceBasicEs: phrase.example1Es || '',
           clozeTargetBasic: phrase.text,
-          sentenceAdvancedEn: phrase.example2 || phrase.example1,
-          sentenceAdvancedEs: phrase.example2Es || phrase.example1Es || '',
-          clozeTargetAdvanced: phrase.text,
+          sentenceAdvancedEn: hasDistinctAdv ? phrase.example2! : null,
+          sentenceAdvancedEs: hasDistinctAdv ? (phrase.example2Es || '') : null,
+          clozeTargetAdvanced: hasDistinctAdv ? phrase.text : null,
         },
       },
     ],

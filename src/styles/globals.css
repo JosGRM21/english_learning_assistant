@@ -16,6 +16,19 @@
   color-scheme: light dark;
 }
 
+.dark {
+  color-scheme: dark;
+}
+
+/* Fix browser native time/date picker indicator icon in dark mode */
+html.dark input[type="time"]::-webkit-calendar-picker-indicator,
+html.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator,
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.2) !important;
+  cursor: pointer;
+}
+
 body {
   font-family: var(--font-sans);
   min-height: 100vh;

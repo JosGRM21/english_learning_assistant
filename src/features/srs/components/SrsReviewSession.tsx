@@ -47,6 +47,9 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
     earliestCooldownDate,
     isRating,
     isReady,
+    srsGoalSettings,
+    isOverloaded,
+    overloadDueCount,
   } = useSrsSession();
 
   // Reset timer whenever currentCard changes
@@ -211,7 +214,7 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
   return (
     <div className="relative max-w-2xl mx-auto space-y-4 py-2 animate-in fade-in duration-200">
       {/* Session Progress Header Bar - Modern Minimalist Design */}
-      <div className="p-4 px-5 rounded-2xl bg-white/70 dark:bg-[#121622]/70 border border-slate-200/70 dark:border-slate-800/70 backdrop-blur-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] space-y-3">
+      <div className="p-4 px-5 rounded-2xl bg-white dark:bg-[#131722] border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.2)] space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-indigo-500/10 dark:bg-indigo-400/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
@@ -228,6 +231,10 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
                 <span className="opacity-30">•</span>
                 <span>
                   Completadas: <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">{completedCount}</strong>
+                </span>
+                <span className="opacity-30">•</span>
+                <span className="px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-mono text-[10px] font-semibold border border-indigo-200/60 dark:border-indigo-800/40">
+                  {srsGoalSettings?.activeGoal?.replace('_', ' ') || 'TOP 500'}
                 </span>
               </div>
             </div>
@@ -272,10 +279,23 @@ export function SrsReviewSession({ onNavigateTab }: SrsReviewSessionProps) {
         </div>
       </div>
 
+      {/* Anti-Burnout Overload Warning Banner */}
+      {isOverloaded && (
+        <div className="p-3.5 px-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-800 dark:text-amber-300 flex items-center gap-3 text-xs shadow-xs animate-in fade-in duration-200">
+          <Zap className="w-4 h-4 shrink-0 text-amber-500" />
+          <div className="leading-relaxed">
+            <strong>Modo Enfoque en Consolidación:</strong> Tienes{' '}
+            <span className="font-bold underline">{overloadDueCount} repasos acumulados</span>.
+            Hemos pausado temporalmente la entrada de palabras nuevas para proteger tu retención a largo plazo.
+          </div>
+        </div>
+      )}
+
       {/* Hero Review Card */}
       {selectedVocab && (
         <SrsCardDisplay
           key={currentCard.card.id}
+          cardWithTarget={currentCard}
           selectedVocab={selectedVocab}
           currentContext={currentContext}
           availableContexts={availableContexts}

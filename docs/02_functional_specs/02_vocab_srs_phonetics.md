@@ -1,7 +1,7 @@
 # Requisitos Funcionales: Repaso Ágil de Tarjetas de Vocabulario y Expresiones
 
 ## 1. Propósito del Módulo
-Ofrecer al usuario un entorno de práctica ágil y optimizado para la memorización y recuerdo activo de vocabulario, unidades fraseológicas (*lexical chunks*) y colocaciones naturales, consumiendo el motor central de repetición espaciada bajo un perfil de estudio optimizado para la memoria léxica declarativa y procedimental temprana.
+Ofrecer al usuario un entorno de práctica ágil y optimizado para la memorización y recuerdo activo de vocabulario y unidades fraseológicas (*lexical chunks*), consumiendo el motor central de repetición espaciada bajo un perfil de estudio optimizado para la memoria léxica declarativa y procedimental temprana.
 
 > [!NOTE] Demarcación Pedagógica
 > Este módulo está diseñado exclusivamente para el **recuerdo activo ágil** (3 a 5 segundos por tarjeta). La práctica de discriminación auditiva, fenómenos de habla conectada (*linking*, *glides*, elisión, asimilación), *shadowing* y ritmo prosódico se gestionan y entrenan de manera independiente en el **Laboratorio de Fonética y Habla Conectada** ([`08_phonetics_connected_speech_lab.md`](./08_phonetics_connected_speech_lab.md)) para no sobrecargar cognitivamente la sesión ni distorsionar las métricas matemáticas del algoritmo FSRS.
@@ -18,7 +18,7 @@ Ofrecer al usuario un entorno de práctica ágil y optimizado para la memorizaci
 
 * **RF-SRS-02: Calificación de Recuerdo por el Usuario**:
   * Al revisar una tarjeta, la interfaz debe ofrecer las 4 opciones estándar del motor central con atajos de teclado ergonómicos (`1`, `2`, `3`, `4`):
-    * *Repetir (Again - 1)*: No se recordó el significado, colocación o uso del término.
+    * *Repetir (Again - 1)*: No se recordó el significado, pronunciación o uso del término.
     * *Difícil (Hard - 2)*: Recuerdo trabajoso con titubeo o demora notable (> 5 segundos).
     * *Bien (Good - 3)*: Recuerdo correcto dentro del tiempo esperado de respuesta.
     * *Fácil (Easy - 4)*: Recuerdo instantáneo, fluido y sin esfuerzo mental.
@@ -33,7 +33,7 @@ Ofrecer al usuario un entorno de práctica ágil y optimizado para la memorizaci
 
 * **RF-SRS-04: Rotación Dinámica de Contextos y Sentidos**:
   * Durante las sesiones de repaso, el sistema debe alternar dinámicamente las oraciones de ejemplo asociadas a cada palabra (utilizando los ejemplos graduados de la ficha léxica generados por IA).
-  * Para palabras polisémicas, la tarjeta debe incorporar siempre la colocación o clave contextual asociada al sentido específico registrado, garantizando claridad inequívoca en la recuperación.
+  * Para palabras polisémicas, la tarjeta debe incorporar siempre la clave contextual asociada al sentido específico registrado, garantizando claridad inequívoca en la recuperación.
 
 * **RF-SRS-05: Mazo Dedicado Exclusivo de Vocabulario y Expresiones**:
   * Este módulo debe operar como un muelle de repaso rápido y ligero.
@@ -58,4 +58,4 @@ Ofrecer al usuario un entorno de práctica ágil y optimizado para la memorizaci
     * Estado de la racha diaria de estudio (*Streak*).
 
 * **RF-SRS-08: Gestión Visual de Tarjetas Sangijuela (Leeches)**:
-  * Cuando una tarjeta es catalogada como *Leech* por el motor central, la tarjeta de repaso debe desplegar un banner pedagógico amigable y sutil en lugar de una advertencia punitiva, ofreciendo acceso inmediato a una oración contextual alternativa o una pista de colocación.
+  * Cuando una tarjeta es catalogada como *Leech* por el motor central, la tarjeta de repaso debe desplegar un banner pedagógico amigable y sutil en lugar de una advertencia punitiva, ofreciendo acceso inmediato a una oración contextual alternativa o una pista de desambiguación.

@@ -57,8 +57,6 @@ export function AddVocabModal({
   const [phoneticEdEnding, setPhoneticEdEnding] = useState<'/t/' | '/d/' | '/ɪd/' | null>(null);
   const [grammarPattern, setGrammarPattern] = useState('');
   const [countability, setCountability] = useState<'COUNTABLE' | 'UNCOUNTABLE' | 'BOTH' | null>(null);
-  const [collocations, setCollocations] = useState<string[]>([]);
-  const [collocationsText, setCollocationsText] = useState('');
   const [phrasalVerbs, setPhrasalVerbs] = useState<PhrasalVerbItem[]>([]);
   const [cefrLevel, setCefrLevel] = useState<CefrLevel>('B1');
   const [partOfSpeech, setPartOfSpeech] = useState<PartOfSpeech>('NOUN');
@@ -103,8 +101,6 @@ export function AddVocabModal({
     setPhoneticEdEnding(null);
     setGrammarPattern('');
     setCountability(null);
-    setCollocations([]);
-    setCollocationsText('');
     setPhrasalVerbs([]);
     setCefrLevel('B1');
     setPartOfSpeech('NOUN');
@@ -159,12 +155,6 @@ export function AddVocabModal({
       setIpaWeakForm(data.ipaWeakForm || '');
       setPhoneticEdEnding(data.phoneticEdEnding ?? null);
       setPhrasalVerbs(data.phrasalVerbs || []);
-
-      const enrichedCollocs = (data.collocations && data.collocations.length > 0)
-        ? data.collocations
-        : (data.senses?.[0]?.collocations || []);
-      setCollocations(enrichedCollocs);
-      setCollocationsText(enrichedCollocs.join(', '));
 
       if (data.senses && data.senses.length > 0) {
         setGrammarPattern(data.senses[0].grammarPattern || '');
@@ -276,7 +266,6 @@ export function AddVocabModal({
     let curPhoneticEdEnding = phoneticEdEnding;
     let curGrammarPattern = grammarPattern.trim();
     let curCountability = countability;
-    let curCollocations = collocations;
     let curPhrasalVerbs = phrasalVerbs;
     let curCefr = cefrLevel;
     let curPos = partOfSpeech;
@@ -310,9 +299,6 @@ export function AddVocabModal({
         curIpaWeakForm = data.ipaWeakForm || '';
         curPhoneticEdEnding = data.phoneticEdEnding ?? null;
         curPhrasalVerbs = data.phrasalVerbs || [];
-        curCollocations = (data.collocations && data.collocations.length > 0)
-          ? data.collocations
-          : (data.senses?.[0]?.collocations || []);
         curGrammarPattern = data.senses?.[0]?.grammarPattern || '';
         curCountability = data.senses?.[0]?.countability || null;
         curCefr = data.cefrLevel;
@@ -360,7 +346,6 @@ export function AddVocabModal({
           phoneticEdEnding: curPhoneticEdEnding || null,
           grammarPattern: curGrammarPattern || curSenses[0]?.grammarPattern || undefined,
           countability: curCountability || curSenses[0]?.countability || undefined,
-          collocations: curCollocations.length > 0 ? curCollocations : (curSenses[0]?.collocations || undefined),
           cefrLevel: curCefr,
           partOfSpeech: curPos,
           grammaticalDimension: curDim,
@@ -391,7 +376,6 @@ export function AddVocabModal({
           grammarPattern: sense.grammarPattern || undefined,
           countability: sense.countability || undefined,
           connotation: sense.connotation || undefined,
-          collocations: sense.collocations && sense.collocations.length > 0 ? sense.collocations : undefined,
           cefrLevel: sense.cefrLevel,
           partOfSpeech: sense.partOfSpeech,
           grammaticalDimension: curDim,
@@ -460,13 +444,15 @@ export function AddVocabModal({
     switch (level) {
       case 'A1':
       case 'A2':
-        return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
+        return 'bg-emerald-100/80 text-emerald-800 border-emerald-300/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700/50';
       case 'B1':
+        return 'bg-sky-100/80 text-sky-800 border-sky-300/70 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-700/50';
       case 'B2':
-        return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800';
+        return 'bg-indigo-100/80 text-indigo-800 border-indigo-300/70 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-700/50';
       case 'C1':
+        return 'bg-purple-100/80 text-purple-800 border-purple-300/70 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-700/50';
       case 'C2':
-        return 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-300 dark:border-purple-800';
+        return 'bg-amber-100/80 text-amber-800 border-amber-300/70 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700/50';
     }
   };
 
@@ -773,25 +759,6 @@ export function AddVocabModal({
                         </p>
                       )}
 
-                      {/* Collocations */}
-                      {collocations.length > 0 && (
-                        <div className="pt-1">
-                          <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 block mb-1">
-                            Colocaciones Habituales:
-                          </label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {collocations.map((colloc, cIdx) => (
-                              <span
-                                key={cIdx}
-                                className="text-[11px] px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-medium"
-                              >
-                                {colloc}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
                       {/* Context sentence for primary sense */}
                       {exampleSentenceEn && (
                         <div className="p-3 rounded-xl bg-white/80 dark:bg-[#121622]/80 border border-gray-200/60 dark:border-white/[0.06] text-xs space-y-1">
@@ -971,18 +938,6 @@ export function AddVocabModal({
                             <p className="text-[11px] text-gray-600 dark:text-gray-400">
                               {definitionEn}
                             </p>
-                            {collocations.length > 0 && (
-                              <div className="flex flex-wrap gap-1 pt-0.5">
-                                {collocations.map((colloc, cIdx) => (
-                                  <span
-                                    key={cIdx}
-                                    className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 font-medium"
-                                  >
-                                    {colloc}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
                             {exampleSentenceEn && (
                               <p className="text-[11px] font-editorial italic text-gray-700 dark:text-gray-300">
                                 &ldquo;{exampleSentenceEn}&rdquo;
@@ -1051,18 +1006,6 @@ export function AddVocabModal({
                                 <p className="text-[11px] text-gray-600 dark:text-gray-400">
                                   {sense.definitionEn}
                                 </p>
-                                {sense.collocations && sense.collocations.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 pt-0.5">
-                                    {sense.collocations.map((colloc, cIdx) => (
-                                      <span
-                                        key={cIdx}
-                                        className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 font-medium"
-                                      >
-                                        {colloc}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
                                 <p className="text-[11px] font-editorial italic text-gray-700 dark:text-gray-300">
                                   &ldquo;{sense.exampleSentenceEn}&rdquo;
                                 </p>
@@ -1232,29 +1175,6 @@ export function AddVocabModal({
                         <option value="BOTH">Contable e Incontable [C/U]</option>
                       </select>
                     </div>
-                  </div>
-
-                  {/* Collocations */}
-                  <div>
-                    <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">
-                      Colocaciones Habituales (separadas por coma)
-                    </label>
-                    <input
-                      type="text"
-                      value={collocationsText}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setCollocationsText(val);
-                        setCollocations(
-                          val
-                            .split(',')
-                            .map((s) => s.trim())
-                            .filter(Boolean),
-                        );
-                      }}
-                      placeholder="ej: make a decision, take a decision, heavy rain"
-                      className="w-full px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-[#161B28] border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white"
-                    />
                   </div>
 
                   {/* Domain Category Input */}

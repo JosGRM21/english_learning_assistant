@@ -38,7 +38,7 @@ describe('Database Migrations Engine', () => {
     expect(rows.rows[1].id).toBe('row2');
   });
 
-  it('cleans up legacy temporary tables and sets user_version to 5', async () => {
+  it('cleans up legacy temporary tables and sets user_version to 8', async () => {
     // 1. Create a dummy legacy table that should be cleaned up
     await sql.raw(`CREATE TABLE users_new (id TEXT PRIMARY KEY)`).execute(db);
 
@@ -49,9 +49,9 @@ describe('Database Migrations Engine', () => {
     // Run migrations
     await runMigrations(db);
 
-    // Version should now be 5
-    const v5 = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
-    expect(v5.rows[0]?.user_version).toBe(5);
+    // Version should now be 8
+    const v8 = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
+    expect(v8.rows[0]?.user_version).toBe(8);
 
     // Legacy table should be dropped
     const checkLegacy = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='users_new'`.execute(db);
@@ -67,8 +67,8 @@ describe('Database Migrations Engine', () => {
 
     // Running migrations again is idempotent
     await runMigrations(db);
-    const v5Idempotent = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
-    expect(v5Idempotent.rows[0]?.user_version).toBe(5);
+    const v8Idempotent = await sql<{ user_version: number }>`PRAGMA user_version`.execute(db);
+    expect(v8Idempotent.rows[0]?.user_version).toBe(8);
   });
 
   it('migrates pre-existing vocab_items table without is_core column cleanly without throwing error', async () => {
@@ -231,6 +231,61 @@ describe('Database Migrations Engine', () => {
 
     const modernRow = await sql<{ id: string }>`SELECT id FROM writing_evaluations WHERE id = 'eval_modern'`.execute(db);
     expect(modernRow.rows).toHaveLength(1);
+  });
+
+  it('migrates legacy phraseological_units table missing definition_en, ipa, and example translations cleanly', async () => {
+    // 1. Create a legacy phraseological_units table without new columns
+    await sql.raw(`
+      CREATE TABLE phraseological_units (
+        id TEXT PRIMARY KEY,
+        primary_vocab_id TEXT,
+        chunk_type TEXT NOT NULL,
+        text TEXT NOT NULL,
+        meaning_es TEXT NOT NULL,
+        example_1 TEXT NOT NULL,
+        example_2 TEXT,
+        cefr_level TEXT NOT NULL
+      )
+    `).execute(db);
+
+    // 2. Run migrations
+    await runMigrations(db);
+
+    // 3. Verify new columns exist
+    const tableInfo = await sql<{ name: string }>`PRAGMA table_info(phraseological_units)`.execute(db);
+    const colNames = tableInfo.rows.map((r: any) => r.name.toLowerCase());
+    expect(colNames).toContain('definition_en');
+    expect(colNames).toContain('ipa_general_american');
+    expect(colNames).toContain('ipa_received_pronunciation');
+    expect(colNames).toContain('example_1_es');
+    expect(colNames).toContain('example_2_es');
+    expect(colNames).toContain('pronoun_must_split');
+    expect(colNames).toContain('mastery_status');
+  });
+
+  it('migrates legacy vocab_context_examples table missing sense_index cleanly', async () => {
+    // 1. Create a legacy vocab_context_examples table without sense_index
+    await sql.raw(`
+      CREATE TABLE vocab_context_examples (
+        id TEXT PRIMARY KEY,
+        vocab_id TEXT,
+        phrase_id TEXT,
+        sentence_en TEXT NOT NULL,
+        sentence_es TEXT NOT NULL,
+        cloze_target TEXT NOT NULL,
+        audio_url TEXT,
+        cefr_level TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
+      )
+    `).execute(db);
+
+    // 2. Run migrations
+    await runMigrations(db);
+
+    // 3. Verify sense_index was added
+    const tableInfo = await sql<{ name: string }>`PRAGMA table_info(vocab_context_examples)`.execute(db);
+    const colNames = tableInfo.rows.map((r: any) => r.name.toLowerCase());
+    expect(colNames).toContain('sense_index');
   });
 });
 

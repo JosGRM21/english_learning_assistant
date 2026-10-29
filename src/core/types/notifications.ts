@@ -1,5 +1,3 @@
-export type ScheduleMode = 'AUTO' | 'MANUAL';
-
 export type ActivityType = 'SRS' | 'WRITING';
 
 export type NotificationType =
@@ -11,30 +9,15 @@ export type NotificationType =
   | 'SRS_BATCH'
   | 'TEST';
 
-export type HabitConfidence = 'LOW' | 'MEDIUM' | 'HIGH';
-
-export interface HabitAnalysisResult {
-  optimalHour: number;
-  optimalMinute: number;
-  suggestedTime: string; // 'HH:mm'
-  confidence: HabitConfidence;
-  sessionCount: number;
-  hourlyDistribution: number[]; // 24 items, percentages 0-100
-}
-
 export interface ActivityScheduleConfig {
   enabled: boolean;
-  scheduleMode: ScheduleMode;
   manualTime: string; // 'HH:mm'
-  detectedTime: string | null; // 'HH:mm'
 }
 
 export interface NotificationSettings {
   userId: string;
   enabled: boolean;
-  scheduleMode: ScheduleMode;
   manualTime: string; // 'HH:mm'
-  detectedTime: string | null; // 'HH:mm'
   // Per-activity schedules:
   srs: ActivityScheduleConfig;
   writing: ActivityScheduleConfig;
@@ -83,4 +66,3 @@ export interface RuleEngineDecision {
   body?: string;
   reason: string;
 }
-

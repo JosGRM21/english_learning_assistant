@@ -30,8 +30,8 @@ Guiar al usuario en el desarrollo de sus habilidades de escritura y producción 
 
 - **RF-WRT-03: Activación Léxica Previa (Pre-Writing Target Chunks)**:
 
-  - El sistema debe identificar palabras y colocaciones que el usuario tiene frágiles en su historial de estudio.
-  - Antes de comenzar a redactar, debe presentar un conjunto acotado de metas léxicas (máximo 2 a 3 colocaciones o términos clave) con sus contextos de uso recomendados.
+  - El sistema debe identificar palabras que el usuario tiene frágiles en su historial de estudio.
+  - Antes de comenzar a redactar, debe presentar un conjunto acotado de metas léxicas (máximo 2 a 3 términos clave) con sus contextos de uso recomendados.
   - Durante la escritura del borrador, el editor debe operar en modo libre de distracciones (*distraction-free*), evitando alertas sonoras o interrupciones visuales que sobrecarguen la memoria de trabajo. La verificación de incorporación de términos se computará al finalizar el borrador.
 
 ### Fase 2: Andamiaje Híbrido Dinámico y Autocorrección Guiada

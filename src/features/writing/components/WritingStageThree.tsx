@@ -6,16 +6,12 @@ import {
   RotateCcw,
   Volume2,
   Trophy,
-  GitCompare,
   CheckCircle2,
-  ShieldAlert,
   Sparkles,
   Target,
+  Compass,
 } from 'lucide-react';
-import {
-  WritingEvaluationResponse,
-} from '@/infrastructure/ai/schemas';
-import { DiffVisualizer } from './DiffVisualizer';
+import { WritingEvaluationResponse } from '@/infrastructure/ai/schemas';
 import { DoubleRecastPanel } from './DoubleRecastPanel';
 
 export interface WritingStageThreeProps {
@@ -24,11 +20,10 @@ export interface WritingStageThreeProps {
   draft2: string;
   isPlayingTts?: boolean;
   onPlayTts?: (text: string) => void;
-  onNavigateToDefossilization?: () => void;
   onReset: () => void;
 }
 
-type StageThreeViewTab = 'RECAST' | 'DIFF' | 'CORRECTIONS';
+type StageThreeViewTab = 'RECAST' | 'CORRECTIONS';
 
 export function WritingStageThree({
   evalResult,
@@ -36,11 +31,14 @@ export function WritingStageThree({
   draft2,
   isPlayingTts = false,
   onPlayTts,
-  onNavigateToDefossilization,
   onReset,
 }: WritingStageThreeProps) {
   const [activeTab, setActiveTab] = useState<StageThreeViewTab>(
-    evalResult.native_recast_version || evalResult.clean_structural_version ? 'RECAST' : 'DIFF'
+    evalResult.native_recast_version || evalResult.clean_structural_version
+      ? 'RECAST'
+      : evalResult.corrections.length > 0
+        ? 'CORRECTIONS'
+        : 'RECAST',
   );
 
   const rubric = evalResult.rubric_scores || {
@@ -52,11 +50,13 @@ export function WritingStageThree({
 
   return (
     <div className="space-y-6">
-
       {/* ========================================================================= */}
-      {/* 1. HERO SCOREBOARD, CEFR & 4-AXIS RUBRIC */}
+      {/* 1. HERO SCOREBOARD, CEFR & 4-AXIS RUBRIC WITH QUALITATIVE RECOMMENDATIONS */}
       {/* ========================================================================= */}
-      <section aria-label="Resumen de evaluación" className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-8 border border-gray-200/90 dark:border-gray-800 shadow-xs space-y-6">
+      <section
+        aria-label="Resumen de evaluación"
+        className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-8 border border-gray-200/90 dark:border-gray-800 shadow-xs space-y-6"
+      >
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-3 max-w-3xl">
             <div className="flex items-center gap-3">
@@ -82,20 +82,6 @@ export function WritingStageThree({
               {evalResult.overall_feedback_es}
             </p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
-            {/* Direct Link to Defossilization */}
-            {onNavigateToDefossilization && evalResult.corrections.length > 0 && (
-              <button
-                type="button"
-                onClick={onNavigateToDefossilization}
-                className="px-4 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-md shadow-indigo-600/25 transition-all inline-flex items-center gap-2 cursor-pointer"
-              >
-                <ShieldAlert className="w-4 h-4" />
-                <span>Practicar en Corrector de Hábitos</span>
-              </button>
-            )}
-          </div>
         </div>
 
         {/* 4-Axis Rubric Score Bars (RF-WRT-08) */}
@@ -111,7 +97,7 @@ export function WritingStageThree({
             <div className="w-full h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-indigo-600 rounded-full transition-all duration-500"
-                style={{ width: `${rubric.accuracy * 10}%` }}
+                style={{ width: `${Math.min(100, Math.max(0, rubric.accuracy * 10))}%` }}
               />
             </div>
           </div>
@@ -127,7 +113,7 @@ export function WritingStageThree({
             <div className="w-full h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-emerald-600 rounded-full transition-all duration-500"
-                style={{ width: `${rubric.range_and_precision * 10}%` }}
+                style={{ width: `${Math.min(100, Math.max(0, rubric.range_and_precision * 10))}%` }}
               />
             </div>
           </div>
@@ -143,7 +129,7 @@ export function WritingStageThree({
             <div className="w-full h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-purple-600 rounded-full transition-all duration-500"
-                style={{ width: `${rubric.cohesion_and_flow * 10}%` }}
+                style={{ width: `${Math.min(100, Math.max(0, rubric.cohesion_and_flow * 10))}%` }}
               />
             </div>
           </div>
@@ -159,23 +145,40 @@ export function WritingStageThree({
             <div className="w-full h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-amber-500 rounded-full transition-all duration-500"
-                style={{ width: `${rubric.pragmatics_and_complexity * 10}%` }}
+                style={{ width: `${Math.min(100, Math.max(0, rubric.pragmatics_and_complexity * 10))}%` }}
               />
             </div>
           </div>
         </div>
+
+        {/* Actionable Qualitative Recommendations (RF-WRT-08) */}
+        {evalResult.qualitative_recommendations_es && evalResult.qualitative_recommendations_es.trim().length > 0 && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100/90 dark:border-indigo-900/50 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+              <Compass className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <span>Recomendaciones Clave para Seguir Progresando</span>
+            </div>
+            <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-200 leading-relaxed font-sans font-medium whitespace-pre-line">
+              {evalResult.qualitative_recommendations_es}
+            </p>
+          </div>
+        )}
       </section>
 
       {/* ========================================================================= */}
       {/* 2. TARGET VOCABULARY OUTCOME (RF-WRT-03) */}
       {/* ========================================================================= */}
       {evalResult.target_words_feedback && evalResult.target_words_feedback.length > 0 && (
-        <section aria-label="Incorporación de vocabulario meta" className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-indigo-100 dark:border-indigo-950/60 shadow-xs space-y-4">
+        <section
+          aria-label="Incorporación de vocabulario meta"
+          className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-indigo-100 dark:border-indigo-950/60 shadow-xs space-y-4"
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
               <Target className="w-4 h-4 text-indigo-600 shrink-0" />
               <span>
-                Metas Léxicas del Mazo SRS ({evalResult.target_words_feedback.filter((t) => t.used).length} / {evalResult.target_words_feedback.length} activadas)
+                Metas Léxicas del Mazo SRS ({evalResult.target_words_feedback.filter((t) => t.used).length} /{' '}
+                {evalResult.target_words_feedback.length} activadas)
               </span>
             </div>
           </div>
@@ -227,7 +230,10 @@ export function WritingStageThree({
       {/* 3. LEARNER UPTAKE & SELF-REPAIR CELEBRATION */}
       {/* ========================================================================= */}
       {evalResult.successful_repairs && evalResult.successful_repairs.length > 0 && (
-        <section aria-label="Auto-correcciones exitosas" className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-emerald-200/90 dark:border-emerald-900/60 shadow-xs space-y-4">
+        <section
+          aria-label="Auto-correcciones exitosas"
+          className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-emerald-200/90 dark:border-emerald-900/60 shadow-xs space-y-4"
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
               <Trophy className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -271,13 +277,11 @@ export function WritingStageThree({
         </section>
       )}
 
-
-
       {/* ========================================================================= */}
-      {/* 6. SEGMENTED DEEP-DIVE: DIFF VISUALIZER & L1 INTERFERENCES */}
+      {/* 4. UNIFIED COMPARATIVE & CORRECTIONS SECTION (NO GIT DIFF) */}
       {/* ========================================================================= */}
       <section aria-label="Análisis detallado" className="space-y-4">
-        {/* Section Navigation Tabs */}
+        {/* Modern Segmented Navigation Tabs */}
         <div className="flex items-center gap-2 p-1.5 bg-gray-100/90 dark:bg-[#181D2A] rounded-2xl border border-gray-200/80 dark:border-gray-800 w-fit flex-wrap">
           {(evalResult.native_recast_version || evalResult.clean_structural_version) && (
             <button
@@ -293,19 +297,6 @@ export function WritingStageThree({
               <span>Versiones de Referencia</span>
             </button>
           )}
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('DIFF')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
-              activeTab === 'DIFF'
-                ? 'bg-white dark:bg-[#121620] text-gray-900 dark:text-white shadow-2xs font-bold'
-                : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
-          >
-            <GitCompare className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Comparativa Diferencial (Diff)</span>
-          </button>
 
           {evalResult.corrections.length > 0 && (
             <button
@@ -340,19 +331,7 @@ export function WritingStageThree({
           </div>
         )}
 
-        {/* Tab 2: Diff Visualizer */}
-        {activeTab === 'DIFF' && (
-          <div className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-gray-200/90 dark:border-gray-800 shadow-xs animate-in fade-in duration-150">
-            <DiffVisualizer
-              original={draft1}
-              updated={draft2}
-              onPlayTts={onPlayTts}
-              isPlayingTts={isPlayingTts}
-            />
-          </div>
-        )}
-
-        {/* Tab 3: Detailed Corrections Breakdown */}
+        {/* Tab 2: Detailed Corrections Breakdown (RF-WRT-09) */}
         {activeTab === 'CORRECTIONS' && evalResult.corrections.length > 0 && (
           <div className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-gray-200/90 dark:border-gray-800 shadow-xs space-y-4 animate-in fade-in duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800/80">
@@ -361,47 +340,39 @@ export function WritingStageThree({
                 <span>Correcciones y Puntos de Mejora ({evalResult.corrections.length})</span>
               </div>
               <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                Guardados automáticamente en tu Corrector de Hábitos para afianzar y desfosilizar
+                Puntos clave para afianzar y perfeccionar tu redacción
               </span>
             </div>
 
-            <div className="divide-y divide-gray-100 dark:divide-gray-800/80">
+            <div className="space-y-3 pt-1">
               {evalResult.corrections.map((corr, idx) => (
                 <div
                   key={idx}
-                  className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  className="p-4 sm:p-5 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-100 dark:border-gray-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs"
                 >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs px-2.5 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold line-through">
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                      <span className="font-mono text-xs sm:text-sm px-2.5 py-0.5 rounded-lg bg-rose-100/80 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold line-through border border-rose-200/60 dark:border-rose-900/40">
                         {corr.error_span}
                       </span>
-                      <ArrowRight className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="font-mono text-xs px-2.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold">
+                      <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span className="font-mono text-xs sm:text-sm px-2.5 py-0.5 rounded-lg bg-emerald-100/80 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200/60 dark:border-emerald-900/40">
                         {corr.native_reformulation}
                       </span>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 font-medium">
-                        {corr.taxonomy_code}
-                      </span>
-                      {corr.is_l1_spanish_transfer && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/40">
-                          Influencia del Español
-                        </span>
-                      )}
                     </div>
 
-                    <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed font-sans">
+                    <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-sans font-medium">
                       {corr.explanation_es}
                     </p>
                   </div>
 
                   {/* Actions for this correction */}
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
                     {onPlayTts && (
                       <button
                         type="button"
                         onClick={() => onPlayTts(corr.native_reformulation)}
-                        className="p-2 rounded-xl text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        className="p-2.5 rounded-xl text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-gray-800 border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-all cursor-pointer shadow-2xs"
                         title="Escuchar pronunciación nativa"
                         aria-label={`Escuchar pronunciación de ${corr.native_reformulation}`}
                       >
@@ -415,7 +386,6 @@ export function WritingStageThree({
           </div>
         )}
       </section>
-
 
       {/* Restart writing session CTA */}
       <div className="text-center pt-2">

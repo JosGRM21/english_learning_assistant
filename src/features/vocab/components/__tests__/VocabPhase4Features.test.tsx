@@ -34,7 +34,6 @@ describe('Phase 4: Vocab Catalog & Cards UI Improvements', () => {
     isCore: true,
     masteryStatus: 'INACTIVE',
     phoneticEdEnding: '/t/',
-    collocationsJson: ['accomplish a goal', 'accomplish a task'],
     isFalseFriend: false,
     createdAt: new Date().toISOString(),
   };
@@ -51,12 +50,11 @@ describe('Phase 4: Vocab Catalog & Cards UI Improvements', () => {
     grammaticalDimension: 'CONTENT',
     isCore: true,
     masteryStatus: 'PRODUCTIVE_MASTERY',
-    collocationsJson: ['thrive in adversity', 'thrive on challenges'],
     isFalseFriend: false,
     createdAt: new Date().toISOString(),
   };
 
-  it('renders inactive word with headword, CEFR level, and collocations without top clutter', async () => {
+  it('renders inactive word with headword and CEFR level without top clutter', async () => {
     const onActivateMock = vi.fn().mockResolvedValue({
       ...inactiveCoreVocab,
       masteryStatus: 'NEW',
@@ -74,10 +72,6 @@ describe('Phase 4: Vocab Catalog & Cards UI Improvements', () => {
 
     // Should display CEFR level beside word
     expect(screen.getByText('B1')).toBeDefined();
-
-    // Should display collocations
-    expect(screen.getByText('accomplish a goal')).toBeDefined();
-    expect(screen.getByText('accomplish a task')).toBeDefined();
 
     // Should NOT display clutter badges above card
     expect(screen.queryByText('-ed /t/')).toBeNull();
@@ -101,12 +95,11 @@ describe('Phase 4: Vocab Catalog & Cards UI Improvements', () => {
     expect(accentBtn.textContent).toBe('UK');
   });
 
-  it('renders headword with CEFR level beside it and collocations', () => {
+  it('renders headword with CEFR level beside it', () => {
     render(<VocabCard vocab={productiveVocab} />);
 
     expect(screen.getByText('thrive')).toBeDefined();
     expect(screen.getByText('B2')).toBeDefined();
-    expect(screen.getByText('thrive in adversity')).toBeDefined();
   });
 
   it('renders Core Corpus coverage progress bar and mastery funnel filters in Bento', () => {

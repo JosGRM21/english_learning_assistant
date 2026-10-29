@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Volume2,
   ExternalLink,
@@ -13,6 +13,7 @@ import {
   GRAMMATICAL_DIMENSION_LABELS_ES,
 } from '@/core/types/vocab';
 import { useAudio } from '@/shared/hooks/useAudio';
+import { getVoiceForAccent } from '@/infrastructure/audio/AudioService';
 
 export interface VocabCardProps {
   vocab: VocabItem;
@@ -22,10 +23,11 @@ export interface VocabCardProps {
   isSelectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (vocab: VocabItem) => void;
+  onContextMenu?: (e: React.MouseEvent, vocab: VocabItem) => void;
   accentPreference?: 'US' | 'UK';
 }
 
-export function VocabCard({
+export const VocabCard = React.memo(function VocabCard({
   vocab,
   examples,
   onSelectWord,
@@ -33,12 +35,19 @@ export function VocabCard({
   isSelectionMode = false,
   isSelected = false,
   onToggleSelect,
+  onContextMenu,
   accentPreference = 'US',
 }: VocabCardProps) {
   const { audioService } = useAudio();
   const [isPlayingWord, setIsPlayingWord] = useState(false);
   const [isPlayingExample, setIsPlayingExample] = useState(false);
   const [currentAccent, setCurrentAccent] = useState<'US' | 'UK'>(accentPreference);
+
+  useEffect(() => {
+    setCurrentAccent(accentPreference);
+  }, [accentPreference]);
+
+  const activeVoice = getVoiceForAccent(currentAccent);
 
   // Polysemic senses awareness
   const primarySense =
@@ -54,10 +63,6 @@ export function VocabCard({
   const displayTranslation = primarySense?.translationEs || vocab.translationEs;
   const displayDefinition = primarySense?.definitionEn || vocab.definitionEn;
   const displayCefr = primarySense?.cefrLevel || vocab.cefrLevel;
-  const displayCollocations =
-    primarySense?.collocations && primarySense.collocations.length > 0
-      ? primarySense.collocations
-      : vocab.collocationsJson || [];
 
   // Context graduated example from Sense 1 or fallback
   const basicExampleEn =
@@ -85,7 +90,7 @@ export function VocabCard({
     if (isPlayingWord) return;
     try {
       setIsPlayingWord(true);
-      await audioService.speak(vocab.word, 1.0);
+      await audioService.speak(vocab.word, 1.0, activeVoice);
     } finally {
       setIsPlayingWord(false);
     }
@@ -96,7 +101,7 @@ export function VocabCard({
     if (isPlayingExample) return;
     try {
       setIsPlayingExample(true);
-      await audioService.speak(sentence, 0.95);
+      await audioService.speak(sentence, 0.95, activeVoice);
     } finally {
       setIsPlayingExample(false);
     }
@@ -106,21 +111,22 @@ export function VocabCard({
     switch (level) {
       case 'A1':
       case 'A2':
-        return 'bg-emerald-50 text-emerald-700 dark:bg-[#06281E] dark:text-emerald-400 border-emerald-200/80 dark:border-emerald-800/60';
+        return 'bg-emerald-100/80 text-emerald-800 border-emerald-300/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700/50';
       case 'B1':
-        return 'bg-indigo-50 text-indigo-700 dark:bg-[#1E1B4B] dark:text-[#A5B4FC] border-indigo-200/80 dark:border-indigo-800/60';
+        return 'bg-sky-100/80 text-sky-800 border-sky-300/70 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-700/50';
       case 'B2':
-        return 'bg-purple-50 text-purple-700 dark:bg-[#2E1065] dark:text-[#C084FC] border-purple-200/80 dark:border-purple-800/60';
+        return 'bg-indigo-100/80 text-indigo-800 border-indigo-300/70 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-700/50';
       case 'C1':
+        return 'bg-purple-100/80 text-purple-800 border-purple-300/70 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-700/50';
       case 'C2':
-        return 'bg-amber-50 text-amber-700 dark:bg-[#381E04] dark:text-amber-400 border-amber-200/80 dark:border-amber-800/60';
+        return 'bg-amber-100/80 text-amber-800 border-amber-300/70 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-700/50';
       default:
-        return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+        return 'bg-gray-100 text-gray-700 border-gray-300/70 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700';
     }
   };
 
   const handleCardClick = () => {
-    if (isSelectionMode && onToggleSelect) {
+    if ((isSelectionMode || isSelected) && onToggleSelect) {
       onToggleSelect(vocab);
     } else {
       onSelectWord?.(vocab);
@@ -130,6 +136,10 @@ export function VocabCard({
   return (
     <div
       onClick={handleCardClick}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onContextMenu?.(e, vocab);
+      }}
       className={`group relative rounded-3xl border transition-all duration-200 flex flex-col justify-between overflow-hidden cursor-pointer ${isSelected
         ? 'border-indigo-500 bg-white dark:bg-[#131722] ring-2 ring-indigo-500/50 shadow-md'
         : 'border-gray-200/90 dark:border-white/[0.08] bg-white dark:bg-[#131722] hover:border-indigo-400 dark:hover:border-indigo-500/40 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)]'
@@ -244,20 +254,6 @@ export function VocabCard({
           )}
         </div>
 
-        {/* Collocations Pills (if present) */}
-        {displayCollocations && displayCollocations.length > 0 && (
-          <div className="flex items-center gap-1 flex-wrap pt-1">
-            {displayCollocations.slice(0, 2).map((col, idx) => (
-              <span
-                key={idx}
-                className="px-2 py-0.5 rounded-md bg-gray-100/80 dark:bg-gray-800/80 text-[10px] text-gray-700 dark:text-gray-300 font-medium"
-              >
-                {col}
-              </span>
-            ))}
-          </div>
-        )}
-
         {/* Tier 4: Minimalist Context Example */}
         {basicExampleEn && (
           <div className="p-3 rounded-2xl bg-gray-50/80 dark:bg-[#121626]/80 border border-gray-100 dark:border-white/[0.06] text-xs space-y-2">
@@ -305,4 +301,15 @@ export function VocabCard({
       </div>
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.vocab.id === nextProps.vocab.id &&
+    prevProps.vocab.masteryStatus === nextProps.vocab.masteryStatus &&
+    prevProps.vocab.word === nextProps.vocab.word &&
+    prevProps.vocab.translationEs === nextProps.vocab.translationEs &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isSelectionMode === nextProps.isSelectionMode &&
+    prevProps.accentPreference === nextProps.accentPreference &&
+    prevProps.examples?.length === nextProps.examples?.length
+  );
+});

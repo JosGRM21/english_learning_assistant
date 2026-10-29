@@ -31,7 +31,6 @@ describe('VocabRepository Integration Tests', () => {
           frequencyBand: 'TOP_500',
           isCore: 1,
           masteryStatus: 'INACTIVE',
-          collocationsJson: ['be happy'],
           isSeparable: null,
           phoneticEdEnding: null,
           isFalseFriend: 0,
@@ -61,7 +60,6 @@ describe('VocabRepository Integration Tests', () => {
           frequencyBand: 'TOP_500',
           isCore: 1,
           masteryStatus: 'INACTIVE',
-          collocationsJson: ['have time'],
           isSeparable: null,
           phoneticEdEnding: null,
           isFalseFriend: 0,
@@ -98,7 +96,6 @@ describe('VocabRepository Integration Tests', () => {
       frequencyBand: 'TOP_3000',
       isCore: true,
       masteryStatus: 'LEARNING',
-      collocationsJson: ['thrive on pressure', 'business will thrive'],
       isSeparable: null,
       phoneticEdEnding: '/d/',
       isFalseFriend: false,
@@ -121,7 +118,6 @@ describe('VocabRepository Integration Tests', () => {
     expect(item.frequencyBand).toBe('TOP_3000');
     expect(item.isCore).toBe(true);
     expect(item.masteryStatus).toBe('LEARNING');
-    expect(item.collocationsJson).toEqual(['thrive on pressure', 'business will thrive']);
     expect(item.phoneticEdEnding).toBe('/d/');
 
     const retrieved = await repo.getVocabById(item.id);
@@ -142,14 +138,14 @@ describe('VocabRepository Integration Tests', () => {
     expect(first.ipaGeneralAmerican).toBeTruthy();
   });
 
-  it('activates a vocab item into LEARNING and automatically creates an agile SRS card', async () => {
+  it('activates a vocab item into NEW and automatically creates an agile SRS card', async () => {
     // Search a core word ('be' is always present in core corpus)
     const local = await repo.searchLocalCorpus('be', 1);
     expect(local.length).toBeGreaterThan(0);
     const beWord = local[0];
 
     const activated = await repo.activateVocabItem(beWord.id);
-    expect(activated.masteryStatus).toBe('LEARNING');
+    expect(activated.masteryStatus).toBe('NEW');
 
     // Verify SRS card was created
     const card = await db
@@ -162,6 +158,19 @@ describe('VocabRepository Integration Tests', () => {
     expect(card).not.toBeUndefined();
     expect(card?.srs_profile).toBe('VOCAB_AGILE');
     expect(card?.state).toBe('NEW');
+  });
+
+  it('retrieves next unactivated core words deterministically with getNextUnactivatedWords', async () => {
+    const unactivated = await repo.getNextUnactivatedWords({
+      frequencyBand: 'TOP_500',
+      limit: 5,
+    });
+
+    expect(unactivated.length).toBeLessThanOrEqual(5);
+    for (const item of unactivated) {
+      expect(item.frequencyBand).toBe('TOP_500');
+      expect(item.masteryStatus).toBe('INACTIVE');
+    }
   });
 
   it('computes core corpus coverage across frequency bands', async () => {
@@ -187,7 +196,6 @@ describe('VocabRepository Integration Tests', () => {
       frequencyBand: 'TOP_5000',
       isCore: false,
       masteryStatus: 'LEARNING',
-      collocationsJson: [],
       isSeparable: null,
       phoneticEdEnding: null,
       isFalseFriend: false,
@@ -247,8 +255,12 @@ describe('VocabRepository Integration Tests', () => {
   });
 
   it('batch activates vocabulary items by frequency band independently of CEFR level', async () => {
+    // Isolated clean test DB without mass-seeded corpus words
+    const cleanDb = await createTestDatabase(false);
+    const cleanRepo = new VocabRepository(cleanDb);
+
     // 1. Seed two inactive core items with different CEFR levels in TOP_3000
-    await repo.createVocab({
+    await cleanRepo.createVocab({
       word: 'resilience',
       grammaticalDimension: 'CONTENT',
       partOfSpeech: 'NOUN',
@@ -262,7 +274,7 @@ describe('VocabRepository Integration Tests', () => {
       isFalseFriend: false,
     });
 
-    await repo.createVocab({
+    await cleanRepo.createVocab({
       word: 'perceive',
       grammaticalDimension: 'CONTENT',
       partOfSpeech: 'VERB',
@@ -277,7 +289,7 @@ describe('VocabRepository Integration Tests', () => {
     });
 
     // 2. Batch activate by TOP_3000 only
-    const activated = await repo.batchActivateByCriteria({
+    const activated = await cleanRepo.batchActivateByCriteria({
       frequencyBand: 'TOP_3000',
       limit: 10,
     });
@@ -289,7 +301,7 @@ describe('VocabRepository Integration Tests', () => {
     // Verify all returned items have LEARNING status and corresponding srs_cards
     for (const item of activated) {
       expect(item.masteryStatus).toBe('LEARNING');
-      const card = await db
+      const card = await cleanDb
         .selectFrom('srs_cards')
         .where('target_id', '=', item.id)
         .where('target_type', '=', 'VOCAB')
@@ -314,7 +326,6 @@ describe('VocabRepository Integration Tests', () => {
       frequencyBand: 'TOP_3000',
       isCore: false,
       masteryStatus: 'LEARNING',
-      collocationsJson: [],
       isSeparable: null,
       phoneticEdEnding: null,
       isFalseFriend: false,
@@ -333,7 +344,6 @@ describe('VocabRepository Integration Tests', () => {
       frequencyBand: 'TOP_5000',
       isCore: false,
       masteryStatus: 'LEARNING',
-      collocationsJson: [],
       isSeparable: null,
       phoneticEdEnding: null,
       isFalseFriend: false,
@@ -485,5 +495,241 @@ describe('VocabRepository Integration Tests', () => {
     // Empty array returns empty map
     const emptyResult = await repo.getContextExamplesForVocabs([]);
     expect(emptyResult).toEqual({});
+  });
+
+  it('safely handles concurrent activateVocabItem calls without throwing UNIQUE constraint failed', async () => {
+    const unactivated = await repo.getNextUnactivatedWords({
+      frequencyBand: 'TOP_1000',
+      limit: 1,
+    });
+    expect(unactivated.length).toBe(1);
+    const wordId = unactivated[0].id;
+
+    // Simulate concurrent calls (such as React StrictMode or concurrent JIT runs)
+    const results = await Promise.all([
+      repo.activateVocabItem(wordId, 'NEW'),
+      repo.activateVocabItem(wordId, 'NEW'),
+      repo.activateVocabItem(wordId, 'NEW'),
+    ]);
+
+    expect(results).toHaveLength(3);
+    for (const r of results) {
+      expect(r.id).toBe(wordId);
+    }
+
+    // Verify only 1 card exists in srs_cards for this target
+    const cards = await db
+      .selectFrom('srs_cards')
+      .selectAll()
+      .where('target_id', '=', wordId)
+      .where('target_type', '=', 'VOCAB')
+      .execute();
+    expect(cards).toHaveLength(1);
+  });
+
+  it('detects eligible cascaded polysemous senses and activates sense-specific cards', async () => {
+    const vocab = await repo.createVocab({
+      word: 'charge',
+      grammaticalDimension: 'CONTENT',
+      partOfSpeech: 'VERB',
+      definitionEn: 'to demand an amount of money',
+      translationEs: 'cobrar',
+      ipaGeneralAmerican: 'tʃɑːrdʒ',
+      cefrLevel: 'A2',
+      isFalseFriend: false,
+      alternateSensesJson: [
+        {
+          senseId: 'sense_2',
+          contextualHint: 'charge a phone or battery',
+          partOfSpeech: 'VERB',
+          definitionEn: 'to restore electrical energy in a battery',
+          translationEs: 'cargar batería',
+          cefrLevel: 'A2',
+        },
+      ],
+    });
+
+    // 1. Primary sense card not yet consolidated (stability = 5 days)
+    await db
+      .insertInto('srs_cards')
+      .values({
+        id: 'card_charge_0',
+        user_id: 'user_local',
+        target_type: 'VOCAB',
+        target_id: vocab.id,
+        state: 'REVIEW',
+        stability: 5.0,
+        difficulty: 4.0,
+        reps: 2,
+        lapses: 0,
+        scheduled_for: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      })
+      .execute();
+
+    let eligible = await repo.getNextEligiblePolysemousSenses({ minStabilityDays: 21, limit: 5 });
+    expect(eligible.length).toBe(0);
+
+    // 2. Primary sense achieves stability >= 21 days
+    await db
+      .updateTable('srs_cards')
+      .set({ stability: 25.0 })
+      .where('id', '=', 'card_charge_0')
+      .execute();
+
+    eligible = await repo.getNextEligiblePolysemousSenses({ minStabilityDays: 21, limit: 5 });
+    expect(eligible.length).toBe(1);
+    expect(eligible[0].vocabId).toBe(vocab.id);
+    expect(eligible[0].senseIndex).toBe(1);
+    expect(eligible[0].sense.contextualHint).toBe('charge a phone or battery');
+
+    // 3. Activate sense 1
+    await repo.activateVocabSense(eligible[0].vocabId, eligible[0].senseIndex);
+
+    const senseCard = await db
+      .selectFrom('srs_cards')
+      .selectAll()
+      .where('target_id', '=', `${vocab.id}#1`)
+      .executeTakeFirst();
+
+    expect(senseCard).toBeDefined();
+    expect(senseCard?.state).toBe('NEW');
+
+    // 4. Verify it is no longer returned as pending
+    const remainingEligible = await repo.getNextEligiblePolysemousSenses({ minStabilityDays: 21, limit: 5 });
+    expect(remainingEligible.length).toBe(0);
+  });
+
+  describe('getVocabsPage server-side pagination & SQLite filtering', () => {
+    it('paginates results server-side with limit and offset without loading full corpus into memory', async () => {
+      const page1 = await repo.getVocabsPage({
+        origin: 'ALL',
+        page: 1,
+        pageSize: 5,
+        sortBy: 'ALPHA_ASC',
+      });
+
+      const page2 = await repo.getVocabsPage({
+        origin: 'ALL',
+        page: 2,
+        pageSize: 5,
+        sortBy: 'ALPHA_ASC',
+      });
+
+      expect(page1.items.length).toBe(5);
+      expect(page2.items.length).toBe(5);
+      expect(page1.totalCount).toBeGreaterThan(10);
+      expect(page1.filteredCount).toBe(page1.totalCount);
+      // Ensure pages have distinct words
+      const page1Ids = new Set(page1.items.map((i) => i.id));
+      const page2Ids = new Set(page2.items.map((i) => i.id));
+      for (const id of page2Ids) {
+        expect(page1Ids.has(id)).toBe(false);
+      }
+      // Ensure ALPHA_ASC sort order
+      expect(page1.items[0].word.localeCompare(page1.items[1].word)).toBeLessThanOrEqual(0);
+      expect(page1.items[4].word.localeCompare(page2.items[0].word)).toBeLessThanOrEqual(0);
+    });
+
+    it('filters by search keyword with case-insensitivity (COLLATE NOCASE)', async () => {
+      const resultLower = await repo.getVocabsPage({
+        origin: 'ALL',
+        search: 'be',
+        page: 1,
+        pageSize: 10,
+        sortBy: 'ALPHA_ASC',
+      });
+
+      const resultUpper = await repo.getVocabsPage({
+        origin: 'ALL',
+        search: 'BE',
+        page: 1,
+        pageSize: 10,
+        sortBy: 'ALPHA_ASC',
+      });
+
+      expect(resultLower.filteredCount).toBeGreaterThan(0);
+      expect(resultLower.filteredCount).toBe(resultUpper.filteredCount);
+      expect(resultLower.items.map((i) => i.id)).toEqual(resultUpper.items.map((i) => i.id));
+    });
+
+    it('filters by CEFR, grammatical dimension, and computes parallel aggregate totals accurately', async () => {
+      const pageA1 = await repo.getVocabsPage({
+        origin: 'ALL',
+        cefrLevel: 'A1',
+        dimension: 'CONTENT',
+        page: 1,
+        pageSize: 10,
+        sortBy: 'RECENT',
+      });
+
+      expect(pageA1.items.length).toBeGreaterThan(0);
+      for (const item of pageA1.items) {
+        expect(item.cefrLevel).toBe('A1');
+        expect(item.grammaticalDimension).toBe('CONTENT');
+      }
+
+      // Aggregate counts should reflect whole DB accurately
+      expect(pageA1.totalCount).toBe(pageA1.coreCount + pageA1.vaultCount);
+      expect(pageA1.cefrCounts.A1).toBeGreaterThan(0);
+    });
+
+    it('sorts correctly with ALPHA_DESC and CEFR_ASC', async () => {
+      const descRes = await repo.getVocabsPage({
+        origin: 'ALL',
+        page: 1,
+        pageSize: 10,
+        sortBy: 'ALPHA_DESC',
+      });
+      expect(descRes.items[0].word.localeCompare(descRes.items[1].word)).toBeGreaterThanOrEqual(0);
+
+      const cefrRes = await repo.getVocabsPage({
+        origin: 'ALL',
+        page: 1,
+        pageSize: 10,
+        sortBy: 'CEFR_ASC',
+      });
+      // The first items in CEFR_ASC should be A1
+      expect(cefrRes.items[0].cefrLevel).toBe('A1');
+    });
+
+    it('filters by CHUNK dimension and loads phrasal verbs with structured senses directly from SQLite', async () => {
+      const chunkRes = await repo.getVocabsPage({
+        origin: 'ALL',
+        dimension: 'CHUNK',
+        page: 1,
+        pageSize: 10,
+        sortBy: 'ALPHA_ASC',
+      });
+
+      expect(chunkRes.filteredCount).toBeGreaterThan(0);
+      expect(chunkRes.items.length).toBeGreaterThan(0);
+
+      const firstChunk = chunkRes.items[0];
+      expect(firstChunk.grammaticalDimension).toBe('CHUNK');
+      expect(firstChunk.subcategory).toBe('PHRASAL_VERB');
+      expect(firstChunk.sensesJson).toBeDefined();
+      expect(firstChunk.sensesJson!.length).toBeGreaterThanOrEqual(1);
+      expect(firstChunk.sensesJson![0].graduatedExamples).toBeDefined();
+      expect(firstChunk.sensesJson![0].graduatedExamples?.sentenceBasicEn).toBeTruthy();
+    });
+
+    it('loads primary sense graduated examples and satellite phrasal verbs directly from SQLite without memory buffers', async () => {
+      const beWord = await repo.getVocabById('voc_core_00002');
+      expect(beWord).toBeDefined();
+      expect(beWord?.word).toBe('be');
+      expect(beWord?.sensesJson).toBeDefined();
+      expect(beWord?.sensesJson!.length).toBeGreaterThanOrEqual(1);
+
+      // Primary sense has graduatedExamples embedded
+      const primarySense = beWord!.sensesJson![0];
+      expect(primarySense.graduatedExamples).toBeDefined();
+      expect(primarySense.graduatedExamples?.sentenceBasicEn).toBeTruthy();
+
+      // Satellite phrasal verbs are loaded directly from SQLite
+      expect(beWord?.phrasalVerbsJson).toBeDefined();
+      expect(beWord?.phrasalVerbsJson!.length).toBeGreaterThan(0);
+      expect(beWord?.phrasalVerbsJson![0].text).toBeTruthy();
+    });
   });
 });

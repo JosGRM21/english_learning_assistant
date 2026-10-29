@@ -29,21 +29,21 @@ describe('Enhanced Vocab Features (RF-VOC-04, RF-VOC-05, RF-VOC-06)', () => {
   });
 
   describe('SenseBlock Component', () => {
-    it('renders grammar pattern pill, countability badge, and collocations cluster (RF-VOC-04, RF-VOC-05)', () => {
+    it('does not render Régimen or Pista in sense block and renders clear hierarchy (RF-VOC-04)', () => {
       const sense: VocabSense = {
         id: 'sense_1',
         translationEs: 'depender',
         definitionEn: 'To be determined or decided by something else.',
         partOfSpeech: 'VERB',
         cefrLevel: 'B1',
+        contextualHint: 'depend on circumstances',
         grammarPattern: 'depend + ON',
         countability: null,
-        collocations: ['depend entirely on', 'depend heavily on'],
         exampleSentenceEn: 'Success will depend on your efforts.',
         exampleSentenceEs: 'El éxito dependerá de tus esfuerzos.',
       };
 
-      render(
+      const { rerender } = render(
         <SenseBlock
           sense={sense}
           senseNumber={1}
@@ -51,13 +51,25 @@ describe('Enhanced Vocab Features (RF-VOC-04, RF-VOC-05, RF-VOC-06)', () => {
         />
       );
 
-      // Grammar pattern
-      expect(screen.getByText('depend + ON')).toBeDefined();
-      expect(screen.getByText('Régimen:')).toBeDefined();
+      // Verify Pista and Régimen are NOT rendered in UI
+      expect(screen.queryByText(/Régimen:/i)).toBeNull();
+      expect(screen.queryByText(/Pista:/i)).toBeNull();
+      expect(screen.queryByText('depend + ON')).toBeNull();
 
-      // Collocations
-      expect(screen.getByText(/depend entirely on/i)).toBeDefined();
-      expect(screen.getByText(/depend heavily on/i)).toBeDefined();
+      // With totalSenses = 1, it should NOT render any "Acepción 1" badge
+      expect(screen.queryByText(/Acepción 1/i)).toBeNull();
+      expect(screen.getByText('depender')).toBeDefined();
+      expect(screen.getByText('To be determined or decided by something else.')).toBeDefined();
+
+      // With totalSenses > 1, it renders the sense hierarchy badge: "Acepción 1 de 2 (Principal)"
+      rerender(
+        <SenseBlock
+          sense={sense}
+          senseNumber={1}
+          totalSenses={2}
+        />
+      );
+      expect(screen.getByText('Acepción 1 de 2 (Principal)')).toBeDefined();
     });
 
     it('renders noun countability badges [C], [U], and [C/U] accurately (RF-VOC-04)', () => {
@@ -190,17 +202,17 @@ describe('Enhanced Vocab Features (RF-VOC-04, RF-VOC-05, RF-VOC-06)', () => {
 
       fireEvent.click(grammarTabBtn);
 
-      // Satellite phrasal verbs section
+      // Satellite phrasal verbs section with natural language labels
       expect(screen.getByText(/Verbos Frasales Satélites/i)).toBeDefined();
       expect(screen.getByText('turn down')).toBeDefined();
       expect(screen.getByText('rechazar / bajar volumen')).toBeDefined();
-      expect(screen.getByText('TYPE_2_SEPARABLE')).toBeDefined();
+      expect(screen.getByText('Separable (con objeto)')).toBeDefined();
       expect(screen.getByText(/Separable: el pronombre divide obligatoriamente/i)).toBeDefined();
       expect(screen.getByText(/He turned down the job offer/i)).toBeDefined();
 
       expect(screen.getByText('turn into')).toBeDefined();
       expect(screen.getByText('convertirse en')).toBeDefined();
-      expect(screen.getByText('TYPE_3_INSEPARABLE')).toBeDefined();
+      expect(screen.getByText('Inseparable (con objeto)')).toBeDefined();
     });
   });
 });

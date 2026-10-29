@@ -6,17 +6,10 @@ import {
   CreateSubmissionInput,
   RecordRevisionInput,
   RecordEvaluationInput,
-  WritingErrorStat,
 } from '../../../core/repositories/IWritingRepository';
-import {
-  WritingErrorSrsItem,
-  PositiveDrillData,
-  PositiveDrillFormat,
-} from '../../../core/types/srs';
 import {
   SocraticFeedbackResponse,
   WritingEvaluationResponse,
-  CorrectionItem,
 } from '../../ai/schemas';
 
 export class WritingRepository implements IWritingRepository {
@@ -280,6 +273,19 @@ export class WritingRepository implements IWritingRepository {
     return result;
   }
 
+  async hasSubmissionToday(userId = 'user_local', todayDateStr?: string): Promise<boolean> {
+    const prefix = todayDateStr ?? new Date().toISOString().slice(0, 10);
+    const row = await this.db
+      .selectFrom('writing_submissions')
+      .select('id')
+      .where('user_id', '=', userId)
+      .where('submitted_at', 'like', `${prefix}%`)
+      .limit(1)
+      .executeTakeFirst();
+
+    return Boolean(row);
+  }
+
   async getSubmissionById(id: string): Promise<WritingSubmissionEntity | null> {
     const sub = await this.db
       .selectFrom('writing_submissions')
@@ -329,228 +335,26 @@ export class WritingRepository implements IWritingRepository {
   }
 
   async deleteSubmission(id: string): Promise<void> {
+    await this.db.deleteFrom('writing_evaluations').where('submission_id', '=', id).execute();
+    await this.db.deleteFrom('writing_draft_revisions').where('submission_id', '=', id).execute();
     await this.db
       .deleteFrom('writing_submissions')
       .where('id', '=', id)
       .execute();
   }
 
-  private toDomainErrorLog(row: any): WritingErrorSrsItem {
-    let drillData: PositiveDrillData;
-    try {
-      drillData = row.drill_data_json
-        ? JSON.parse(row.drill_data_json)
-        : {
-            format: (row.drill_format as PositiveDrillFormat) ?? 'CONTEXTUAL_CLOZE',
-            explanationEs: row.explanation_es,
-            sentenceContext: row.expanded_context || row.original_sentence || '',
-          };
-    } catch {
-      drillData = {
-        format: (row.drill_format as PositiveDrillFormat) ?? 'CONTEXTUAL_CLOZE',
-        explanationEs: row.explanation_es,
-        sentenceContext: row.expanded_context || row.original_sentence || '',
-      };
+  async deleteAllSubmissions(userId = 'user_local'): Promise<void> {
+    const subIds = await this.db
+      .selectFrom('writing_submissions')
+      .select('id')
+      .where('user_id', '=', userId)
+      .execute();
+
+    const ids = subIds.map((s) => s.id);
+    if (ids.length > 0) {
+      await this.db.deleteFrom('writing_evaluations').where('submission_id', 'in', ids).execute();
+      await this.db.deleteFrom('writing_draft_revisions').where('submission_id', 'in', ids).execute();
+      await this.db.deleteFrom('writing_submissions').where('user_id', '=', userId).execute();
     }
-
-    return {
-      id: row.id,
-      submissionId: row.submission_id,
-      userId: row.user_id,
-      errorSpan: row.error_span,
-      errorType: row.error_type,
-      taxonomyCode: row.taxonomy_code,
-      isL1SpanishTransfer: Boolean(row.is_l1_spanish_transfer),
-      explanationEs: row.explanation_es,
-      nativeReformulation: row.native_reformulation,
-      originalSentence: row.original_sentence || '',
-      expandedContext: row.expanded_context || '',
-      drillFormat: (row.drill_format as PositiveDrillFormat) ?? 'CONTEXTUAL_CLOZE',
-      drillData,
-      srsCardId: row.srs_card_id,
-      masteryStatus: (row.mastery_status as 'LEARNING' | 'INTERNALIZED' | 'RECIDIVIST') ?? 'LEARNING',
-      isFossilizedAlert: Boolean(row.is_fossilized_alert),
-      timesRecidivist: row.times_recidivist ?? 0,
-      createdAt: row.created_at,
-    };
-  }
-
-  async logWritingErrors(
-    submissionId: string,
-    corrections: CorrectionItem[],
-    userId = 'user_local',
-    contextText = '',
-  ): Promise<void> {
-    if (!corrections || corrections.length === 0) return;
-
-    for (const corr of corrections) {
-      const id = `err_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      const cardId = `card_err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const now = new Date().toISOString();
-
-      // Check previous occurrences of this specific error pattern (RF-ERR-07)
-      const recidivism = await this.checkRecidivism(userId, corr.taxonomy_code, corr.error_span);
-      const timesRecidivist = recidivism.count + 1;
-      const isFossilized = timesRecidivist >= 2;
-
-      // Positive Drill format
-      const drillFormat: PositiveDrillFormat = corr.drill?.format ?? 'CONTEXTUAL_CLOZE';
-      const drillData: PositiveDrillData = {
-        format: drillFormat,
-        clozeSentence: corr.drill?.cloze_sentence || contextText,
-        expectedToken: corr.drill?.expected_token || corr.native_reformulation,
-        cTestPrompt: corr.drill?.sentence_with_prefix,
-        cTestPrefix: corr.drill?.c_test_prefix,
-        expectedLength: corr.drill?.expected_length,
-        rewriteBaseSentence: corr.drill?.source_sentence,
-        rewriteKeyword: corr.drill?.mandatory_keyword,
-        rewriteTargetSentence: corr.drill?.model_solution,
-        scrambledChunks: corr.drill?.scrambled_chunks,
-        expectedSequence: corr.drill?.correct_sequence,
-        explanationEs: corr.explanation_es || corr.drill?.explanation_es || '',
-        sentenceContext: contextText || corr.drill?.cloze_sentence || '',
-      };
-
-      // Create isolated SRS card with WRITING_ERROR_REFLECTIVE profile
-      await this.db
-        .insertInto('srs_cards')
-        .values({
-          id: cardId,
-          user_id: userId,
-          target_type: 'WRITING_ERROR',
-          target_id: id,
-          srs_profile: 'WRITING_ERROR_REFLECTIVE',
-          state: 'NEW',
-          stability: 0.0,
-          difficulty: isFossilized ? 7.0 : 5.0,
-          reps: 0,
-          lapses: 0,
-          consecutive_lapses: 0,
-          is_leech: 0,
-          last_reviewed_at: null,
-          scheduled_for: now,
-          created_at: now,
-        })
-        .execute();
-
-      await this.db
-        .insertInto('writing_error_logs')
-        .values({
-          id,
-          submission_id: submissionId,
-          user_id: userId,
-          error_span: corr.error_span,
-          error_type: corr.error_type,
-          taxonomy_code: corr.taxonomy_code,
-          is_l1_spanish_transfer: corr.is_l1_spanish_transfer ? 1 : 0,
-          explanation_es: corr.explanation_es,
-          native_reformulation: corr.native_reformulation,
-          original_sentence: corr.drill?.cloze_sentence || contextText,
-          expanded_context: contextText,
-          drill_format: drillFormat,
-          drill_data_json: JSON.stringify(drillData),
-          srs_card_id: cardId,
-          mastery_status: isFossilized ? 'RECIDIVIST' : 'LEARNING',
-          is_fossilized_alert: isFossilized ? 1 : 0,
-          times_recidivist: timesRecidivist,
-          is_resolved: 0,
-        })
-        .execute();
-    }
-  }
-
-  async checkRecidivism(
-    userId: string,
-    taxonomyCode: string,
-    errorSpan?: string,
-  ): Promise<{ isRecidivist: boolean; count: number }> {
-    let query = this.db
-      .selectFrom('writing_error_logs')
-      .select((eb) => eb.fn.count('id').as('count'))
-      .where('user_id', '=', userId)
-      .where('taxonomy_code', '=', taxonomyCode);
-
-    if (errorSpan && errorSpan.trim()) {
-      const normalizedSpan = errorSpan.trim().toLowerCase();
-      query = query.where((eb) =>
-        eb(eb.fn('lower', ['error_span']), '=', normalizedSpan),
-      );
-    }
-
-    const existing = await query.executeTakeFirst();
-    const count = Number(existing?.count ?? 0);
-    return {
-      isRecidivist: count >= 2,
-      count,
-    };
-  }
-
-  async getFossilizedErrors(userId = 'user_local'): Promise<WritingErrorSrsItem[]> {
-    const rows = await this.db
-      .selectFrom('writing_error_logs')
-      .selectAll()
-      .where('user_id', '=', userId)
-      .where((eb) =>
-        eb.or([
-          eb('is_fossilized_alert', '=', 1),
-          eb('times_recidivist', '>=', 2),
-          eb('mastery_status', '=', 'RECIDIVIST'),
-        ]),
-      )
-      .orderBy('times_recidivist', 'desc')
-      .execute();
-
-    return rows.map((r) => this.toDomainErrorLog(r));
-  }
-
-  async getAllWritingErrors(userId = 'user_local'): Promise<WritingErrorSrsItem[]> {
-    const rows = await this.db
-      .selectFrom('writing_error_logs')
-      .selectAll()
-      .where('user_id', '=', userId)
-      .orderBy('created_at', 'desc')
-      .execute();
-
-    return rows.map((r) => this.toDomainErrorLog(r));
-  }
-
-  async updateErrorMastery(id: string, status: 'LEARNING' | 'INTERNALIZED' | 'RECIDIVIST'): Promise<void> {
-    await this.db
-      .updateTable('writing_error_logs')
-      .set({
-        mastery_status: status,
-        is_resolved: status === 'INTERNALIZED' ? 1 : 0,
-      })
-      .where('id', '=', id)
-      .execute();
-  }
-
-  async getErrorById(id: string): Promise<WritingErrorSrsItem | null> {
-    const row = await this.db
-      .selectFrom('writing_error_logs')
-      .selectAll()
-      .where('id', '=', id)
-      .executeTakeFirst();
-
-    return row ? this.toDomainErrorLog(row) : null;
-  }
-
-  async getWritingErrorStats(userId = 'user_local', limit = 10): Promise<WritingErrorStat[]> {
-    const rows = await this.db
-      .selectFrom('writing_error_logs')
-      .select(['taxonomy_code', 'error_type'])
-      .select((eb) => eb.fn.count('id').as('count'))
-      .where('user_id', '=', userId)
-      .groupBy(['taxonomy_code', 'error_type'])
-      .orderBy('count', 'desc')
-      .limit(limit)
-      .execute();
-
-    return rows.map((r) => ({
-      taxonomyCode: r.taxonomy_code,
-      errorType: r.error_type,
-      count: Number(r.count),
-    }));
   }
 }
-

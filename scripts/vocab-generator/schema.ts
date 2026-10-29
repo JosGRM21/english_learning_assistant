@@ -38,7 +38,6 @@ export const SenseItemSchema = z.object({
   grammarPattern: z.string().nullable().describe('Patrón sintáctico o régimen ej: verb + -ing, depend + ON. null si no aplica'),
   countability: z.enum(['COUNTABLE', 'UNCOUNTABLE', 'BOTH']).nullable().describe('COUNTABLE, UNCOUNTABLE o BOTH para sustantivos. null para otras categorías'),
   connotation: z.enum(['POSITIVE', 'NEUTRAL', 'NEGATIVE']).describe('Connotación del término en este sentido'),
-  collocations: z.array(z.string()).describe('2 a 4 colocaciones léxicas habituales o de verbo soporte para palabras de contenido (CONTENT). PROHIBIDO combinaciones sintácticas libres (have a car) y phrasal verbs. Array vacío para palabras funcionales'),
   graduatedExamples: GraduatedExamplesSchema.describe('Ejemplos básicos y avanzados obligatorios para esta acepción'),
 });
 

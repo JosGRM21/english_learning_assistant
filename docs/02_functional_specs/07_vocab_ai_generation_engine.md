@@ -8,7 +8,7 @@ title: >-
 
 ## 1. Propósito y Alcance del Módulo
 
-Definir los requisitos técnicos, arquitectónicos y operativos del motor de ingesta masiva y resiliencia encargado de generar el contenido léxico enriquecido (definición pedagógica, traducción contextual, fonética IPA, morfología verbal completa, colocaciones y oraciones de ejemplo auténticas) a partir de un listado plano de lemas (*seed lemmas*).
+Definir los requisitos técnicos, arquitectónicos y operativos del motor de ingesta masiva y resiliencia encargado de generar el contenido léxico enriquecido (definición pedagógica, traducción contextual, fonética IPA, morfología verbal completa y oraciones de ejemplo auténticas) a partir de un listado plano de lemas (*seed lemmas*).
 
 El sistema utiliza la API de Google Gemini (modelo `gemini-3.5-flash-lite`) mediante un pipeline robusto por lotes (*batch pipeline*), diseñado para operar con múltiples claves API concurrentes, control estricto de cuotas (RPM/RPD), tolerancia a fallos de red/servidor (HTTP 429, 503) y persistencia idempotente orientada a fallos sin pérdida de progreso.
 
@@ -18,19 +18,19 @@ El sistema utiliza la API de Google Gemini (modelo `gemini-3.5-flash-lite`) medi
 
 ### 2.1 Tamaño de Lote Óptimo por Petición (*Batch Sizing*)
 
-- **Decisión:** **10 a 15 lemas por petición a la IA** (recomendado: 10 lemas para estructuras profundas con polisemia, o 15 para lemas estándar).
+- **Decisión:** **4 lemas por petición a la IA** (optimizado para fichas pedagógicas profundas con polisemia, fonética detallada, verbos frasales y oraciones graduadas, garantizando ~40 palabras/min por worker a 10 RPM).
 - **Justificación técnica:**
-  1. *Límites de Salida y Truncamiento*: Una ficha léxica completa estructurada en JSON ocupa entre 300 y 450 tokens. Un lote de 10 palabras genera entre 3.000 y 4.500 tokens de respuesta estructurada, situándose holgadamente dentro del límite seguro de completitud del modelo sin riesgo de corte o JSON corrupto.
-  2. *Atención y Fatiga Sintética*: En peticiones con más de 20 elementos complejos, los modelos pequeños tienden a degradar la calidad de las oraciones de ejemplo o a omitir campos en las últimas palabras de la lista.
-  3. *Radio de Explosión de Fallos (Blast Radius)*: Si una petición falla tras consumir tiempo de cómputo, reintentar un lote de 10 palabras tiene un coste insignificante en latencia comparado con reintentar un lote grande de 50 o 100 palabras.
+  1. *Límites de Salida y Truncamiento*: Una ficha léxica completa estructurada en JSON ocupa entre 300 y 450 tokens. Un lote de 4 palabras genera entre 1.200 y 1.800 tokens de respuesta estructurada, situándose holgadamente dentro del límite seguro de completitud del modelo sin riesgo de corte o JSON corrupto.
+  2. *Atención y Fatiga Sintética*: En peticiones con pocos lemas, el modelo mantiene la más alta fidelidad y exhaustividad en las acepciones, fonética IPA y oraciones de ejemplo sin omitir campos.
+  3. *Radio de Explosión de Fallos (Blast Radius)*: Si una petición falla tras consumir tiempo de cómputo, reintentar un lote de 4 palabras tiene un coste insignificante en latencia comparado con reintentar un lote grande.
 
 ### 2.2 Estrategia de Rotación de Múltiples Claves API (*API Key Pool*)
 
 - **Decisión:** **Rotación Dinámica Distribuida (*Round-Robin Concurrente con Rate Limiter por Clave*)**.
 - **Justificación técnica frente al agotamiento secuencial:**
-  - Si se agotara la cuota RPD de una sola clave antes de pasar a la siguiente, se estrangularía la velocidad total al límite de 15 RPM de esa única clave (máximo 150 palabras/minuto), prolongando el tiempo de procesamiento total.
+  - Si se agotara la cuota RPD de una sola clave antes de pasar a la siguiente, se estrangularía la velocidad total al límite de 10 RPM de esa única clave (máximo 40 palabras/minuto), prolongando el tiempo de procesamiento total.
   - Al distribuir las peticiones entre un pool de $K$ claves mediante semáforos individuales:
-    - Se aprovecha la concurrencia multiplicada: con 4 claves a 15 RPM cada una, el sistema procesa hasta 60 peticiones/minuto (600 a 900 palabras/minuto).
+    - Se aprovecha la concurrencia multiplicada: con 4 claves a 10 RPM cada una, el sistema procesa hasta 40 peticiones/minuto (160 palabras/minuto).
     - El reparto de carga evita que los proveedores apliquen estrangulamientos transitorios de IP o límites de ráfaga (*burst limits*).
   - **Manejo de Agotamiento Diario (RPD = 500)**: Cuando una clave alcanza su límite diario (HTTP 429 por cuota diaria agotada), el pool la marca como `EXHAUSTED_UNTIL_MIDNIGHT_UTC` y continúa operando de forma transparente con las claves restantes.
 
@@ -45,7 +45,7 @@ El sistema utiliza la API de Google Gemini (modelo `gemini-3.5-flash-lite`) medi
 
 ### RF-GEN-02: Segmentación y Despacho en Lotes (*Batching*)
 
-- El pipeline debe fragmentar la lista total en fragmentos uniformes de tamaño configurable $N$ ($10 \le N \le 15$).
+- El pipeline debe fragmentar la lista total en fragmentos uniformes de tamaño configurable $N$ (por defecto $N = 4$ lemas por lote).
 - Cada lote debe poseer un identificador determinista único (`batch_id: b_0001`, `b_0002`, etc.) calculado en función del rango de índices de los lemas que contiene.
 
 ### RF-GEN-03: Pool Concurrente de Claves API y Rate Limiting Multi-Token
@@ -53,17 +53,23 @@ El sistema utiliza la API de Google Gemini (modelo `gemini-3.5-flash-lite`) medi
 - El sistema debe gestionar un conjunto dinámico de $K$ claves API configurables mediante variables de entorno (`GEMINI_API_KEYS="key1,key2,key3"`).
 - **Control de Tasa por Clave (Leaky Bucket / Token Bucket Local)**:
   - Cada clave debe disponer de su propio limitador de velocidad en memoria:
-    - Máximo 15 peticiones por minuto (1 petición cada 4.100 ms por clave para dejar margen de seguridad de red).
-    - Concurrencia máxima por clave: 1 a 2 peticiones simultáneas activas (*in-flight*).
+    - Máximo 10 peticiones por minuto (1 petición cada 6.000 ms por clave/worker para respetar la tasa de 10 RPM).
+    - Concurrencia máxima por clave: 1 petición simultánea activa (*in-flight*).
 - **Despachador Concurrente Global**:
   - La cola global de lotes despacha tareas a cualquier clave disponible que cumpla con su ventana de tiempo del limitador.
 
 ```mermaid
 flowchart TD
-    Queue["Cola de Lotes Pendientes (10 lemas c/u)"] --> Dispatcher["Despachador Concurrente"]
-    Dispatcher --> Key1["Worker Clave API #1 (Token Bucket 14 RPM)"]
-    Dispatcher --> Key2["Worker Clave API #2 (Token Bucket 14 RPM)"]
-    Dispatcher --> KeyN["Worker Clave API #K (Token Bucket 14 RPM)"]
+    Queue["Cola de Lotes Pendientes (4 lemas c/u)"] --> Dispatcher["Despachador Concurrente"]
+    Dispatcher --> Key1["Worker Clave API #1 (Rate Limiter 10 RPM)"]
+    Dispatcher --> Key2["Worker Clave API #2 (Rate Limiter 10 RPM)"]
+    Dispatcher --> KeyN["Worker Clave API #K (Rate Limiter 10 RPM)"]
+    Key1 --> AI["Gemini Flash Lite"]
+    Key2 --> AI
+    KeyN --> AI
+    AI --> Validator["Validador Estricto Zod / JSON Schema"]
+    Validator --> Storage["Almacén Idempotente (NDJSON / SQLite)"]
+```
     Key1 --> AI["Gemini Flash Lite"]
     Key2 --> AI
     KeyN --> AI
@@ -84,11 +90,10 @@ flowchart TD
   - `ipa_general_american` e `ipa_received_pronunciation`: Transcripciones fonéticas AFI válidas.
   - `verb_tenses`: Para verbos (regulares e irregulares): infinitivo, 3ra persona singular, pasado simple, participio pasado, gerundio y flag de irregularidad.
   - `phonetic_ed_ending`: Para verbos regulares (`'/t/'` | `'/d/'` | `'/ɪd/'`).
-  - `collocations`: Array de 2 a 4 colocaciones auténticas clasificadas por tipo sintáctico.
   - `is_false_friend`: Booleano y nota explicativa con el término alternativo en caso positivo.
   - `graduated_examples`:
     - Ejemplo 1 básico (A2-B1): Oración auténtica, traducción al español y `cloze_target`.
-    - Ejemplo 2 avanzado (B2-C1): Oración con colocación natural, traducción y `cloze_target`.
+    - Ejemplo 2 avanzado (B2-C1): Oración auténtica avanzada, traducción y `cloze_target`.
 - Si la respuesta de la IA no supera la validación sintáctica del esquema (ej. campos nulos o formato incorrecto), el lote es rechazado y enviado a la cola de reintento.
 
 ### RF-GEN-05: Mecanismo de Resiliencia, Backoff Exponencial y Política de Reintentos

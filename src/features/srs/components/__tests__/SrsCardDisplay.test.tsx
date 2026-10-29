@@ -93,8 +93,8 @@ describe('SrsCardDisplay Component', () => {
     // Front face should show the word stimulus
     expect(screen.getAllByText('run').length).toBeGreaterThanOrEqual(1);
 
-    // Must prominently display grammatical category and domain scope so user knows which sense is asked
-    expect(screen.getByText(/Categoría:/i)).toBeDefined();
+    // Must prominently display grammatical category and domain scope badges at the top alongside CEFR level
+    expect(screen.getAllByText(/Nivel B2/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/Verbo/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/Finanzas y Negocios/i).length).toBeGreaterThanOrEqual(1);
   });
@@ -159,5 +159,97 @@ describe('SrsCardDisplay Component', () => {
     expect(screen.getAllByText(/Finanzas y Negocios/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Tiempos Verbales')).toBeDefined();
     expect(screen.getByText('ran')).toBeDefined();
+  });
+
+  it('masks the target word with [ ... ] in the cloze hint and displays clean US / UK controls', () => {
+    const { fireEvent } = require('@testing-library/react');
+    render(
+      <SrsCardDisplay
+        selectedVocab={vocabRunFinance}
+        currentContext={{
+          id: 'ctx_run_1',
+          vocabId: 'voc_run_1',
+          sentenceEn: 'She helped run the business with great success.',
+          sentenceEs: 'Ella ayudó a administrar el negocio con gran éxito.',
+          clozeTarget: 'run',
+          cefrLevel: 'B2',
+          createdAt: new Date().toISOString(),
+        }}
+        availableContexts={[]}
+        srsCard={srsCard}
+        showAnswer={false}
+        previewIntervals={{ 1: 1, 2: 3, 3: 7, 4: 15 }}
+        onRotateContext={vi.fn()}
+        onShowAnswer={vi.fn()}
+        onRate={vi.fn()}
+        audioService={mockAudioService as any}
+      />
+    );
+
+    // Accent switcher buttons should have clean US and UK without duplicated letters
+    const usBtns = screen.getAllByRole('button', { name: /Acento General American/i });
+    const ukBtns = screen.getAllByRole('button', { name: /Acento Received Pronunciation/i });
+    expect(usBtns[0].textContent?.trim()).toBe('US');
+    expect(ukBtns[0].textContent?.trim()).toBe('UK');
+
+    // Audio button should say Normal (1.0x)
+    expect(screen.getByText(/Normal \(1\.0x\)/i)).toBeDefined();
+
+    // Toggle hint
+    const hintToggleBtn = screen.getByText(/¿Pista\? Ver contexto cloze/i);
+    fireEvent.click(hintToggleBtn);
+
+    // Target word "run" should be masked with [ ... ]
+    expect(screen.getByText(/\[ \.\.\. \]/i)).toBeDefined();
+    expect(screen.getAllByText(/She helped/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('does not display contextual hints for trivial single-sense function words like "he" or "the"', () => {
+    const vocabHe: VocabItem = {
+      id: 'voc_he_1',
+      word: 'he',
+      partOfSpeech: 'PRONOUN',
+      grammaticalDimension: 'FUNCTION',
+      domainCategory: 'Uso General',
+      translationEs: 'él',
+      definitionEn: 'Used to refer to a man, boy, or male animal previously mentioned.',
+      ipaGeneralAmerican: 'hiː',
+      cefrLevel: 'A1',
+      isCore: true,
+      masteryStatus: 'LEARNING',
+      isFalseFriend: false,
+      createdAt: new Date().toISOString(),
+      sensesJson: [
+        {
+          translationEs: 'él',
+          definitionEn: 'Used to refer to a man, boy, or male animal.',
+          partOfSpeech: 'PRONOUN',
+          cefrLevel: 'A1',
+          contextualHint: 'third person masculine pronoun',
+        },
+      ],
+    };
+
+    render(
+      <SrsCardDisplay
+        selectedVocab={vocabHe}
+        currentContext={null}
+        availableContexts={[]}
+        srsCard={srsCard}
+        showAnswer={false}
+        previewIntervals={{ 1: 1, 2: 3, 3: 7, 4: 15 }}
+        onRotateContext={vi.fn()}
+        onShowAnswer={vi.fn()}
+        onRate={vi.fn()}
+        audioService={mockAudioService as any}
+      />
+    );
+
+    // Should NOT display spoiler / trivial hint
+    expect(screen.queryByText(/Pista:/i)).toBeNull();
+    expect(screen.queryByText(/third person masculine pronoun/i)).toBeNull();
+
+    // Should NOT display "Uso General" badge
+    expect(screen.queryByText('Uso General')).toBeNull();
   });
 });

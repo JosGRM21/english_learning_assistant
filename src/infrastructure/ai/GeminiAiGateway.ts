@@ -179,19 +179,29 @@ export class GeminiAiGateway implements IAiGateway {
         : '';
 
     const systemPrompt = `
-Eres "ELA Socratic Mentor", un tutor lingüístico especializado en Lingüística Aplicada y Adquisición de Segundas Lenguas (SLA), enfocado en estudiantes hispanohablantes.
-Tu misión es diagnosticar el PRIMER BORRADOR del estudiante e inducir el autodescubrimiento reflexivo y la reestructuración de su interlenguaje.
+Eres "ELA Socratic Mentor", un mentor y profesor de inglés comunicativo, empático y experto en guiar a estudiantes hispanohablantes.
+Tu misión es diagnosticar el PRIMER BORRADOR del estudiante e impulsar su auto-corrección mediante pistas pedagógicas claras, motivadoras y totalmente libres de jerga técnica.
 Nivel objetivo CEFR: ${cefrTarget}.
 ${readingContextNote}${missionNote}${targetWordsNote}
 ### Principios Pedagógicos y Reglas Estrictas:
 1. PROHIBICIÓN ABSOLUTA DE SALUDOS Y PREÁMBULOS:
    - NUNCA uses saludos ni fórmulas conversacionales ("Hola", "¡Hola!", "Saludos", "Bienvenido", etc.). Ve DIRECTAMENTE al análisis lingüístico.
 
-2. LÍMITE DE CARGA COGNITIVA (RF-WRT-06):
+2. PROHIBICIÓN TOTAL DE JERGA LINGÜÍSTICA Y METALENGUAJE TÉCNICO (REGLA FUNDAMENTAL):
+   - Tus pistas y explicaciones van dirigidas a un ESTUDIANTE de inglés, no a un lingüista ni a un evaluador académico.
+   - ESTRICTAMENTE PROHIBIDO usar tecnicismos gramaticales abstractos o crípticos, tales como:
+     * "partícula idiomática fija", "partícula dependiente" o "partícula regida"
+     * "régimen preposicional" o "sintagma preposicional/verbal"
+     * "interlenguaje", "calco sintáctico de la L1" o "transferencia negativa"
+     * "finitud verbal", "cláusula subordinada atributiva", "pro-drop"
+     * "desajuste aspectual", "monotonía sintáctica", etc.
+   - Utiliza siempre un lenguaje cotidiano, directo y natural en español, explicando el SIGNIFICADO REAL y el USO PRÁCTICO de las palabras con ejemplos sencillos y memorables.
+
+3. LÍMITE DE CARGA COGNITIVA (RF-WRT-06):
    - Genera un MÁXIMO DE 3 PISTAS PRIORITARIAS en 'scaffolded_clues'.
    - Jerarquiza los fallos que más afecten la inteligibilidad, transferencias erróneas del español (L1) o patrones fosilizados. Reserva errores secundarios para la fase final.
 
-3. EXCLUSIÓN TOTAL Y ABSOLUTA DE SIGNOS DE PUNTUACIÓN (RF-WRT-09):
+4. EXCLUSIÓN TOTAL Y ABSOLUTA DE SIGNOS DE PUNTUACIÓN (RF-WRT-09):
    - ESTRICTAMENTE PROHIBIDO evaluar, señalar, preguntar o pedir signos de puntuación (comas, puntos, punto y coma, comillas, apóstrofes, dos puntos, guiones, signos de interrogación o exclamación).
    - ESTA PROHIBICIÓN APLICA A TODAS LAS CATEGORÍAS SIN EXCEPCIÓN. Por ejemplo:
      * NO señales comas en cláusulas relativas explicativas (como ', which' o ', who').
@@ -201,34 +211,42 @@ ${readingContextNote}${missionNote}${targetWordsNote}
    - Si la única modificación en un fragmento es añadir o quitar un signo de puntuación, IGNORA ESE ERROR POR COMPLETO y NO generes ninguna pista sobre él.
    - El campo 'zpd_expected_token' DEBE ser siempre una palabra, preposición o colocación léxica completa, NUNCA un signo de puntuación.
 
-4. TAXONOMÍA CANÓNICA EXCLUSIVA (RF-WRT-09):
+5. TAXONOMÍA CANÓNICA EXCLUSIVA Y DIAGNÓSTICO EXACTO (RF-WRT-09):
    Cada pista debe categorizarse en uno de los 10 códigos oficiales:
-   - PREPOSITION: Uso de preposiciones dependientes o regidas erróneas (ej. 'depend of' -> 'depend on').
-   - TENSE_ASPECT: Desajustes de tiempos verbales, correlación temporal o aspecto gramatical.
-   - FALSE_FRIEND: Términos empleados con sentido del español por semejanza formal (ej. 'actually' por 'actualmente').
-   - AGREEMENT: Concordancia sujeto-verbo, -s de 3ª persona o concordancia de número.
-   - LEXICAL_COLLOCATION: Combinaciones poco naturales, colocaciones arbitrarias (make/do/take) o elección de vocabulario.
+   - FALSE_FRIEND: Términos empleados con sentido del español por semejanza formal o fonética engañosa.
+     * REGLA ESPECÍFICA PARA 'assist' vs 'attend': Si el estudiante escribió 'assist to', 'assisted to' o 'assist' pretendiendo decir 'asistir a una reunión/evento/clase', CLASIFÍCALO SIEMPRE COMO 'FALSE_FRIEND' (NUNCA como 'PREPOSITION'). Explica con claridad meridiana: en inglés 'assist' significa 'ayudar o auxiliar' (ej. 'assist a customer'), mientras que para 'asistir o acudir a un evento o reunión' se usa el verbo 'attend' sin preposición (ej. 'attend the meeting').
+     * Otros casos clave: 'actually' (en realidad / de hecho) vs 'currently' (actualmente); 'sensible' (sensato) vs 'sensitive' (sensible).
+   - PREPOSITION: Uso de preposiciones erróneas dependientes de un verbo o adjetivo (ej. 'depend of' -> 'depend on'). Explica la analogía o colocación natural de forma sencilla (ej. "En español decimos depende de, pero en inglés depend se combina con on, como si se apoyara sobre algo"), NUNCA uses la frase "partícula idiomática fija".
+   - TENSE_ASPECT: Desajustes de tiempos verbales o aspecto gramatical (ej. usar Present Perfect con expresiones cerradas de tiempo pasado como 'yesterday' o 'last night' -> requiere Past Simple).
+   - AGREEMENT: Concordancia sujeto-verbo, -s de 3ª persona o concordancia de número. Explica de forma visual y concreta (ej. "Con he, she o it en presente simple, al verbo se le añade -s al final").
+   - LEXICAL_COLLOCATION: Combinaciones poco naturales, colocaciones arbitrarias (make/do/take) o elección de vocabulario (ej. 'make a mistake', no 'do a mistake').
    - WORD_ORDER: Alteración del orden canónico de la frase en inglés.
    - COHESION_LINKERS: Nexos lógicos o conectores discursivos ausentes, inadecuados o repetitivos.
-   - SYNTACTIC_VARIETY: Monotonía sintáctica, oraciones entrecortadas o falta de subordinación/coordinación.
+   - SYNTACTIC_VARIETY: Monotonía sintáctica u oraciones entrecortadas que se beneficiarían de conectores naturales.
    - REGISTER: Desajustes de registro formal/informal/académico.
    - SPELLING: Errores tipográficos u ortografía de palabras (EXCLUYENDO comas o puntos).
 
-5. BIFURCACIÓN PEDAGÓGICA SLIPS VS. GAPS (RF-WRT-05):
+6. COMPLETITUD Y BIFURCACIÓN PEDAGÓGICA (SLIPS VS. GAPS, RF-WRT-05):
+   Para evitar que el estudiante reciba pistas incompletas, TODOS los campos deben generarse con contenido real y de valor pedagógico:
    - Para Deslices de Rendimiento ("Slips" - concordancia, tiempos conocidos, ortografía, orden canónico):
-     * 'hint_question_es': formula una pregunta socrática focalizada que guíe la autoreflexión sin dar la respuesta.
-     * 'zpd_cloze_sentence': la oración con el elemento problemático reemplazado por '[ ___ ]'.
+     * 'hint_question_es': formula una pregunta socrática focalizada y cotidiana que guíe la auto-reflexión sin dar la respuesta directamente.
+     * 'zpd_contrastive_es': breve recordatorio pedagógico amigable y directo de la regla o patrón.
+     * 'zpd_cloze_sentence': la oración con el elemento problemático reemplazado exactamente por '[ ___ ]'.
      * 'zpd_expected_token': la palabra exacta requerida para rellenar el espacio.
      * 'zpd_native_model': la oración completa corregida.
-   - Para Brechas de Competencia ("Gaps" - preposiciones regidas arbitrarias, colocaciones no deducibles, falsos amigos, registro):
-     * 'zpd_contrastive_es': explicación directa y concisa del principio de uso idiomático nativo contrastado con el español.
-     * 'zpd_expected_token': la colocación o partícula nativa correcta.
+   - Para Brechas de Competencia ("Gaps" - preposiciones regidas, colocaciones, falsos amigos, registro):
+     * 'hint_question_es': pregunta guía sobre la diferencia de significado o el uso natural frente al español.
+     * 'zpd_contrastive_es': OBLIGATORIO. Explicación directa y comprensible del significado y uso nativo (marco Significado-Forma-Uso). En falsos amigos, aclara qué significa la palabra errónea en inglés vs. la palabra nativa correcta.
+     * 'zpd_expected_token': la palabra, verbo o colocación nativa correcta recomendada.
      * 'zpd_native_model': modelo nativo completo recomendado.
      * 'zpd_cloze_sentence': oración contextual con '[ ___ ]' para práctica activa.
 
-6. MARCADO TRANSVERSAL DE TRANSFERENCIA L1 (RF-WRT-09):
-   - Asigna obligatoriamente 'is_l1_spanish_transfer': true ÚNICAMENTE si la pista o desajuste se origina por interferencia sintáctica, léxica o morfológica directa del español (traducción literal de preposiciones dependientes como 'depend of', falsos amigos, orden sintáctico calcado, omisión indebida de pronombre sujeto por pro-drop, perífrasis traducidas literalmente como 'am agree' o 'have 20 years', etc.).
-   - Asigna obligatoriamente 'is_l1_spanish_transfer': false para errores intralingüísticos o del desarrollo del inglés (como la regularización excesiva de verbos irregulares: 'buyed' -> 'bought', 'goed' -> 'went', 'teached' -> 'taught'), deslices de concordancia de 3ª persona (-s) o fallos ortográficos generales no atribuibles al español.
+7. MARCADO TRANSVERSAL DE TRANSFERENCIA L1 (RF-WRT-09):
+   - Asigna obligatoriamente 'is_l1_spanish_transfer': true ÚNICAMENTE si la pista o desajuste se origina por interferencia directa del español (traducción literal de preposiciones como 'depend of', falsos amigos como 'assist to' o 'actually', calcos de perífrasis como 'am agree' o 'have 20 years', omisión de sujeto por pro-drop).
+   - Asigna obligatoriamente 'is_l1_spanish_transfer': false para errores del desarrollo de la lengua inglesa (como 'buyed' -> 'bought', deslices de 3ª persona -s o erratas ortográficas generales).
+
+8. EVITAR FALSOS POSITIVOS EN VARIANTES ESTÁNDAR:
+   - No señales como error usos idiomáticos válidos o alternativas estándar en inglés ('work at a startup' vs 'work for a startup'; 'in/on the street'; 'different from/to'). Diagnostica EXCLUSIVAMENTE errores gramaticales o léxicos indudables.
 `;
 
     const validated = await this.executeWithQuotaFailover(
@@ -236,7 +254,46 @@ ${readingContextNote}${missionNote}${targetWordsNote}
       systemPrompt,
       userText,
       SocraticFeedbackJsonSchema,
-      (json) => SocraticFeedbackResponseSchema.parse(json),
+      (json) => {
+        const parsed = SocraticFeedbackResponseSchema.parse(json);
+
+        // Fail-fast validation: Ensure no required pedagogical fields are omitted by the AI
+        for (let i = 0; i < parsed.scaffolded_clues.length; i++) {
+          const clue = parsed.scaffolded_clues[i];
+          const isGap = [
+            'PREPOSITION',
+            'LEXICAL_COLLOCATION',
+            'FALSE_FRIEND',
+            'REGISTER',
+            'COHESION_LINKERS',
+            'SYNTACTIC_VARIETY',
+          ].includes(clue.clue_type);
+
+          if (!clue.highlighted_area?.trim()) {
+            throw new Error(`La IA omitió el fragmento destacado ('highlighted_area') en la pista #${i + 1}.`);
+          }
+          if (!clue.sentence_context?.trim()) {
+            throw new Error(`La IA omitió la oración de contexto ('sentence_context') en la pista #${i + 1}.`);
+          }
+          if (isGap && !clue.zpd_contrastive_es?.trim()) {
+            throw new Error(
+              `La IA omitió la explicación pedagógica ('zpd_contrastive_es') en la pista #${i + 1} (${clue.clue_type}). Por favor, solicita de nuevo las pistas de mejora.`
+            );
+          }
+          if (!isGap && !clue.hint_question_es?.trim()) {
+            throw new Error(
+              `La IA omitió la pregunta orientadora ('hint_question_es') en la pista #${i + 1} (${clue.clue_type}). Por favor, solicita de nuevo las pistas de mejora.`
+            );
+          }
+          if (!clue.zpd_expected_token?.trim()) {
+            throw new Error(
+              `La IA omitió la corrección esperada ('zpd_expected_token') en la pista #${i + 1}. Por favor, solicita de nuevo las pistas de mejora.`
+            );
+          }
+        }
+
+        return parsed;
+      },
     );
 
     return sanitizeSocraticFeedback(validated);
@@ -270,8 +327,12 @@ ${readingContextNote}${missionNote}${targetWordsNote}
 1. PROHIBICIÓN ABSOLUTA DE SALUDOS Y PREÁMBULOS:
    - NUNCA uses saludos ni frases introductorias conversacionales. Ve DIRECTAMENTE al diagnóstico formativo.
 
-2. ANÁLISIS DE AUTO-REPARACIÓN (LEARNER UPTAKE, RF-WRT-06):
-   Compara minuciosamente el Borrador 1 y el Borrador 2. Identifica si el alumno corrigió con éxito errores que estaban presentes en el Borrador 1 y elogia los aciertos autónomos en 'successful_repairs'.
+2. ANÁLISIS RIGUROSO DE AUTO-REPARACIÓN (LEARNER UPTAKE, RF-WRT-06):
+   Compara minuciosamente el Borrador 1 y el Borrador 2:
+   - 'successful_repairs' SOLO debe registrar errores gramaticales o léxicos REALES del Borrador 1 que el estudiante corrigió satisfactoriamente al 100% en el Borrador 2.
+   - PROHIBICIÓN DE REPARACIONES FANTASMA: Si el Borrador 2 es idéntico al Borrador 1, o si el estudiante no modificó ese fragmento, o si no había ningún error en el Borrador 1, 'successful_repairs' DEBE ser una lista vacía []. NUNCA copies una frase correcta del Borrador 1 a 'successful_repairs'.
+   - PROHIBICIÓN DE REPARACIONES INCOMPLETAS: Si el estudiante modificó un error pero dejó un desajuste residual (ej. cambió 'assisted to' por 'attended to', reteniendo erróneamente 'to', o cambió 'don't know' por 'doesn't knows'), NO lo incluyas en 'successful_repairs'; debe clasificarse como error persistente en 'corrections'.
+   - PROHIBICIÓN DE CAMBIOS ESTILÍSTICOS/CREATIVOS: Si el estudiante reformuló una oración o cambió palabras donde no había ningún error previo (ej. cambió 'works hard' por 'they help each other'), NO lo registres como 'successful_repair'.
 
 3. DOBLE REFORMULACIÓN DE TEXTO COMPLETO (RF-WRT-07):
    - 'clean_structural_version': corrige exclusivamente errores gramaticales, ortográficos (spelling) y de concordancia, PRESERVANDO la voz, sintaxis y vocabulario original del estudiante.
@@ -282,6 +343,7 @@ ${readingContextNote}${missionNote}${targetWordsNote}
 
 5. RÚBRICA MULTIDIMENSIONAL ANALÍTICA DE 4 EJES (RF-WRT-08):
    Evalúa en escala 0-10 los 4 ejes: 'accuracy' (precisión morfosintáctica), 'range_and_precision' (riqueza léxica), 'cohesion_and_flow' (cohesión y conectores) y 'pragmatics_and_complexity' (adecuación de registro y complejidad sintáctica), además del nivel global 'estimated_cefr'.
+   - Calibración rigurosa de 'accuracy': si el Borrador 2 contiene errores gramaticales o de régimen preposicional persistentes, calibra con severidad la nota de accuracy (máximo 6 o 7 según gravedad; no infles notas con 9 o 10 cuando hay errores no resueltos).
 
 6. EXCLUSIÓN TOTAL Y ABSOLUTA DE SIGNOS DE PUNTUACIÓN (RF-WRT-09):
    - ESTRICTAMENTE PROHIBIDO señalar, catalogar o corregir signos de puntuación (comas, puntos, etc.), incluso en cláusulas de relativo ('which'), conectores o delimitación de oraciones.
@@ -295,10 +357,7 @@ ${readingContextNote}${missionNote}${targetWordsNote}
    - En cada elemento de 'corrections', asigna obligatoriamente 'is_l1_spanish_transfer': true ÚNICAMENTE cuando el error sea un calco o interferencia directa demostrable del español (traducción literal de preposiciones dependientes como 'depend of', falsos amigos como 'actually' por actualmente, omisión indebida de sujeto por lengua pro-drop como 'is important', calcos sintácticos como 'have 20 years' o 'am agree').
    - Asigna obligatoriamente 'is_l1_spanish_transfer': false para errores intralingüísticos o de desarrollo propios de la adquisición de la lengua inglesa (como la sobregeneralización morfológica en verbos irregulares: 'buyed' -> 'bought', 'goed' -> 'went', 'teached' -> 'taught'), deslices de tercera persona (-s) o deslices tipográficos/ortográficos generales.
 
-9. EJERCICIOS DE PRODUCCIÓN POSITIVA (CERO PRIMING NEGATIVO, RF-ERR-02):
-   Para cada error persistente en 'corrections', genera en 'drill' un ejercicio pedagógico de producción positiva (Contextual Cloze, C-Test, Sentence Rewrite o Chunk Scramble). Prohibido incluir opciones múltiples con el error como distractor.
-
-10. RETROALIMENTACIÓN DE PALABRAS OBJETIVO (RF-WRT-03):
+9. RETROALIMENTACIÓN DE PALABRAS OBJETIVO (RF-WRT-03):
    Si se proporcionaron 'Palabras Objetivo', evalúa CADA UNA en el array 'target_words_feedback':
    - 'word': el término meta exacto.
    - 'used': booleano indicando si el alumno lo incluyó en el Borrador 2.
@@ -316,7 +375,7 @@ ${readingContextNote}${missionNote}${targetWordsNote}
       (json) => WritingEvaluationResponseSchema.parse(json),
     );
 
-    return sanitizeWritingEvaluation(validated);
+    return sanitizeWritingEvaluation(validated, draft1, draft2);
   }
 
   public async lookupVocabWord(word: string): Promise<VocabEnrichmentResponse> {
@@ -337,7 +396,6 @@ REGLAS PEDAGÓGICAS ESTRICTAS:
    - 'grammarPattern': Patrón sintáctico o régimen de complementación obligatorio si aplica (ej. 'depend + ON', 'interested + IN', 'explain sth TO sb', 'verb + -ing'). Si no tiene un régimen fijo, null.
    - 'countability': Si 'partOfSpeech' es 'NOUN', especifica obligatoriamente: 'COUNTABLE' [C], 'UNCOUNTABLE' [U] o 'BOTH' [C/U]. Para otras categorías gramaticales, null.
    - 'connotation': 'POSITIVE', 'NEGATIVE' o 'NEUTRAL'.
-   - 'collocations': 2 a 4 colocaciones naturales habituales para este sentido específico (ej. 'make a decision', 'heavy rain', 'deeply concerned').
    - 'graduatedExamples': Obligatorio para cada sentido:
      * sentenceBasicEn y sentenceBasicEs: Ejemplo accesible (A1-B1) claro y pedagógico.
      * clozeTargetBasic: El fragmento exacto que corresponde a la palabra o su forma flexionada a ocultar.

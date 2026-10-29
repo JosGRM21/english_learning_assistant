@@ -33,3 +33,8 @@ Thumbs.db
 
 # Tauri updater manifests generated locally
 latest*.json
+
+# Cache, reports and tools
+scripts/.cache/
+docs/.obsidian/
+evals/reports/runs/

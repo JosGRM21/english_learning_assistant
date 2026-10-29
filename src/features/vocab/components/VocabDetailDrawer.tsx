@@ -39,11 +39,12 @@ import {
   VocabContextExample,
   CefrLevel,
   VocabSense,
-  PART_OF_SPEECH_LABELS_ES,
+  PHRASAL_VERB_TYPE_LABELS_ES,
 } from '@/core/types/vocab';
 import { SrsCard } from '@/core/types/srs';
 import { useAudio } from '@/shared/hooks/useAudio';
 import { useDatabase } from '@/shared/hooks/useDatabase';
+import { getVoiceForAccent } from '@/infrastructure/audio/AudioService';
 import { SenseBlock } from './SenseBlock';
 import { VerbTensesTable } from './VerbTensesTable';
 
@@ -63,6 +64,7 @@ export interface VocabDetailDrawerProps {
   hasPrev?: boolean;
   hasNext?: boolean;
   accentPreference?: 'US' | 'UK';
+  onToggleAccent?: () => void;
 }
 
 export function VocabDetailDrawer({
@@ -81,9 +83,12 @@ export function VocabDetailDrawer({
   hasPrev = false,
   hasNext = false,
   accentPreference = 'US',
+  onToggleAccent,
 }: VocabDetailDrawerProps) {
   const { audioService } = useAudio();
   const { cardRepo } = useDatabase();
+
+  const activeVoice = getVoiceForAccent(accentPreference);
 
   const [activeTab, setActiveTab] = useState<'senses' | 'grammar' | 'srs'>('senses');
   const [isPlayingNormal, setIsPlayingNormal] = useState(false);
@@ -95,7 +100,7 @@ export function VocabDetailDrawer({
     if (playingExampleId) return;
     try {
       setPlayingExampleId(id);
-      await audioService.speak(text, 0.95);
+      await audioService.speak(text, 0.95, activeVoice);
     } finally {
       setPlayingExampleId(null);
     }
@@ -154,21 +159,30 @@ export function VocabDetailDrawer({
     }
   };
 
+  const isPhrasalVerb = Boolean(
+    currentVocab &&
+      (currentVocab.subcategory === 'PHRASAL_VERB' ||
+        currentVocab.domainCategory === 'Phrasal Verb' ||
+        currentVocab.id.startsWith('phr_') ||
+        (currentVocab.grammaticalDimension === 'CHUNK' && currentVocab.partOfSpeech === 'VERB')),
+  );
+
   // Fetch SRS Card details
   useEffect(() => {
     if (!currentVocab || !cardRepo) {
       setSrsCard(null);
       return;
     }
+    const targetType = isPhrasalVerb ? 'PHRASE' : 'VOCAB';
     cardRepo
-      .getCardByTargetId(currentVocab.id, 'VOCAB')
+      .getCardByTargetId(currentVocab.id, targetType)
       .then((card) => {
         setSrsCard(card);
       })
       .catch(() => {
         setSrsCard(null);
       });
-  }, [currentVocab?.id, cardRepo]);
+  }, [currentVocab?.id, currentVocab?.masteryStatus, cardRepo, isPhrasalVerb]);
 
   // Synchronize edit inputs when vocab changes
   useEffect(() => {
@@ -220,11 +234,6 @@ export function VocabDetailDrawer({
 
   if (!currentVocab) return null;
 
-  const isPhrasalVerb =
-    currentVocab.subcategory === 'PHRASAL_VERB' ||
-    currentVocab.domainCategory === 'Phrasal Verb' ||
-    (currentVocab.grammaticalDimension === 'CHUNK' && currentVocab.partOfSpeech === 'VERB');
-
   const handleSpeak = async (speed: 'normal' | 'slow') => {
     const isSlow = speed === 'slow';
     if (isSlow ? isPlayingSlow : isPlayingNormal) return;
@@ -232,18 +241,49 @@ export function VocabDetailDrawer({
     try {
       if (isSlow) setIsPlayingSlow(true);
       else setIsPlayingNormal(true);
-      await audioService.speak(currentVocab.word, isSlow ? 0.75 : 1.0);
+      await audioService.speak(currentVocab.word, isSlow ? 0.75 : 1.0, activeVoice);
     } finally {
       if (isSlow) setIsPlayingSlow(false);
       else setIsPlayingNormal(false);
     }
   };
 
+  const canActivate = isPhrasalVerb
+    ? Boolean(onActivatePhrase || onActivateWord)
+    : Boolean(onActivateWord);
+
   const handleActivate = async () => {
-    if (!onActivateWord || isActivating) return;
+    if (!canActivate || isActivating || !currentVocab) return;
     try {
       setIsActivating(true);
-      await onActivateWord(currentVocab.id);
+      if (isPhrasalVerb) {
+        if (onActivatePhrase) {
+          const ok = await onActivatePhrase(currentVocab.id);
+          if (ok) {
+            setLastVocab((prev) => (prev ? { ...prev, masteryStatus: 'LEARNING' } : null));
+          }
+        } else if (onActivateWord) {
+          const activated = await onActivateWord(currentVocab.id);
+          if (activated) {
+            setLastVocab(activated);
+          }
+        }
+      } else {
+        if (onActivateWord) {
+          const activated = await onActivateWord(currentVocab.id);
+          if (activated) {
+            setLastVocab(activated);
+          }
+        }
+      }
+
+      if (cardRepo && currentVocab) {
+        const targetType = isPhrasalVerb ? 'PHRASE' : 'VOCAB';
+        const card = await cardRepo.getCardByTargetId(currentVocab.id, targetType);
+        if (card) {
+          setSrsCard(card);
+        }
+      }
     } finally {
       setIsActivating(false);
     }
@@ -280,7 +320,7 @@ export function VocabDetailDrawer({
   };
 
   // Build list of senses
-  const sensesList: VocabSense[] =
+  const rawSenses: VocabSense[] =
     currentVocab.sensesJson && currentVocab.sensesJson.length > 0
       ? currentVocab.sensesJson
       : [
@@ -289,10 +329,55 @@ export function VocabDetailDrawer({
             definitionEn: currentVocab.definitionEn,
             partOfSpeech: currentVocab.partOfSpeech,
             cefrLevel: currentVocab.cefrLevel,
-            collocations: currentVocab.collocationsJson || [],
           },
           ...(currentVocab.alternateSensesJson || []),
         ];
+
+  const sensesList: VocabSense[] = rawSenses.map((sense, idx) => {
+    // If the sense already has example sentences, keep it
+    if (sense.graduatedExamples?.sentenceBasicEn || sense.exampleSentenceEn) {
+      return sense;
+    }
+
+    // Match context examples belonging to this sense (senseIndex 0 is primary sense)
+    const matchingContexts = (examples || []).filter((ex) => {
+      if (typeof ex.senseIndex === 'number') {
+        return ex.senseIndex === idx;
+      }
+      return idx === 0 && ex.vocabId === currentVocab.id && ex.id?.startsWith('ctx_');
+    });
+
+    if (matchingContexts.length === 0) {
+      return sense;
+    }
+
+    const basic =
+      matchingContexts.find((e) => e.id?.toLowerCase().includes('basic')) ||
+      matchingContexts[0];
+    const adv =
+      matchingContexts.find((e) => e.id?.toLowerCase().includes('adv') && e.id !== basic?.id) ||
+      (matchingContexts.length > 1 ? matchingContexts.find((e) => e.id !== basic?.id) : undefined);
+
+    const hasDistinctAdv = Boolean(
+      adv &&
+        adv.sentenceEn &&
+        adv.sentenceEn.trim().toLowerCase() !== basic.sentenceEn.trim().toLowerCase(),
+    );
+
+    return {
+      ...sense,
+      exampleSentenceEn: basic.sentenceEn,
+      exampleSentenceEs: basic.sentenceEs,
+      graduatedExamples: {
+        sentenceBasicEn: basic.sentenceEn,
+        sentenceBasicEs: basic.sentenceEs || '',
+        clozeTargetBasic: basic.clozeTarget || currentVocab.word,
+        sentenceAdvancedEn: hasDistinctAdv ? adv!.sentenceEn : undefined,
+        sentenceAdvancedEs: hasDistinctAdv ? (adv!.sentenceEs || '') : undefined,
+        clozeTargetAdvanced: hasDistinctAdv ? (adv!.clozeTarget || currentVocab.word) : undefined,
+      },
+    };
+  });
 
   // Collect sentence texts already rendered inside any sense block
   const displayedSentenceTexts = new Set<string>();
@@ -422,7 +507,7 @@ export function VocabDetailDrawer({
             {/* Scrollable Dictionary Body */}
             <DrawerBody className="!mt-0 m-0 flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 text-inherit leading-normal">
               {/* Activation Notice if Inactive */}
-              {currentVocab.masteryStatus === 'INACTIVE' && onActivateWord && (
+              {currentVocab.masteryStatus === 'INACTIVE' && canActivate && (
                 <div className="p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/80 flex items-center justify-between gap-3 shadow-xs animate-in fade-in duration-200">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-1.5">
@@ -438,6 +523,7 @@ export function VocabDetailDrawer({
                   <Button
                     size="sm"
                     onPress={handleActivate}
+                    onClick={handleActivate}
                     isDisabled={isActivating}
                     className="h-8 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm shadow-indigo-500/20 cursor-pointer shrink-0"
                   >
@@ -449,75 +535,48 @@ export function VocabDetailDrawer({
 
               {/* SECCIÓN A: HEADWORD HERO WITH ACOUSTIC SUITE */}
               <div className="space-y-4 pb-5 border-b border-gray-100 dark:border-white/[0.06]">
-                {/* Lexical Hero Tags Row (Categorías arriba) */}
-                <div className="flex items-center gap-2 flex-wrap text-xs">
-                  {/* CEFR Level Chip */}
-                  <span
-                    className={`px-3 py-1 rounded-xl font-mono text-xs font-semibold border ${
-                      currentVocab.cefrLevel === 'A1' || currentVocab.cefrLevel === 'A2'
-                        ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10'
-                        : currentVocab.cefrLevel === 'B1' || currentVocab.cefrLevel === 'B2'
-                        ? 'border-indigo-500/40 text-indigo-400 bg-indigo-500/10'
-                        : 'border-purple-500/40 text-purple-400 bg-purple-500/10'
-                    }`}
-                  >
-                    {currentVocab.cefrLevel}
-                  </span>
-
-                  {/* Part of Speech or Phrasal Verb Badge */}
-                  {isPhrasalVerb ? (
-                    <span className="px-3 py-1 rounded-xl font-medium text-xs bg-indigo-950/40 text-indigo-300 border border-indigo-500/40">
-                      Phrasal Verb
-                    </span>
-                  ) : (
-                    <span className="px-3 py-1 rounded-xl bg-[#141824] text-slate-300 font-medium text-xs border border-white/[0.08]">
-                      {PART_OF_SPEECH_LABELS_ES[currentVocab.partOfSpeech] ?? currentVocab.partOfSpeech}
-                    </span>
-                  )}
-
-                  {/* Domain Category / Uso General */}
-                  <span className="px-3 py-1 rounded-xl bg-indigo-950/40 text-indigo-300 font-medium text-xs border border-indigo-500/40">
-                    {currentVocab.domainCategory && currentVocab.domainCategory !== 'Phrasal Verb'
-                      ? currentVocab.domainCategory
-                      : 'Uso General'}
-                  </span>
-
-                  {/* Grammatical Dimension / Contenido Léxico */}
-                  <span className="px-3 py-1 rounded-xl bg-[#141824] text-slate-400 font-medium text-xs border border-white/[0.08]">
-                    {currentVocab.grammaticalDimension === 'FUNCTION'
-                      ? 'Palabra Funcional'
-                      : currentVocab.grammaticalDimension === 'CHUNK'
-                      ? 'Expresión / Frase'
-                      : 'Contenido Léxico'}
-                  </span>
-                </div>
-
                 {/* Headword & Phonetics */}
                 <div className="space-y-1.5">
                   <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight font-sans">
                     {currentVocab.word}
                   </h1>
 
-                  {/* Dual IPA transcription with regional flag badges */}
+                  {/* Dual IPA transcription with regional flag badges (Clickable toggle if onToggleAccent provided) */}
                   <div className="flex items-center gap-3 flex-wrap text-sm pt-0.5">
                     {currentVocab.ipaGeneralAmerican && (
-                      <div className={`flex items-center gap-1.5 text-indigo-400 font-phonetic font-medium tracking-wide text-sm ${
-                        accentPreference === 'US' ? 'opacity-100 font-semibold' : 'opacity-80'
-                      }`}>
+                      <button
+                        type="button"
+                        onClick={onToggleAccent}
+                        disabled={!onToggleAccent}
+                        title={onToggleAccent ? `Acento General American (US). Clic para alternar a británico.` : undefined}
+                        className={`flex items-center gap-1.5 text-indigo-400 font-phonetic font-medium tracking-wide text-sm rounded-lg px-2 py-0.5 transition-all text-left ${
+                          accentPreference === 'US'
+                            ? 'opacity-100 font-semibold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-800/60 shadow-2xs'
+                            : 'opacity-70 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-white/[0.05]'
+                        } ${onToggleAccent ? 'cursor-pointer' : 'cursor-default'}`}
+                      >
                         {currentVocab.ipaReceivedPronunciation && <span className="text-xs select-none">🇺🇸</span>}
                         <span>//{currentVocab.ipaGeneralAmerican}//</span>
-                      </div>
+                      </button>
                     )}
 
                     {currentVocab.ipaReceivedPronunciation && (
                       <>
                         <span className="text-gray-300 dark:text-gray-700 select-none">·</span>
-                        <div className={`flex items-center gap-1.5 text-indigo-400 font-phonetic font-medium tracking-wide text-sm ${
-                          accentPreference === 'UK' ? 'opacity-100 font-semibold' : 'opacity-80'
-                        }`}>
+                        <button
+                          type="button"
+                          onClick={onToggleAccent}
+                          disabled={!onToggleAccent}
+                          title={onToggleAccent ? `Acento Received Pronunciation (UK). Clic para alternar a estadounidense.` : undefined}
+                          className={`flex items-center gap-1.5 text-indigo-400 font-phonetic font-medium tracking-wide text-sm rounded-lg px-2 py-0.5 transition-all text-left ${
+                            accentPreference === 'UK'
+                              ? 'opacity-100 font-semibold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-800/60 shadow-2xs'
+                              : 'opacity-70 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-white/[0.05]'
+                          } ${onToggleAccent ? 'cursor-pointer' : 'cursor-default'}`}
+                        >
                           <span className="text-xs select-none">🇬🇧</span>
                           <span>//{currentVocab.ipaReceivedPronunciation}//</span>
-                        </div>
+                        </button>
                       </>
                     )}
 
@@ -761,6 +820,9 @@ export function VocabDetailDrawer({
                           onNavigateToCard={onSelectWord}
                           onCreateIndependentCard={handleCreateSenseCard}
                           isCreatingCard={creatingSenseKey === senseKey}
+                          isPhrasalVerb={isPhrasalVerb}
+                          accentPreference={accentPreference}
+                          onSpeakExample={(text) => handleSpeakExample(sense.id || `sense-${idx}`, text)}
                         />
                       );
                     })}
@@ -832,6 +894,7 @@ export function VocabDetailDrawer({
                       <VerbTensesTable
                         tenses={currentVocab.verbTensesJson}
                         edEnding={edEnding}
+                        accentPreference={accentPreference}
                       />
                     </div>
                   )}
@@ -873,8 +936,8 @@ export function VocabDetailDrawer({
                                   <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-gray-200/60 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
                                     {pv.cefrLevel}
                                   </span>
-                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
-                                    {pv.type}
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
+                                    {PHRASAL_VERB_TYPE_LABELS_ES[pv.type] ?? pv.type}
                                   </span>
                                 </div>
                               </div>

@@ -41,7 +41,6 @@ export function BackupSettingsModal({
   const [dbLogs, setDbLogs] = useState<ReviewLog[] | null>(null);
 
   const storeStreak = useHabitsStore((s) => s.streak);
-  const storeQuests = useHabitsStore((s) => s.quests);
   const finalUserId = userId ?? 'user_local';
 
   useEffect(() => {
@@ -86,9 +85,6 @@ export function BackupSettingsModal({
       if (payload.streak) {
         useHabitsStore.getState().setStreak(payload.streak as any);
       }
-      if (Array.isArray(payload.quests) && payload.quests.length > 0) {
-        useHabitsStore.getState().setQuests(payload.quests as any);
-      }
 
       // 3. Recargar estado desde SQLite para sincronizar la UI y el exportador
       if (cardRepo) {
@@ -123,7 +119,7 @@ export function BackupSettingsModal({
   const finalLogs = reviewLogs ?? dbLogs ?? [];
   const finalErrors = errors ?? [];
   const finalStreak = streak !== undefined ? streak : (storeStreak as unknown as Record<string, unknown>);
-  const finalQuests = quests ?? (storeQuests as unknown as Record<string, unknown>[]);
+  const finalQuests = quests ?? [];
 
   const {
     calibrationReport,

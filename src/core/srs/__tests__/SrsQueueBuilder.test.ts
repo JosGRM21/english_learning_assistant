@@ -118,23 +118,19 @@ describe('SrsQueueBuilder', () => {
     expect(queueWithLeeches.length).toBe(2);
   });
 
-  it('filters queue by srsProfile to isolate agile vocabulary from error drills', () => {
+  it('filters queue by srsProfile', () => {
     const builder = new SrsQueueBuilder({ shuffle: false });
 
     const vocabCard = createMockCard('1', 'hello');
     vocabCard.card.srsProfile = 'VOCAB_AGILE';
 
-    const errorCard = createMockCard('2', 'error_drift');
-    errorCard.card.srsProfile = 'WRITING_ERROR_REFLECTIVE';
-    errorCard.card.targetType = 'WRITING_ERROR';
+    const otherCard = createMockCard('2', 'world');
+    // @ts-expect-error test profile filtering fallback
+    otherCard.card.srsProfile = 'OTHER';
 
-    const vocabQueue = builder.buildQueue([vocabCard, errorCard], [], { srsProfile: 'VOCAB_AGILE' });
+    const vocabQueue = builder.buildQueue([vocabCard, otherCard], [], { srsProfile: 'VOCAB_AGILE' });
     expect(vocabQueue.length).toBe(1);
     expect(vocabQueue[0].card.id).toBe('card_1');
-
-    const errorQueue = builder.buildQueue([vocabCard, errorCard], [], { srsProfile: 'WRITING_ERROR_REFLECTIVE' });
-    expect(errorQueue.length).toBe(1);
-    expect(errorQueue[0].card.id).toBe('card_2');
   });
 
   it('prioritizes intraday learning/relearning cards ahead of regular review cards', () => {

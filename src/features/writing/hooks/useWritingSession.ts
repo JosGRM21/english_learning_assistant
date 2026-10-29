@@ -4,7 +4,6 @@ import { useAiGateway } from '@/shared/hooks/useAiGateway';
 import { useAudio } from '@/shared/hooks/useAudio';
 import { useDatabase } from '@/shared/hooks/useDatabase';
 import { useHabitsStore } from '@/features/habits/store/habitsStore';
-import { synthesizeErrorDrillFallback } from '@/core/text/WeakVocabMatcher';
 
 function formatErrorMessage(err: unknown): string {
   if (err instanceof Error) {
@@ -32,7 +31,6 @@ export function useWritingSession() {
   const { aiGateway, orchestrator } = useAiGateway();
   const { audioService } = useAudio();
   const { writingRepo, cardRepo, isReady } = useDatabase();
-  const updateQuestProgress = useHabitsStore((s) => s.updateQuestProgress);
   const updateStreak = useHabitsStore((s) => s.updateStreak);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -225,21 +223,6 @@ export function useWritingSession() {
 
       // 2. Call AI Gateway for final evaluation
       const response = await aiGateway.evaluateFinalPhase2(draft1, draft2, targetCefr, contextualInfo);
-
-      // 3. Guarantee every correction has a practice drill
-      const enrichedCorrections = response.corrections.map((corr) => ({
-        ...corr,
-        drill:
-          corr.drill ??
-          synthesizeErrorDrillFallback({
-            error_span: corr.error_span,
-            native_reformulation: corr.native_reformulation,
-            explanation_es: corr.explanation_es,
-            sentence_context: draft2,
-          }),
-      }));
-      response.corrections = enrichedCorrections;
-
       setEvalResult(response);
 
       // 4. Save in database if writingRepo is available
@@ -262,15 +245,11 @@ export function useWritingSession() {
           evaluation: response,
         });
 
-        // Record detailed error taxonomy log with draft context (RF-ERR-01 / RF-WRT-10)
-        await writingRepo.logWritingErrors(subId, response.corrections, 'user_local', draft2);
-
         // Refresh submissions history in background
         refreshHistory();
       }
 
-      // 5. Update habits daily quest & streak
-      updateQuestProgress('WRITING_SUBMISSION', 1);
+      // 5. Update habits streak
       updateStreak();
 
       setCurrentStage(3);
@@ -293,11 +272,44 @@ export function useWritingSession() {
     refreshHistory,
     setIsLoading,
     setEvalResult,
-    updateQuestProgress,
     updateStreak,
     setCurrentStage,
   ]);
 
+
+  // Delete a single submission from history
+  const handleDeleteSubmission = useCallback(
+    async (id: string) => {
+      if (!writingRepo) return;
+      try {
+        await writingRepo.deleteSubmission(id);
+        if (useWritingStore.getState().currentSubmissionId === id) {
+          resetWriting();
+        }
+        await refreshHistory();
+      } catch (err: unknown) {
+        console.error('Failed to delete submission:', err);
+        setErrorMessage('Error al eliminar la redacción.');
+      }
+    },
+    [writingRepo, resetWriting, refreshHistory, setErrorMessage],
+  );
+
+  // Clear all submissions from history
+  const handleClearAllSubmissions = useCallback(
+    async () => {
+      if (!writingRepo) return;
+      try {
+        await writingRepo.deleteAllSubmissions('user_local');
+        resetWriting();
+        await refreshHistory();
+      } catch (err: unknown) {
+        console.error('Failed to clear submissions history:', err);
+        setErrorMessage('Error al vaciar el historial.');
+      }
+    },
+    [writingRepo, resetWriting, refreshHistory, setErrorMessage],
+  );
 
   // Play audio TTS for full text or phrases
   const handlePlayTts = useCallback(
@@ -350,6 +362,8 @@ export function useWritingSession() {
     handleRequestSocratic,
     handleEvaluateFinal,
     handlePlayTts,
+    handleDeleteSubmission,
+    handleClearAllSubmissions,
     refreshHistory,
     refreshWeakVocabulary,
     resetWriting,

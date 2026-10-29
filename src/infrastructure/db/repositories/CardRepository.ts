@@ -1,4 +1,4 @@
-import { Kysely, Selectable } from 'kysely';
+import { Kysely, Selectable, sql } from 'kysely';
 import { DatabaseSchema, SrsCardsTable } from '../../../core/types/database';
 import { ICardRepository, DeckStatistics, CreateCardInput } from '../../../core/repositories/ICardRepository';
 import {
@@ -9,12 +9,9 @@ import {
   TargetType,
   FsrsGrade,
   SrsProfile,
-  PositiveDrillData,
-  PositiveDrillFormat,
 } from '../../../core/types/srs';
-import { CefrLevel, GrammaticalDimension, PartOfSpeech, ChunkType, PhrasalVerbType, VocabContextExample, VerbTenses, VocabSense } from '../../../core/types/vocab';
+import { CefrLevel, GrammaticalDimension, PartOfSpeech, ChunkType, PhrasalVerbType, VocabContextExample, VerbTenses, VocabSense, PhraseologicalUnit } from '../../../core/types/vocab';
 import { mapVocabRowToDomain } from './VocabRepository';
-import { CORE_PHRASAL_DATA } from '@/data/core-vocab-corpus';
 
 export class CardRepository implements ICardRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
@@ -98,26 +95,41 @@ export class CardRepository implements ICardRepository {
 
     const createdAt = new Date().toISOString();
 
-    await this.db
-      .insertInto('srs_cards')
-      .values({
-        id: card.id,
-        user_id: card.userId,
-        target_type: card.targetType,
-        target_id: card.targetId,
-        srs_profile: card.srsProfile ?? 'VOCAB_AGILE',
-        state: card.state,
-        stability: card.stability,
-        difficulty: card.difficulty,
-        reps: card.reps,
-        lapses: card.lapses,
-        consecutive_lapses: card.consecutiveLapses ?? 0,
-        is_leech: card.isLeech ? 1 : 0,
-        last_reviewed_at: card.lastReviewedAt,
-        scheduled_for: card.scheduledFor,
-        created_at: createdAt,
-      })
-      .execute();
+    try {
+      await this.db
+        .insertInto('srs_cards')
+        .values({
+          id: card.id,
+          user_id: card.userId,
+          target_type: card.targetType,
+          target_id: card.targetId,
+          srs_profile: card.srsProfile ?? 'VOCAB_AGILE',
+          state: card.state,
+          stability: card.stability,
+          difficulty: card.difficulty,
+          reps: card.reps,
+          lapses: card.lapses,
+          consecutive_lapses: card.consecutiveLapses ?? 0,
+          is_leech: card.isLeech ? 1 : 0,
+          last_reviewed_at: card.lastReviewedAt,
+          scheduled_for: card.scheduledFor,
+          created_at: createdAt,
+        })
+        .execute();
+    } catch (err: unknown) {
+      const msg = String(err);
+      if (
+        msg.includes('UNIQUE constraint failed') ||
+        msg.includes('2067') ||
+        msg.includes('idx_srs_target_unique')
+      ) {
+        const fallbackExisting = await this.getCardByTargetId(card.targetId, card.targetType);
+        if (fallbackExisting) {
+          return fallbackExisting;
+        }
+      }
+      throw err;
+    }
 
     return {
       ...card,
@@ -132,6 +144,22 @@ export class CardRepository implements ICardRepository {
     const existing = await this.getCardByTargetId(phraseId, 'PHRASE');
     if (existing) {
       return existing;
+    }
+
+    // Update phraseological_units & vocab_items mastery_status to LEARNING
+    try {
+      await this.db
+        .updateTable('phraseological_units')
+        .set({ mastery_status: 'LEARNING' })
+        .where('id', '=', phraseId)
+        .execute();
+      await this.db
+        .updateTable('vocab_items')
+        .set({ mastery_status: 'LEARNING' })
+        .where('id', '=', phraseId)
+        .execute();
+    } catch {
+      // Ignored if table doesn't have row yet
     }
 
     const now = new Date().toISOString();
@@ -153,6 +181,47 @@ export class CardRepository implements ICardRepository {
     return this.createCard(newCard);
   }
 
+  async getNextUnactivatedPhrases(options: {
+    cefrLevels?: CefrLevel[];
+    limit: number;
+  }): Promise<PhraseologicalUnit[]> {
+    const limit = options.limit ?? 10;
+    let query = this.db
+      .selectFrom('phraseological_units')
+      .selectAll()
+      .where('mastery_status', '=', 'INACTIVE');
+
+    if (options.cefrLevels && options.cefrLevels.length > 0) {
+      query = query.where('cefr_level', 'in', options.cefrLevels);
+    }
+
+    const rows = await query
+      .orderBy('created_at', 'asc')
+      .orderBy('id', 'asc')
+      .limit(limit)
+      .execute();
+
+    return rows.map((r) => ({
+      id: r.id,
+      primaryVocabId: r.primary_vocab_id,
+      chunkType: r.chunk_type as ChunkType,
+      text: r.text,
+      meaningEs: r.meaning_es,
+      definitionEn: r.definition_en,
+      ipaGeneralAmerican: r.ipa_general_american ?? undefined,
+      ipaReceivedPronunciation: r.ipa_received_pronunciation ?? null,
+      phrasalVerbType: r.phrasal_verb_type as PhrasalVerbType | null,
+      pronounMustSplit: Boolean(r.pronoun_must_split),
+      example1: r.example_1,
+      example1Es: r.example_1_es,
+      example2: r.example_2,
+      example2Es: r.example_2_es,
+      cefrLevel: r.cefr_level as CefrLevel,
+      masteryStatus: (r.mastery_status as any) ?? 'INACTIVE',
+      createdAt: r.created_at,
+    }));
+  }
+
   async updateCard(card: SrsCard): Promise<void> {
     await this.db
       .updateTable('srs_cards')
@@ -169,17 +238,6 @@ export class CardRepository implements ICardRepository {
         scheduled_for: card.scheduledFor,
       })
       .where('id', '=', card.id)
-      .execute();
-  }
-
-  async resetLeechStatus(cardId: string): Promise<void> {
-    await this.db
-      .updateTable('srs_cards')
-      .set({
-        is_leech: 0,
-        consecutive_lapses: 0,
-      })
-      .where('id', '=', cardId)
       .execute();
   }
 
@@ -207,48 +265,116 @@ export class CardRepository implements ICardRepository {
   }
 
   private async populateCardDetails(cards: SrsCard[]): Promise<CardWithTarget[]> {
-    const results: CardWithTarget[] = [];
+    if (!cards || cards.length === 0) return [];
+
+    const vocabTargetIds = new Set<string>();
+    const phraseTargetIds = new Set<string>();
 
     for (const card of cards) {
       if (card.targetType === 'VOCAB') {
-        const vocabRow = await this.db
-          .selectFrom('vocab_items')
-          .selectAll()
-          .where('id', '=', card.targetId)
-          .executeTakeFirst();
+        const baseVocabId = card.targetId.split('#')[0];
+        vocabTargetIds.add(baseVocabId);
+      } else if (card.targetType === 'PHRASE') {
+        phraseTargetIds.add(card.targetId);
+      }
+    }
 
-        const contextRows = await this.db
-          .selectFrom('vocab_context_examples')
-          .selectAll()
-          .where('vocab_id', '=', card.targetId)
-          .execute();
+    // Include phraseTargetIds in vocabQueryIds in case a phrase item was stored in vocab_items
+    const allVocabQueryIds = Array.from(new Set([...vocabTargetIds, ...phraseTargetIds]));
 
-        const contexts = contextRows.map((c) => ({
+    // Batch load all targets and contexts in parallel (eliminating N+1 sequential IPC calls)
+    const [vocabRows, contextRows, phraseRows] = await Promise.all([
+      allVocabQueryIds.length > 0
+        ? this.db.selectFrom('vocab_items').selectAll().where('id', 'in', allVocabQueryIds).execute()
+        : Promise.resolve([]),
+      allVocabQueryIds.length > 0
+        ? this.db.selectFrom('vocab_context_examples').selectAll().where('vocab_id', 'in', allVocabQueryIds).execute()
+        : Promise.resolve([]),
+      phraseTargetIds.size > 0
+        ? this.db.selectFrom('phraseological_units').selectAll().where('id', 'in', Array.from(phraseTargetIds)).execute()
+        : Promise.resolve([]),
+    ]);
+
+    // Build fast in-memory lookup maps
+    const vocabMap = new Map(vocabRows.map((v) => [v.id, v]));
+    const phraseMap = new Map(phraseRows.map((p) => [p.id, p]));
+
+    const contextsByVocabId = new Map<string, VocabContextExample[]>();
+    for (const c of contextRows) {
+      if (c.vocab_id) {
+        if (!contextsByVocabId.has(c.vocab_id)) {
+          contextsByVocabId.set(c.vocab_id, []);
+        }
+        contextsByVocabId.get(c.vocab_id)!.push({
           id: c.id,
           vocabId: c.vocab_id,
           phraseId: c.phrase_id,
+          senseIndex: (c as any).sense_index ?? 0,
           sentenceEn: c.sentence_en,
           sentenceEs: c.sentence_es,
           clozeTarget: c.cloze_target,
           audioUrl: c.audio_url,
           cefrLevel: c.cefr_level as CefrLevel,
           createdAt: c.created_at,
-        }));
+        });
+      }
+    }
+
+    // Assemble hydrated cards synchronously in a single pass
+    const results: CardWithTarget[] = [];
+
+    for (const card of cards) {
+      if (card.targetType === 'VOCAB') {
+        const [baseVocabId, senseIdxStr] = card.targetId.split('#');
+        const senseIndex = senseIdxStr ? parseInt(senseIdxStr, 10) : 0;
+        const vocabRow = vocabMap.get(baseVocabId);
+        const allVocabContexts = contextsByVocabId.get(baseVocabId) ?? [];
+
+        let vocabDomain = vocabRow ? mapVocabRowToDomain(vocabRow) : undefined;
+        let currentSense: VocabSense | undefined = undefined;
+
+        if (vocabDomain) {
+          const allSenses: VocabSense[] =
+            vocabDomain.sensesJson && vocabDomain.sensesJson.length > 0
+              ? vocabDomain.sensesJson
+              : [
+                  {
+                    translationEs: vocabDomain.translationEs,
+                    definitionEn: vocabDomain.definitionEn,
+                    partOfSpeech: vocabDomain.partOfSpeech,
+                    cefrLevel: vocabDomain.cefrLevel,
+                    grammarPattern: (vocabDomain as any).grammarPattern,
+                    countability: (vocabDomain as any).countability,
+                  },
+                  ...((vocabDomain.alternateSensesJson as any) || []),
+                ];
+
+          currentSense = allSenses[senseIndex] || allSenses[0];
+
+          if (currentSense) {
+            vocabDomain = {
+              ...vocabDomain,
+              translationEs: currentSense.translationEs,
+              definitionEn: currentSense.definitionEn,
+              partOfSpeech: currentSense.partOfSpeech,
+              cefrLevel: currentSense.cefrLevel,
+            };
+          }
+        }
+
+        const senseContexts = allVocabContexts.filter((ctx) => (ctx.senseIndex ?? 0) === senseIndex);
+        const contexts = senseContexts.length > 0 ? senseContexts : allVocabContexts;
 
         results.push({
           card,
-          vocab: vocabRow ? mapVocabRowToDomain(vocabRow) : undefined,
+          vocab: vocabDomain,
+          currentSenseIndex: senseIndex,
+          currentSense,
           allContexts: contexts,
           currentContext: contexts[0],
         });
       } else if (card.targetType === 'PHRASE') {
-        // 1. Check phraseological_units in SQLite or fallback to CORE_PHRASAL_DATA
-        const phraseRow = await this.db
-          .selectFrom('phraseological_units')
-          .selectAll()
-          .where('id', '=', card.targetId)
-          .executeTakeFirst();
-
+        const phraseRow = phraseMap.get(card.targetId);
         const phraseItem = phraseRow
           ? {
               id: phraseRow.id,
@@ -256,6 +382,9 @@ export class CardRepository implements ICardRepository {
               chunkType: phraseRow.chunk_type as ChunkType,
               text: phraseRow.text,
               meaningEs: phraseRow.meaning_es,
+              definitionEn: phraseRow.definition_en || '',
+              ipaGeneralAmerican: phraseRow.ipa_general_american || '',
+              ipaReceivedPronunciation: phraseRow.ipa_received_pronunciation || null,
               phrasalVerbType: phraseRow.phrasal_verb_type as PhrasalVerbType | null,
               pronounMustSplit: Boolean(phraseRow.pronoun_must_split),
               example1: phraseRow.example_1,
@@ -265,28 +394,7 @@ export class CardRepository implements ICardRepository {
               cefrLevel: phraseRow.cefr_level as CefrLevel,
               createdAt: phraseRow.created_at,
             }
-          : (() => {
-              const p = CORE_PHRASAL_DATA.find((item) => item.id === card.targetId);
-              if (!p) return null;
-              return {
-                id: p.id,
-                primaryVocabId: p.primaryVocabId,
-                chunkType: p.chunkType as ChunkType,
-                text: p.text,
-                meaningEs: p.meaningEs,
-                definitionEn: p.definitionEn,
-                ipaGeneralAmerican: p.ipaGeneralAmerican,
-                ipaReceivedPronunciation: p.ipaReceivedPronunciation,
-                phrasalVerbType: p.phrasalVerbType as PhrasalVerbType | null,
-                pronounMustSplit: Boolean(p.pronounMustSplit),
-                example1: p.example1,
-                example1Es: p.example1Es,
-                example2: p.example2,
-                example2Es: p.example2Es,
-                cefrLevel: p.cefrLevel as CefrLevel,
-                createdAt: new Date().toISOString(),
-              };
-            })();
+          : null;
 
         if (phraseItem) {
           const contexts: VocabContextExample[] = [];
@@ -302,6 +410,17 @@ export class CardRepository implements ICardRepository {
             });
           }
 
+          const currentSense: VocabSense = {
+            senseId: `sense_${phraseItem.id}`,
+            translationEs: phraseItem.meaningEs,
+            definitionEn: phraseItem.definitionEn || '',
+            partOfSpeech: phraseItem.chunkType === 'PHRASAL_VERB' ? 'VERB' : 'NOUN',
+            cefrLevel: phraseItem.cefrLevel,
+            domainCategory: phraseItem.chunkType === 'PHRASAL_VERB' ? 'Phrasal Verb' : 'Expresión',
+            exampleSentenceEn: phraseItem.example1,
+            exampleSentenceEs: phraseItem.example1Es || phraseItem.meaningEs,
+          };
+
           results.push({
             card,
             phrase: {
@@ -310,9 +429,15 @@ export class CardRepository implements ICardRepository {
               chunkType: phraseItem.chunkType,
               text: phraseItem.text,
               meaningEs: phraseItem.meaningEs,
+              definitionEn: phraseItem.definitionEn,
+              ipaGeneralAmerican: phraseItem.ipaGeneralAmerican,
+              ipaReceivedPronunciation: phraseItem.ipaReceivedPronunciation,
               phrasalVerbType: phraseItem.phrasalVerbType,
+              pronounMustSplit: phraseItem.pronounMustSplit,
               example1: phraseItem.example1,
+              example1Es: phraseItem.example1Es,
               example2: phraseItem.example2,
+              example2Es: phraseItem.example2Es,
               cefrLevel: phraseItem.cefrLevel,
               createdAt: phraseItem.createdAt,
             },
@@ -322,45 +447,28 @@ export class CardRepository implements ICardRepository {
               grammaticalDimension: 'CHUNK',
               partOfSpeech: phraseItem.chunkType === 'PHRASAL_VERB' ? 'VERB' : 'NOUN',
               subcategory: phraseItem.chunkType === 'PHRASAL_VERB' ? 'PHRASAL_VERB' : undefined,
-              definitionEn: phraseItem.meaningEs,
+              definitionEn: phraseItem.definitionEn || '',
               translationEs: phraseItem.meaningEs,
-              ipaGeneralAmerican: '',
+              ipaGeneralAmerican: phraseItem.ipaGeneralAmerican || '',
+              ipaReceivedPronunciation: phraseItem.ipaReceivedPronunciation || null,
               cefrLevel: phraseItem.cefrLevel,
               isSeparable: phraseItem.pronounMustSplit,
               isFalseFriend: false,
               isCore: true,
               masteryStatus: 'LEARNING',
               domainCategory: phraseItem.chunkType === 'PHRASAL_VERB' ? 'Phrasal Verb' : 'Expresión',
+              sensesJson: [currentSense],
               createdAt: phraseItem.createdAt,
             },
+            currentSense,
+            currentSenseIndex: 0,
             allContexts: contexts,
             currentContext: contexts[0],
           });
         } else {
-          // 2. Check vocab_items (e.g. phrases or chunks registered through Writing Studio)
-          const vocabRow = await this.db
-            .selectFrom('vocab_items')
-            .selectAll()
-            .where('id', '=', card.targetId)
-            .executeTakeFirst();
-
-          const contextRows = await this.db
-            .selectFrom('vocab_context_examples')
-            .selectAll()
-            .where('vocab_id', '=', card.targetId)
-            .execute();
-
-          const contexts = contextRows.map((c) => ({
-            id: c.id,
-            vocabId: c.vocab_id,
-            phraseId: c.phrase_id,
-            sentenceEn: c.sentence_en,
-            sentenceEs: c.sentence_es,
-            clozeTarget: c.cloze_target,
-            audioUrl: c.audio_url,
-            cefrLevel: c.cefr_level as CefrLevel,
-            createdAt: c.created_at,
-          }));
+          // Fallback: Check vocab_items for phrases/chunks
+          const vocabRow = vocabMap.get(card.targetId);
+          const contexts = contextsByVocabId.get(card.targetId) ?? [];
 
           results.push({
             card,
@@ -379,7 +487,6 @@ export class CardRepository implements ICardRepository {
                   frequencyBand: (vocabRow.frequency_band as any) ?? 'TOP_3000',
                   isCore: Boolean(vocabRow.is_core),
                   masteryStatus: (vocabRow.mastery_status as any) ?? 'INACTIVE',
-                  collocationsJson: this.parseJsonSafe<string[]>(vocabRow.collocations_json, []),
                   phoneticEdEnding: (vocabRow.phonetic_ed_ending as any) ?? null,
                   isFalseFriend: Boolean(vocabRow.is_false_friend),
                   falseFriendNote: vocabRow.false_friend_note,
@@ -397,59 +504,6 @@ export class CardRepository implements ICardRepository {
               : undefined,
             allContexts: contexts,
             currentContext: contexts[0],
-          });
-        }
-      } else if (card.targetType === 'WRITING_ERROR') {
-        const errorRow = await this.db
-          .selectFrom('writing_error_logs')
-          .selectAll()
-          .where((eb) =>
-            eb.or([
-              eb('id', '=', card.targetId),
-              eb('srs_card_id', '=', card.id),
-            ]),
-          )
-          .executeTakeFirst();
-
-        if (errorRow) {
-          const drillData = this.parseJsonSafe<PositiveDrillData>(
-            errorRow.drill_data_json,
-            {
-              format: (errorRow.drill_format as PositiveDrillFormat) ?? 'CONTEXTUAL_CLOZE',
-              explanationEs: errorRow.explanation_es,
-              sentenceContext: errorRow.expanded_context || errorRow.original_sentence || '',
-            },
-          );
-
-          results.push({
-            card,
-            writingError: {
-              id: errorRow.id,
-              submissionId: errorRow.submission_id,
-              userId: errorRow.user_id,
-              errorSpan: errorRow.error_span,
-              errorType: errorRow.error_type,
-              taxonomyCode: errorRow.taxonomy_code,
-              isL1SpanishTransfer: Boolean(errorRow.is_l1_spanish_transfer),
-              explanationEs: errorRow.explanation_es,
-              nativeReformulation: errorRow.native_reformulation,
-              originalSentence: errorRow.original_sentence || '',
-              expandedContext: errorRow.expanded_context || '',
-              drillFormat: (errorRow.drill_format as PositiveDrillFormat) ?? 'CONTEXTUAL_CLOZE',
-              drillData,
-              srsCardId: errorRow.srs_card_id,
-              masteryStatus: (errorRow.mastery_status as 'LEARNING' | 'INTERNALIZED' | 'RECIDIVIST') ?? 'LEARNING',
-              isFossilizedAlert: Boolean(errorRow.is_fossilized_alert),
-              timesRecidivist: errorRow.times_recidivist ?? 0,
-              createdAt: errorRow.created_at,
-              srsCard: card,
-            },
-            allContexts: [],
-          });
-        } else {
-          results.push({
-            card,
-            allContexts: [],
           });
         }
       } else {
@@ -536,48 +590,89 @@ export class CardRepository implements ICardRepository {
     const now = new Date().toISOString();
     let query = this.db
       .selectFrom('srs_cards')
-      .selectAll()
+      .select([
+        sql<number>`count(*)`.as('totalCount'),
+        sql<number>`coalesce(sum(case when is_leech = 1 then 1 else 0 end), 0)`.as('leechCount'),
+        sql<number>`coalesce(sum(case when state = 'NEW' then 1 else 0 end), 0)`.as('newCount'),
+        sql<number>`coalesce(sum(case when state != 'NEW' and scheduled_for <= ${now} then 1 else 0 end), 0)`.as('dueCount'),
+        sql<number>`coalesce(sum(case when state in ('LEARNING', 'RELEARNING') then 1 else 0 end), 0)`.as('learningCount'),
+        sql<number>`coalesce(sum(case when state = 'REVIEW' then 1 else 0 end), 0)`.as('reviewCount'),
+      ])
       .where('user_id', '=', userId);
 
     if (srsProfile) {
       query = query.where('srs_profile', '=', srsProfile);
     }
 
-    const all = await query.execute();
-
-    let newCount = 0;
-    let dueCount = 0;
-    let learningCount = 0;
-    let reviewCount = 0;
-    let leechCount = 0;
-
-    for (const row of all) {
-      if (row.is_leech) {
-        leechCount++;
-      }
-
-      if (row.state === 'NEW') {
-        newCount++;
-      } else {
-        if (row.scheduled_for <= now) {
-          dueCount++;
-        }
-        if (row.state === 'LEARNING' || row.state === 'RELEARNING') {
-          learningCount++;
-        } else if (row.state === 'REVIEW') {
-          reviewCount++;
-        }
-      }
-    }
+    const row = await query.executeTakeFirst();
 
     return {
-      dueCount,
-      newCount,
-      learningCount,
-      reviewCount,
-      totalCount: all.length,
-      leechCount,
+      dueCount: Number(row?.dueCount ?? 0),
+      newCount: Number(row?.newCount ?? 0),
+      learningCount: Number(row?.learningCount ?? 0),
+      reviewCount: Number(row?.reviewCount ?? 0),
+      totalCount: Number(row?.totalCount ?? 0),
+      leechCount: Number(row?.leechCount ?? 0),
     };
+  }
+
+  async hasReviewToday(userId: string, todayDateStr: string): Promise<boolean> {
+    const row = await this.db
+      .selectFrom('review_logs')
+      .select('review_logs.id')
+      .innerJoin('srs_cards', 'srs_cards.id', 'review_logs.card_id')
+      .where('srs_cards.user_id', '=', userId)
+      .where('review_logs.reviewed_at', 'like', `${todayDateStr}%`)
+      .limit(1)
+      .executeTakeFirst();
+
+    return Boolean(row);
+  }
+
+  async getNewCardsReviewedTodayCount(
+    userId: string,
+    startOfDayIso: string,
+    endOfDayIso: string,
+  ): Promise<number> {
+    const row = await this.db
+      .selectFrom('review_logs')
+      .select(sql<number>`count(distinct review_logs.card_id)`.as('count'))
+      .innerJoin('srs_cards', 'srs_cards.id', 'review_logs.card_id')
+      .where('srs_cards.user_id', '=', userId)
+      .where('review_logs.state_before', '=', 'NEW')
+      .where('review_logs.reviewed_at', '>=', startOfDayIso)
+      .where('review_logs.reviewed_at', '<=', endOfDayIso)
+      .executeTakeFirst();
+
+    return Number(row?.count ?? 0);
+  }
+
+  async getDueCardsCount(userId: string, srsProfile?: SrsProfile): Promise<number> {
+    const now = new Date().toISOString();
+    let query = this.db
+      .selectFrom('srs_cards')
+      .select(sql<number>`count(*)`.as('count'))
+      .where('user_id', '=', userId)
+      .where('state', '!=', 'NEW')
+      .where('scheduled_for', '<=', now);
+
+    if (srsProfile) {
+      query = query.where('srs_profile', '=', srsProfile);
+    }
+
+    const row = await query.executeTakeFirst();
+    return Number(row?.count ?? 0);
+  }
+
+  async getActiveTargetIds(userId: string, targetType: TargetType): Promise<string[]> {
+    const rows = await this.db
+      .selectFrom('srs_cards')
+      .select('target_id')
+      .where('user_id', '=', userId)
+      .where('target_type', '=', targetType)
+      .execute();
+
+    return rows.map((r) => r.target_id);
   }
 
   async getAllReviewLogs(limit = 1000): Promise<ReviewLog[]> {

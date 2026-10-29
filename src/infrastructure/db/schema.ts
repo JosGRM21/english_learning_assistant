@@ -17,7 +17,6 @@ CREATE TABLE IF NOT EXISTS vocab_items (
     frequency_band TEXT CHECK(frequency_band IN ('TOP_500', 'TOP_1000', 'TOP_3000', 'TOP_5000')),
     is_core INTEGER NOT NULL DEFAULT 1 CHECK(is_core IN (0, 1)),
     mastery_status TEXT NOT NULL DEFAULT 'INACTIVE' CHECK(mastery_status IN ('INACTIVE', 'NEW', 'LEARNING', 'RECEPTIVE_MASTERY', 'RECEPTIVE_MASTERED', 'PRODUCTIVE_MASTERY', 'PRODUCTIVE_ACTIVE')),
-    collocations_json TEXT,
     is_separable INTEGER CHECK(is_separable IN (0, 1)),
     phonetic_ed_ending TEXT,
     is_false_friend INTEGER NOT NULL DEFAULT 0 CHECK(is_false_friend IN (0, 1)),
@@ -25,21 +24,25 @@ CREATE TABLE IF NOT EXISTS vocab_items (
     verb_tenses_json TEXT,
     domain_category TEXT,
     alternate_senses_json TEXT,
+    senses_json TEXT,
+    phrasal_verbs_json TEXT,
     created_at TEXT NOT NULL DEFAULT (DATETIME('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_vocab_word ON vocab_items(word);
+CREATE INDEX IF NOT EXISTS idx_vocab_word_nocase ON vocab_items(word COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_vocab_pos ON vocab_items(part_of_speech);
 CREATE INDEX IF NOT EXISTS idx_vocab_cefr ON vocab_items(cefr_level);
 CREATE INDEX IF NOT EXISTS idx_vocab_false_friend ON vocab_items(is_false_friend);
 CREATE INDEX IF NOT EXISTS idx_vocab_core_status ON vocab_items(is_core, mastery_status);
+CREATE INDEX IF NOT EXISTS idx_vocab_core_criteria ON vocab_items(is_core, mastery_status, cefr_level, frequency_band);
 CREATE INDEX IF NOT EXISTS idx_vocab_frequency ON vocab_items(frequency_band);
 
 -- 2. Unidades Fraseológicas (Lexical Chunks)
 CREATE TABLE IF NOT EXISTS phraseological_units (
     id TEXT PRIMARY KEY,
     primary_vocab_id TEXT,
-    chunk_type TEXT NOT NULL CHECK(chunk_type IN ('COLLOCATION', 'PHRASAL_VERB', 'IDIOM', 'BINOMIAL', 'SENTENCE_FRAME')),
+    chunk_type TEXT NOT NULL CHECK(chunk_type IN ('PHRASAL_VERB', 'IDIOM', 'BINOMIAL', 'SENTENCE_FRAME')),
     text TEXT NOT NULL,
     meaning_es TEXT NOT NULL,
     definition_en TEXT NOT NULL DEFAULT '',
@@ -52,18 +55,21 @@ CREATE TABLE IF NOT EXISTS phraseological_units (
     example_2 TEXT,
     example_2_es TEXT,
     cefr_level TEXT NOT NULL CHECK(cefr_level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
+    mastery_status TEXT NOT NULL DEFAULT 'INACTIVE' CHECK(mastery_status IN ('INACTIVE', 'LEARNING', 'NEW', 'RECEPTIVE_MASTERY', 'RECEPTIVE_MASTERED', 'PRODUCTIVE_MASTERY', 'PRODUCTIVE_ACTIVE')),
     created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
     FOREIGN KEY (primary_vocab_id) REFERENCES vocab_items(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_phrase_type ON phraseological_units(chunk_type);
 CREATE INDEX IF NOT EXISTS idx_phrase_primary_vocab ON phraseological_units(primary_vocab_id);
+CREATE INDEX IF NOT EXISTS idx_phrase_status_cefr ON phraseological_units(mastery_status, cefr_level);
 
 -- 3. Banco de Contextos Dinámicos
 CREATE TABLE IF NOT EXISTS vocab_context_examples (
     id TEXT PRIMARY KEY,
     vocab_id TEXT,
     phrase_id TEXT,
+    sense_index INTEGER NOT NULL DEFAULT 0,
     sentence_en TEXT NOT NULL,
     sentence_es TEXT NOT NULL,
     cloze_target TEXT NOT NULL,
@@ -76,14 +82,15 @@ CREATE TABLE IF NOT EXISTS vocab_context_examples (
 
 CREATE INDEX IF NOT EXISTS idx_context_vocab ON vocab_context_examples(vocab_id);
 CREATE INDEX IF NOT EXISTS idx_context_phrase ON vocab_context_examples(phrase_id);
+CREATE INDEX IF NOT EXISTS idx_context_vocab_sense ON vocab_context_examples(vocab_id, sense_index);
 
 -- 4. Repetición Espaciada FSRS 5.0
 CREATE TABLE IF NOT EXISTS srs_cards (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL DEFAULT 'user_local',
-    target_type TEXT NOT NULL CHECK(target_type IN ('VOCAB', 'PHRASE', 'WRITING_ERROR')),
+    target_type TEXT NOT NULL CHECK(target_type IN ('VOCAB', 'PHRASE')),
     target_id TEXT NOT NULL,
-    srs_profile TEXT NOT NULL DEFAULT 'VOCAB_AGILE' CHECK(srs_profile IN ('VOCAB_AGILE', 'WRITING_ERROR_REFLECTIVE')),
+    srs_profile TEXT NOT NULL DEFAULT 'VOCAB_AGILE' CHECK(srs_profile IN ('VOCAB_AGILE')),
     state TEXT NOT NULL DEFAULT 'NEW' CHECK(state IN ('NEW', 'LEARNING', 'REVIEW', 'RELEARNING')),
     stability REAL NOT NULL DEFAULT 0.0,
     difficulty REAL NOT NULL DEFAULT 5.0,
@@ -100,6 +107,9 @@ CREATE TABLE IF NOT EXISTS srs_cards (
 );
 
 CREATE INDEX IF NOT EXISTS idx_srs_due ON srs_cards(scheduled_for, state);
+CREATE INDEX IF NOT EXISTS idx_srs_user_due ON srs_cards(user_id, scheduled_for, state);
+CREATE INDEX IF NOT EXISTS idx_srs_user_state ON srs_cards(user_id, state, scheduled_for);
+CREATE INDEX IF NOT EXISTS idx_srs_weak ON srs_cards(user_id, target_type, stability);
 CREATE INDEX IF NOT EXISTS idx_srs_target ON srs_cards(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_srs_profile ON srs_cards(srs_profile);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_srs_target_unique ON srs_cards(target_type, target_id);
@@ -133,6 +143,7 @@ CREATE TABLE IF NOT EXISTS writing_submissions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sub_date ON writing_submissions(submitted_at);
+CREATE INDEX IF NOT EXISTS idx_sub_user_date ON writing_submissions(user_id, submitted_at DESC);
 
 CREATE TABLE IF NOT EXISTS writing_draft_revisions (
     id TEXT PRIMARY KEY,
@@ -167,34 +178,6 @@ CREATE TABLE IF NOT EXISTS writing_evaluations (
     evaluated_at TEXT NOT NULL DEFAULT (DATETIME('now')),
     FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE
 );
-
-CREATE TABLE IF NOT EXISTS writing_error_logs (
-    id TEXT PRIMARY KEY,
-    submission_id TEXT NOT NULL,
-    user_id TEXT NOT NULL DEFAULT 'user_local',
-    error_span TEXT NOT NULL,
-    error_type TEXT NOT NULL,
-    taxonomy_code TEXT NOT NULL,
-    is_l1_spanish_transfer INTEGER NOT NULL DEFAULT 1 CHECK(is_l1_spanish_transfer IN (0, 1)),
-    explanation_es TEXT NOT NULL,
-    native_reformulation TEXT NOT NULL,
-    original_sentence TEXT NOT NULL DEFAULT '',
-    expanded_context TEXT NOT NULL DEFAULT '',
-    drill_format TEXT NOT NULL DEFAULT 'CONTEXTUAL_CLOZE' CHECK(drill_format IN ('CONTEXTUAL_CLOZE', 'C_TEST', 'SENTENCE_REWRITE', 'CHUNK_SCRAMBLE')),
-    drill_data_json TEXT NOT NULL DEFAULT '{}',
-    srs_card_id TEXT,
-    mastery_status TEXT NOT NULL DEFAULT 'LEARNING' CHECK(mastery_status IN ('LEARNING', 'INTERNALIZED', 'RECIDIVIST')),
-    is_fossilized_alert INTEGER NOT NULL DEFAULT 0 CHECK(is_fossilized_alert IN (0, 1)),
-    times_recidivist INTEGER NOT NULL DEFAULT 0,
-    is_resolved INTEGER NOT NULL DEFAULT 0 CHECK(is_resolved IN (0, 1)),
-    created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
-    FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE,
-    FOREIGN KEY (srs_card_id) REFERENCES srs_cards(id) ON DELETE SET NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_wel_user_taxonomy ON writing_error_logs(user_id, taxonomy_code);
-CREATE INDEX IF NOT EXISTS idx_wel_submission ON writing_error_logs(submission_id);
-CREATE INDEX IF NOT EXISTS idx_wel_srs_card ON writing_error_logs(srs_card_id);
 
 -- 6. Racha de Estudio Local (Streak)
 CREATE TABLE IF NOT EXISTS user_streaks (
@@ -247,6 +230,7 @@ CREATE TABLE IF NOT EXISTS notification_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notif_logs_type_time ON notification_logs(notification_type, sent_at);
+CREATE INDEX IF NOT EXISTS idx_notif_user_time ON notification_logs(user_id, sent_at DESC);
 
 -- 12. Configuración Global de la Aplicación (Claves AI, Modelo Preferido, Cuotas)
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -255,10 +239,11 @@ CREATE TABLE IF NOT EXISTS app_settings (
     updated_at TEXT NOT NULL DEFAULT (DATETIME('now'))
 );
 
-PRAGMA user_version = 5;
+PRAGMA user_version = 8;
 `;
 
 export const CLEANUP_OBSOLETE_TABLES_SQL = `
+DROP TABLE IF EXISTS writing_error_logs;
 DROP TABLE IF EXISTS users_new;
 DROP TABLE IF EXISTS writing_evaluations_new;
 DROP TABLE IF EXISTS api_key_model_quotas_new;

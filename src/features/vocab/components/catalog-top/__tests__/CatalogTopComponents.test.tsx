@@ -4,6 +4,7 @@ import {
   VocabHeader,
   VocabSearchToolbar,
   VocabSelectionBar,
+  VocabGoalSettingsModal,
 } from '../index';
 
 describe('CatalogTop Components Modular Suite', () => {
@@ -31,11 +32,17 @@ describe('CatalogTop Components Modular Suite', () => {
       expect(screen.getByText('Banco de Vocabulario y Expresiones')).toBeDefined();
       expect(screen.getByText('US')).toBeDefined();
 
-      // Click accent toggle
-      const accentBtn = screen.getByText('Acento:').closest('button');
+      // Click accent toggle (now icon + US/UK pill without the word "Acento:")
+      const accentBtn = screen.getByText('US').closest('button');
       expect(accentBtn).toBeDefined();
       fireEvent.click(accentBtn!);
       expect(onToggleAccent).toHaveBeenCalledTimes(1);
+
+      // Goals button is directly accessible outside 3-dots
+      const goalsBtn = screen.getByText('Meta de Repaso').closest('button');
+      expect(goalsBtn).toBeDefined();
+      fireEvent.click(goalsBtn!);
+      expect(onOpenGoalsModal).toHaveBeenCalledTimes(1);
 
       // Click Add Word button
       const addBtn = screen.getByText('Agregar Palabra').closest('button');
@@ -96,11 +103,12 @@ describe('CatalogTop Components Modular Suite', () => {
       fireEvent.click(vaultBtn);
       expect(onOriginChange).toHaveBeenCalledWith('VAULT');
 
-      // Filter button exists
+      // Filter & Sorting button exists
       const filterBtn = screen.getByText('Filtros');
       expect(filterBtn).toBeDefined();
       fireEvent.click(filterBtn);
-      expect(screen.getByText('Filtros Avanzados')).toBeDefined();
+      expect(screen.getByText('Filtros y Ordenación')).toBeDefined();
+      expect(screen.getByText('Ordenar por')).toBeDefined();
     });
   });
 
@@ -130,18 +138,54 @@ describe('CatalogTop Components Modular Suite', () => {
       fireEvent.click(deleteBtn!);
       expect(onConfirmBulkDelete).toHaveBeenCalledTimes(1);
     });
+  });
 
-    it('returns null when selectedCount is 0', () => {
-      const { container } = render(
-        <VocabSelectionBar
-          selectedCount={0}
-          isAllPageSelected={false}
-          onToggleSelectAllPage={vi.fn()}
-          onClearSelection={vi.fn()}
-          onConfirmBulkDelete={vi.fn()}
+  describe('VocabGoalSettingsModal', () => {
+    it('renders goal options, daily quota buttons, and triggers onSaveSettings', async () => {
+      const onSaveSettings = vi.fn().mockResolvedValue(undefined);
+      const onClose = vi.fn();
+
+      render(
+        <VocabGoalSettingsModal
+          isOpen={true}
+          onClose={onClose}
+          initialGoal="TOP_500"
+          initialDailyQuota={10}
+          onSaveSettings={onSaveSettings}
         />,
       );
 
+      expect(screen.getByText('Meta de Aprendizaje y Ritmo Diario')).toBeDefined();
+      expect(screen.getByText('Top 500 Esencial')).toBeDefined();
+      expect(screen.getByText('Top 1000 Consolidación')).toBeDefined();
+
+      // Change goal to TOP_1000
+      fireEvent.click(screen.getByText('Top 1000 Consolidación'));
+
+      // Click +15 quota
+      fireEvent.click(screen.getByText('+15'));
+
+      // Click save
+      const saveBtn = screen.getByText('Guardar Configuración').closest('button');
+      expect(saveBtn).toBeDefined();
+      fireEvent.click(saveBtn!);
+
+      expect(onSaveSettings).toHaveBeenCalledWith({
+        activeGoal: 'TOP_1000',
+        dailyNewCardsTarget: 15,
+        includePhrasalVerbs: true,
+      });
+      await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    });
+
+    it('renders null when isOpen is false', () => {
+      const { container } = render(
+        <VocabGoalSettingsModal
+          isOpen={false}
+          onClose={vi.fn()}
+          onSaveSettings={vi.fn()}
+        />,
+      );
       expect(container.firstChild).toBeNull();
     });
   });

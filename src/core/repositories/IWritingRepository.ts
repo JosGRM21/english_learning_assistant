@@ -1,9 +1,7 @@
 import {
   SocraticFeedbackResponse,
   WritingEvaluationResponse,
-  CorrectionItem,
 } from '@/infrastructure/ai/schemas';
-import { WritingErrorSrsItem } from '../types/srs';
 
 export interface WritingSubmissionEntity {
   id: string;
@@ -47,12 +45,6 @@ export interface RecordEvaluationInput {
   evaluation: WritingEvaluationResponse;
 }
 
-export interface WritingErrorStat {
-  taxonomyCode: string;
-  errorType: string;
-  count: number;
-}
-
 export interface IWritingRepository {
   createSubmission(input: CreateSubmissionInput): Promise<string>;
   recordRevision(input: RecordRevisionInput): Promise<void>;
@@ -62,23 +54,9 @@ export interface IWritingRepository {
     status: 'DRAFT' | 'SOCRATIC_PHASE_1' | 'SOCRATIC_PHASE_2' | 'EVALUATED' | 'ERROR',
   ): Promise<void>;
   getSubmissions(userId?: string, limit?: number): Promise<WritingSubmissionEntity[]>;
+  hasSubmissionToday(userId: string, todayDateStr: string): Promise<boolean>;
   getSubmissionById(id: string): Promise<WritingSubmissionEntity | null>;
   deleteSubmission(id: string): Promise<void>;
-  logWritingErrors(
-    submissionId: string,
-    corrections: CorrectionItem[],
-    userId?: string,
-    contextText?: string,
-  ): Promise<void>;
-  getWritingErrorStats(userId?: string, limit?: number): Promise<WritingErrorStat[]>;
-  checkRecidivism(
-    userId: string,
-    taxonomyCode: string,
-    errorSpan?: string,
-  ): Promise<{ isRecidivist: boolean; count: number }>;
-  getFossilizedErrors(userId?: string): Promise<WritingErrorSrsItem[]>;
-  getAllWritingErrors(userId?: string): Promise<WritingErrorSrsItem[]>;
-  updateErrorMastery(id: string, status: 'LEARNING' | 'INTERNALIZED' | 'RECIDIVIST'): Promise<void>;
-  getErrorById(id: string): Promise<WritingErrorSrsItem | null>;
+  deleteAllSubmissions(userId?: string): Promise<void>;
 }
 

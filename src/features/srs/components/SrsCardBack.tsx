@@ -5,12 +5,13 @@ import {
   RotateCw,
   Repeat,
 } from 'lucide-react';
-import { VocabItem, VocabContextExample, PART_OF_SPEECH_LABELS_ES } from '@/core/types/vocab';
-import { SrsCard, FsrsGrade } from '@/core/types/srs';
-import { AudioService } from '@/infrastructure/audio/AudioService';
+import { VocabItem, VocabContextExample, PART_OF_SPEECH_LABELS_ES, PHRASAL_VERB_TYPE_LABELS_ES } from '@/core/types/vocab';
+import { SrsCard, FsrsGrade, CardWithTarget } from '@/core/types/srs';
+import { AudioService, getVoiceForAccent } from '@/infrastructure/audio/AudioService';
 import { useAudio } from '@/shared/hooks/useAudio';
 
 export interface SrsCardBackProps {
+  cardWithTarget?: CardWithTarget | null;
   selectedVocab: VocabItem;
   currentContext: VocabContextExample | null;
   availableContexts: VocabContextExample[];
@@ -32,6 +33,7 @@ export const formatInterval = (days: number | undefined) => {
 };
 
 export function SrsCardBack({
+  cardWithTarget,
   selectedVocab,
   currentContext,
   availableContexts,
@@ -47,15 +49,45 @@ export function SrsCardBack({
 }: SrsCardBackProps) {
   const { audioService: defaultAudio } = useAudio();
   const audioService = audioProp ?? defaultAudio;
-  const partOfSpeechEs =
-    PART_OF_SPEECH_LABELS_ES[selectedVocab.partOfSpeech] ?? selectedVocab.partOfSpeech;
 
-  const activeVoice = accent === 'UK' ? 'bf_emma' : 'af_heart';
+  const evaluatedSense =
+    cardWithTarget?.currentSense ||
+    selectedVocab.sensesJson?.[cardWithTarget?.currentSenseIndex ?? 0] ||
+    selectedVocab.sensesJson?.[0];
+
+  const translationEs =
+    evaluatedSense?.translationEs ||
+    cardWithTarget?.phrase?.meaningEs ||
+    selectedVocab.translationEs;
+  const definitionEn =
+    evaluatedSense?.definitionEn ||
+    cardWithTarget?.phrase?.definitionEn ||
+    selectedVocab.definitionEn;
+  const countability = evaluatedSense?.countability;
+
+  const totalSenses =
+    selectedVocab.sensesJson && selectedVocab.sensesJson.length > 0
+      ? selectedVocab.sensesJson.length
+      : (selectedVocab.alternateSensesJson?.length ?? 0) + 1;
+  const senseIndex = cardWithTarget?.currentSenseIndex ?? 0;
+  const isPhrasal = Boolean(
+    cardWithTarget?.phrase ||
+    selectedVocab.subcategory === 'PHRASAL_VERB' ||
+    selectedVocab.grammaticalDimension === 'CHUNK' ||
+    selectedVocab.domainCategory === 'Phrasal Verb'
+  );
+  const isSeparable = Boolean(selectedVocab.isSeparable || cardWithTarget?.phrase?.pronounMustSplit);
+
+  const partOfSpeechEs =
+    PART_OF_SPEECH_LABELS_ES[evaluatedSense?.partOfSpeech || selectedVocab.partOfSpeech] ??
+    selectedVocab.partOfSpeech;
+
+  const activeVoice = getVoiceForAccent(accent);
 
   const activeIpa =
     accent === 'UK' && selectedVocab.ipaReceivedPronunciation
       ? selectedVocab.ipaReceivedPronunciation
-      : selectedVocab.ipaGeneralAmerican;
+      : selectedVocab.ipaGeneralAmerican || cardWithTarget?.phrase?.ipaGeneralAmerican;
 
   const playWordAudio = (rate: number) => {
     audioService.speak(selectedVocab.word, rate, activeVoice);
@@ -66,53 +98,71 @@ export function SrsCardBack({
   };
 
   return (
-    <div className="backface-hidden rotate-y-180 absolute inset-0 w-full min-h-[580px] bg-gradient-to-b from-white via-white to-slate-50/50 dark:from-[#11141F] dark:via-[#11141F] dark:to-[#0D0F17] rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] flex flex-col justify-between select-none overflow-y-auto custom-scrollbar-thin">
-      <div className="space-y-4">
+    <div className="backface-hidden rotate-y-180 absolute inset-0 w-full min-h-[610px] bg-white dark:bg-[#131722] rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] flex flex-col justify-between select-none overflow-y-auto custom-scrollbar-thin">
+      <div className="space-y-3 sm:space-y-3.5">
         {/* ============================================================ */}
         {/* TOP BAR: Metadatos esenciales & Controles de reproducción    */}
         {/* ============================================================ */}
         <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-100 dark:border-slate-800/60 pb-3.5">
-          {/* Metadata badges: Nivel, Categoría, Ámbito */}
+          {/* Metadata badges: Nivel, Categoría, Ámbito, Acepciones */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 tracking-tight">
-              Nivel {selectedVocab.cefrLevel}
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80 tracking-tight">
+              Nivel {evaluatedSense?.cefrLevel || selectedVocab.cefrLevel}
             </span>
-            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100/90 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100/70 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/60">
               {partOfSpeechEs}
             </span>
-            {selectedVocab.domainCategory && (
-              <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50/90 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60">
-                Ámbito: {selectedVocab.domainCategory}
+            {totalSenses > 1 && (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200/60 dark:border-sky-800/60">
+                Acepción {senseIndex + 1} de {totalSenses}
+              </span>
+            )}
+            {isPhrasal && (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/50">
+                {cardWithTarget?.phrase?.phrasalVerbType
+                  ? PHRASAL_VERB_TYPE_LABELS_ES[cardWithTarget.phrase.phrasalVerbType] || 'Phrasal Verb'
+                  : 'Phrasal Verb'}
+              </span>
+            )}
+            {selectedVocab.domainCategory &&
+              selectedVocab.domainCategory !== 'Uso General' &&
+              selectedVocab.domainCategory !== 'Phrasal Verb' && (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-50/50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border border-purple-200/50 dark:border-purple-800/50">
+                  {selectedVocab.domainCategory}
+                </span>
+              )}
+            {selectedVocab.isFalseFriend && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/60">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                <span>Falso Amigo</span>
               </span>
             )}
           </div>
 
           {/* Controls: Acento US/UK y Volver */}
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 text-xs font-medium">
+            <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 text-xs font-semibold">
               <button
                 type="button"
                 onClick={() => onAccentChange('US')}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                  accent === 'US'
-                    ? 'bg-white dark:bg-[#161B28] text-indigo-600 dark:text-indigo-400 font-semibold shadow-xs'
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${accent === 'US'
+                    ? 'bg-white dark:bg-[#161B28] text-indigo-600 dark:text-indigo-400 font-bold shadow-xs'
                     : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
+                  }`}
                 aria-label="Acento General American"
               >
-                🇺🇸 US
+                US
               </button>
               <button
                 type="button"
                 onClick={() => onAccentChange('UK')}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                  accent === 'UK'
-                    ? 'bg-white dark:bg-[#161B28] text-indigo-600 dark:text-indigo-400 font-semibold shadow-xs'
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${accent === 'UK'
+                    ? 'bg-white dark:bg-[#161B28] text-indigo-600 dark:text-indigo-400 font-bold shadow-xs'
                     : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
+                  }`}
                 aria-label="Acento Received Pronunciation"
               >
-                🇬🇧 UK
+                UK
               </button>
             </div>
 
@@ -138,7 +188,7 @@ export function SrsCardBack({
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
               <span>
-                <strong>Atención pedagógica:</strong> Palabra con tropiezos frecuentes ({srsCard.consecutiveLapses || srsCard.lapses} fallos). Apóyate en su contexto y colocaciones.
+                <strong>Atención pedagógica:</strong> Palabra con tropiezos frecuentes ({srsCard.consecutiveLapses || srsCard.lapses} fallos). Apóyate en su contexto y ejemplos.
               </span>
             </div>
             {availableContexts.length > 1 && (
@@ -161,7 +211,7 @@ export function SrsCardBack({
           {/* Fila principal: Traducción en español */}
           <div className="flex items-baseline justify-between gap-3 flex-wrap">
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white select-text">
-              {selectedVocab.translationEs}
+              {translationEs}
             </h2>
 
             {/* Audio triggers directos para la palabra */}
@@ -173,7 +223,7 @@ export function SrsCardBack({
                 title="Escuchar de nuevo (tecla R)"
               >
                 <Volume2 className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Audio</span>
+                <span>Normal</span>
                 <kbd className="text-[10px] font-mono text-slate-400 px-1 py-0.2 rounded bg-slate-200/60 dark:bg-slate-700/60">R</kbd>
               </button>
 
@@ -222,33 +272,17 @@ export function SrsCardBack({
             )}
           </div>
 
-          {/* Grammar pattern and countability (RF-VOC-04) */}
-          {(() => {
-            const primarySense = selectedVocab.sensesJson?.[0];
-            const pattern = primarySense?.grammarPattern;
-            const countability = primarySense?.countability;
-
-            if (!pattern && !countability) return null;
-
-            return (
-              <div className="flex items-center gap-2 flex-wrap pt-0.5">
-                {countability && (
-                  <span className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                    {countability === 'COUNTABLE' ? '[C] Contable' : countability === 'UNCOUNTABLE' ? '[U] Incontable' : '[C/U]'}
-                  </span>
-                )}
-                {pattern && (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/60 text-xs text-emerald-900 dark:text-emerald-200">
-                    <span className="font-bold text-[10px] uppercase text-emerald-600 dark:text-emerald-400 font-sans">Patrón:</span>
-                    <code className="font-mono font-semibold">{pattern}</code>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          {/* Countability (RF-VOC-04) */}
+          {countability && (
+            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+              <span className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                {countability === 'COUNTABLE' ? '[C] Contable' : countability === 'UNCOUNTABLE' ? '[U] Incontable' : '[C/U]'}
+              </span>
+            </div>
+          )}
 
           {/* Separable Phrasal Verb Strict Pronoun Rule (RF-VOC-04) */}
-          {selectedVocab.isSeparable && (
+          {isSeparable && (
             <div className="p-2.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/70 text-xs text-indigo-900 dark:text-indigo-200">
               <strong className="text-indigo-700 dark:text-indigo-300">Regla estricta del pronombre:</strong>{' '}
               <span>Los pronombres deben dividir la partícula (ej. <em>turn it off</em>, nunca <em>*turn off it</em>).</span>
@@ -256,38 +290,11 @@ export function SrsCardBack({
           )}
 
           {/* Definición en inglés */}
-          {selectedVocab.definitionEn && (
+          {definitionEn && definitionEn.trim().toLowerCase() !== translationEs.trim().toLowerCase() && (
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-sans max-w-2xl">
-              {selectedVocab.definitionEn}
+              {definitionEn}
             </p>
           )}
-
-          {/* Colocaciones naturales (RF-VOC-05) */}
-          {(() => {
-            const primarySense = selectedVocab.sensesJson?.[0];
-            const collocs =
-              (selectedVocab.collocationsJson && selectedVocab.collocationsJson.length > 0
-                ? selectedVocab.collocationsJson
-                : primarySense?.collocations) || [];
-
-            if (collocs.length === 0) return null;
-
-            return (
-              <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  Colocaciones:
-                </span>
-                {collocs.slice(0, 3).map((colloc, idx) => (
-                  <span
-                    key={idx}
-                    className="text-xs px-2.5 py-1 rounded-xl bg-slate-100/90 dark:bg-slate-800/70 text-slate-800 dark:text-slate-200 font-medium border border-slate-200/50 dark:border-slate-700/50 italic font-editorial"
-                  >
-                    {colloc}
-                  </span>
-                ))}
-              </div>
-            );
-          })()}
 
           {/* Falso amigo (si aplica) */}
           {selectedVocab.isFalseFriend && selectedVocab.falseFriendNote && (
@@ -359,16 +366,43 @@ export function SrsCardBack({
           </div>
         )}
 
-        {/* Conjugación verbal (si es verbo) */}
+        {/* Conjugación verbal (Diseño Bento Tipográfico Premium) */}
         {selectedVocab.partOfSpeech === 'VERB' && selectedVocab.verbTensesJson && (
-          <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-[#151926]/70 border border-slate-200/60 dark:border-slate-800/80 text-xs space-y-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Tiempos Verbales
-            </span>
-            <div className="flex items-center justify-around font-mono">
-              <span><strong className="text-slate-500 font-sans">Inf:</strong> {selectedVocab.verbTensesJson.infinitive}</span>
-              <span><strong className="text-slate-500 font-sans">Past:</strong> {selectedVocab.verbTensesJson.pastSimple}</span>
-              <span><strong className="text-slate-500 font-sans">Part:</strong> {selectedVocab.verbTensesJson.pastParticiple}</span>
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-50/80 dark:bg-[#151926]/80 border border-slate-200/60 dark:border-slate-800/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Tiempos Verbales
+              </span>
+            </div>
+
+            {/* Grid de 3 columnas para Infinitivo, Pasado Simple y Participio */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-col items-center justify-center py-2 px-1 rounded-xl bg-white dark:bg-[#181D2B] border border-slate-200/60 dark:border-slate-800/80 shadow-xs">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Infinitivo
+                </span>
+                <span className="text-xs sm:text-sm font-bold font-mono text-slate-800 dark:text-slate-100 mt-0.5 select-text">
+                  {selectedVocab.verbTensesJson.infinitive}
+                </span>
+              </div>
+
+              <div className="flex flex-col items-center justify-center py-2 px-1 rounded-xl bg-white dark:bg-[#181D2B] border border-slate-200/60 dark:border-slate-800/80 shadow-xs">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Pasado
+                </span>
+                <span className="text-xs sm:text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5 select-text">
+                  {selectedVocab.verbTensesJson.pastSimple}
+                </span>
+              </div>
+
+              <div className="flex flex-col items-center justify-center py-2 px-1 rounded-xl bg-white dark:bg-[#181D2B] border border-slate-200/60 dark:border-slate-800/80 shadow-xs">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Participio
+                </span>
+                <span className="text-xs sm:text-sm font-bold font-mono text-purple-600 dark:text-purple-400 mt-0.5 select-text">
+                  {selectedVocab.verbTensesJson.pastParticiple}
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -377,7 +411,7 @@ export function SrsCardBack({
       {/* ============================================================ */}
       {/* RATING DOCK: Ergonomía de calificación limpia y elegante    */}
       {/* ============================================================ */}
-      <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-2.5">
+      <div className="pt-3 mt-1 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold text-slate-700 dark:text-slate-300">
             ¿Cómo fue tu nivel de recuerdo?
@@ -399,9 +433,6 @@ export function SrsCardBack({
             <div className="flex items-center gap-1.5 font-medium text-xs text-slate-700 dark:text-slate-200">
               <span className="w-1.5 h-1.5 rounded-full bg-rose-500/80" />
               <span>Repetir</span>
-              <kbd className="px-1.5 py-0.5 rounded-md font-mono text-[10px] font-semibold bg-slate-200/60 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300/40 dark:border-slate-700/50">
-                1
-              </kbd>
             </div>
             <span className="text-[11px] font-mono font-medium text-slate-400 dark:text-slate-500 group-hover:text-rose-600 dark:group-hover:text-rose-400 mt-1 transition-colors">
               {formatInterval(previewIntervals[1])}
@@ -418,9 +449,6 @@ export function SrsCardBack({
             <div className="flex items-center gap-1.5 font-medium text-xs text-slate-700 dark:text-slate-200">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80" />
               <span>Difícil</span>
-              <kbd className="px-1.5 py-0.5 rounded-md font-mono text-[10px] font-semibold bg-slate-200/60 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300/40 dark:border-slate-700/50">
-                2
-              </kbd>
             </div>
             <span className="text-[11px] font-mono font-medium text-slate-400 dark:text-slate-500 group-hover:text-amber-600 dark:group-hover:text-amber-400 mt-1 transition-colors">
               {formatInterval(previewIntervals[2])}
@@ -437,9 +465,6 @@ export function SrsCardBack({
             <div className="flex items-center gap-1.5 font-medium text-xs text-slate-700 dark:text-slate-200">
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500/90" />
               <span>Bueno</span>
-              <kbd className="px-1.5 py-0.5 rounded-md font-mono text-[10px] font-semibold bg-slate-200/60 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300/40 dark:border-slate-700/50">
-                3
-              </kbd>
             </div>
             <span className="text-[11px] font-mono font-medium text-slate-400 dark:text-slate-500 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 mt-1 transition-colors">
               {formatInterval(previewIntervals[3])}
@@ -456,9 +481,6 @@ export function SrsCardBack({
             <div className="flex items-center gap-1.5 font-medium text-xs text-slate-700 dark:text-slate-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80" />
               <span>Fácil</span>
-              <kbd className="px-1.5 py-0.5 rounded-md font-mono text-[10px] font-semibold bg-slate-200/60 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300/40 dark:border-slate-700/50">
-                4
-              </kbd>
             </div>
             <span className="text-[11px] font-mono font-medium text-slate-400 dark:text-slate-500 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 mt-1 transition-colors">
               {formatInterval(previewIntervals[4])}

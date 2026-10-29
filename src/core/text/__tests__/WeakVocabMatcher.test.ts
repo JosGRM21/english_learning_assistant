@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   extractTargetWordTokens,
   isTargetWordUsedInText,
-  synthesizeErrorDrillFallback,
   checkProductiveVocabUsage,
 } from '../WeakVocabMatcher';
 
@@ -66,24 +65,6 @@ describe('WeakVocabMatcher', () => {
     it('does not trigger on false substrings', () => {
       expect(isTargetWordUsedInText('cat', 'The catalog was informative.')).toBe(false);
       expect(isTargetWordUsedInText('ill', 'She will arrive soon.')).toBe(false);
-    });
-  });
-
-  describe('synthesizeErrorDrillFallback', () => {
-    it('generates valid positive production drill without distractor options (RF-ERR-02)', () => {
-      const drill = synthesizeErrorDrillFallback({
-        error_span: 'depends of',
-        native_reformulation: 'depends on',
-        explanation_es: 'En inglés depend rige on',
-        sentence_context: 'It depends of the weather.',
-      });
-
-      expect(drill.format).toBe('CONTEXTUAL_CLOZE');
-      expect(drill.expected_token).toBe('depends on');
-      expect(drill.cloze_sentence).toContain('[ ___ ]');
-      expect(drill.explanation_es).toBe('En inglés depend rige on');
-      // No distractors or negative priming options
-      expect((drill as any).options).toBeUndefined();
     });
   });
 

@@ -212,50 +212,17 @@ describe('FsrsScheduler', () => {
     });
   });
 
-  describe('Differentiated Profiles (VOCAB_AGILE vs WRITING_ERROR_REFLECTIVE)', () => {
-    it('applies 0.90 retention for VOCAB_AGILE and 0.92 retention for WRITING_ERROR_REFLECTIVE', () => {
+  describe('Profile Configuration (VOCAB_AGILE)', () => {
+    it('applies 0.90 retention for VOCAB_AGILE', () => {
       const stability = 20;
       const intervalAgile = scheduler.nextInterval(stability, 'VOCAB_AGILE');
-      const intervalReflective = scheduler.nextInterval(stability, 'WRITING_ERROR_REFLECTIVE');
-
-      // Higher retention requirement (0.92) means shorter review interval than 0.90
-      expect(intervalReflective).toBeLessThan(intervalAgile);
       expect(intervalAgile).toBe(20);
-      expect(intervalReflective).toBeLessThanOrEqual(16);
     });
 
-    it('caps WRITING_ERROR_REFLECTIVE intervals at 180 days', () => {
+    it('caps VOCAB_AGILE intervals at 365 days', () => {
       const highStability = 500;
       const intervalAgile = scheduler.nextInterval(highStability, 'VOCAB_AGILE');
-      const intervalReflective = scheduler.nextInterval(highStability, 'WRITING_ERROR_REFLECTIVE');
-
       expect(intervalAgile).toBe(365);
-      expect(intervalReflective).toBe(180);
-    });
-
-    it('applies higher lapse penalty for reflective error cards on lapse', () => {
-      const cardAgile = createNewCard({
-        state: 'REVIEW',
-        srsProfile: 'VOCAB_AGILE',
-        stability: 10,
-        difficulty: 5,
-        reps: 5,
-        lastReviewedAt: new Date(Date.now() - 10 * 86400000).toISOString(),
-      });
-
-      const cardReflective = createNewCard({
-        state: 'REVIEW',
-        srsProfile: 'WRITING_ERROR_REFLECTIVE',
-        stability: 10,
-        difficulty: 5,
-        reps: 5,
-        lastReviewedAt: new Date(Date.now() - 10 * 86400000).toISOString(),
-      });
-
-      const resAgile = scheduler.schedule(cardAgile, 1);
-      const resReflective = scheduler.schedule(cardReflective, 1);
-
-      expect(resReflective.updatedCard.stability).toBeLessThan(resAgile.updatedCard.stability);
     });
   });
 
@@ -288,20 +255,6 @@ describe('FsrsScheduler', () => {
 
       const { updatedCard } = scheduler.schedule(card, 1);
       expect(updatedCard.consecutiveLapses).toBe(4);
-      expect(updatedCard.isLeech).toBe(true);
-    });
-
-    it('marks card as leech after 3 consecutive lapses for WRITING_ERROR_REFLECTIVE', () => {
-      let card = createNewCard({
-        state: 'REVIEW',
-        srsProfile: 'WRITING_ERROR_REFLECTIVE',
-        consecutiveLapses: 2,
-        lapses: 2,
-        stability: 4,
-      });
-
-      const { updatedCard } = scheduler.schedule(card, 1);
-      expect(updatedCard.consecutiveLapses).toBe(3);
       expect(updatedCard.isLeech).toBe(true);
     });
 

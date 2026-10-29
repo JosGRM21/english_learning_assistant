@@ -1,11 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react';
-import dayjs from 'dayjs';
 import { useDatabase } from '@/shared/hooks/useDatabase';
 import { useHabitsStore } from '@/features/habits/store/habitsStore';
 import { useNotificationSettingsStore } from '@/features/settings/store/notificationSettingsStore';
 import { NotificationRuleEngine } from '@/core/habits/NotificationRuleEngine';
 import { notificationService } from '@/infrastructure/notifications/NotificationService';
 import { RuleEngineContext } from '@/core/types/notifications';
+import { getLocalDateString } from '@/shared/utils/date';
 
 const ruleEngine = new NotificationRuleEngine({
   cooldownMinutes: 75,
@@ -23,38 +23,17 @@ export function useNotificationScheduler() {
 
   const isEvaluatingRef = useRef(false);
 
-  // 1. Initial load & habit history extraction
+  // 1. Initial load
   useEffect(() => {
-    if (!isReady || !notificationRepo || !cardRepo) return;
+    if (!isReady || !notificationRepo) return;
 
     let isMounted = true;
 
     async function initializeScheduler() {
       try {
         await checkPermission();
-
-        // Collect timestamps from reviews and writing separately
-        const reviewLogs = await cardRepo?.getAllReviewLogs(200);
-        const writingSubs = await writingRepo?.getSubmissions('user_local', 100);
-
-        const srsTimestamps: string[] = [];
-        const writingTimestamps: string[] = [];
-
-        if (reviewLogs) {
-          for (const r of reviewLogs) {
-            if (r.reviewedAt) srsTimestamps.push(r.reviewedAt);
-          }
-        }
-        if (writingSubs) {
-          for (const w of writingSubs) {
-            if (w.submittedAt) writingTimestamps.push(w.submittedAt);
-          }
-        }
-
-        const allTimestamps = [...srsTimestamps, ...writingTimestamps];
-
         if (isMounted) {
-          await loadSettings(notificationRepo!, allTimestamps, srsTimestamps, writingTimestamps);
+          await loadSettings(notificationRepo!);
         }
       } catch (err) {
         console.warn('[useNotificationScheduler] Init error:', err);
@@ -66,7 +45,7 @@ export function useNotificationScheduler() {
     return () => {
       isMounted = false;
     };
-  }, [isReady, notificationRepo, cardRepo, writingRepo, loadSettings, checkPermission]);
+  }, [isReady, notificationRepo, loadSettings, checkPermission]);
 
   // Deduplication lock to prevent burst triggers while an async log write is in flight
   const inFlightTypesRef = useRef<Set<string>>(new Set());
@@ -80,27 +59,17 @@ export function useNotificationScheduler() {
     try {
       const now = new Date();
       // Use local date formatted string for daily idempotency and activity matching
-      const todayStr = dayjs(now).format('YYYY-MM-DD');
+      const todayStr = getLocalDateString(now);
 
       // Check if user completed study today
       const isCompletedToday = streak.lastActivityDate === todayStr;
 
-      // Activity-specific completion checks with robust local day comparison
-      const recentReviews = await cardRepo.getAllReviewLogs(50);
-      const isSrsCompletedToday = recentReviews.some((r) => {
-        if (!r.reviewedAt) return false;
-        return dayjs(r.reviewedAt).format('YYYY-MM-DD') === todayStr;
-      });
+      // Activity-specific completion checks with high-performance indexed queries
+      const isSrsCompletedToday = await cardRepo.hasReviewToday('user_local', todayStr);
+      const isWritingCompletedToday = writingRepo ? await writingRepo.hasSubmissionToday('user_local', todayStr) : false;
 
-      const recentWriting = await writingRepo?.getSubmissions('user_local', 20);
-      const isWritingCompletedToday = (recentWriting ?? []).some((w) => {
-        if (!w.submittedAt) return false;
-        return dayjs(w.submittedAt).format('YYYY-MM-DD') === todayStr;
-      });
-
-      // Check due cards count
-      const deckStats = await cardRepo.getDeckStatistics('user_local');
-      const dueCardsCount = deckStats.dueCount;
+      // Check due cards count with lightweight count query
+      const dueCardsCount = await cardRepo.getDueCardsCount('user_local');
 
       // Query logs today
       const todayLogs = await notificationRepo.getLogsToday('user_local', todayStr);
@@ -125,20 +94,9 @@ export function useNotificationScheduler() {
         }
       }
 
-      const effectivePracticeTime =
-        settings.scheduleMode === 'AUTO'
-          ? (settings.detectedTime || '19:30')
-          : (settings.manualTime || '20:00');
-
-      const effectiveSrsTime =
-        settings.srs?.scheduleMode === 'AUTO'
-          ? (settings.srs?.detectedTime || '19:00')
-          : (settings.srs?.manualTime || '19:00');
-
-      const effectiveWritingTime =
-        settings.writing?.scheduleMode === 'AUTO'
-          ? (settings.writing?.detectedTime || '21:00')
-          : (settings.writing?.manualTime || '21:00');
+      const effectivePracticeTime = settings.manualTime || '20:00';
+      const effectiveSrsTime = settings.srs?.manualTime || '19:00';
+      const effectiveWritingTime = settings.writing?.manualTime || '21:00';
 
       const context: RuleEngineContext = {
         currentTime: now,
@@ -198,25 +156,55 @@ export function useNotificationScheduler() {
     }
   }, [isReady, notificationRepo, cardRepo, settings, streak]);
 
-  // Run periodic ticker every 30 seconds
+  // Run periodic ticker aligned with minute boundaries (with fallback interval)
   useEffect(() => {
     if (!isReady) return;
 
-    // Run first tick after 3 seconds
+    let timer: NodeJS.Timeout | null = null;
+    let interval: NodeJS.Timeout | null = null;
+
+    // Run first tick after 2 seconds
     const initialTimer = setTimeout(() => {
       evaluateScheduleTick();
-    }, 3000);
 
-    // Then interval every 30 seconds
-    const interval = setInterval(() => {
-      evaluateScheduleTick();
-    }, 30000);
+      // Align next checks with the start of the next minute
+      const msUntilNextMinute = 60000 - (Date.now() % 60000) + 500;
+      timer = setTimeout(() => {
+        evaluateScheduleTick();
+        interval = setInterval(() => {
+          evaluateScheduleTick();
+        }, 60000);
+      }, msUntilNextMinute);
+    }, 2000);
 
     return () => {
       clearTimeout(initialTimer);
-      clearInterval(interval);
+      if (timer) clearTimeout(timer);
+      if (interval) clearInterval(interval);
     };
   }, [isReady, evaluateScheduleTick]);
+
+  // Trigger immediate evaluation whenever manual times or toggle settings change
+  const lastSettingsTriggerRef = useRef<string>('');
+  useEffect(() => {
+    if (!isReady) return;
+    const key = `${settings.enabled}-${settings.manualTime}-${settings.srs?.enabled}-${settings.srs?.manualTime}-${settings.writing?.enabled}-${settings.writing?.manualTime}-${settings.streakSaverEnabled}-${settings.srsBatchEnabled}`;
+    if (lastSettingsTriggerRef.current && lastSettingsTriggerRef.current !== key) {
+      evaluateScheduleTick();
+    }
+    lastSettingsTriggerRef.current = key;
+  }, [
+    isReady,
+    settings.enabled,
+    settings.manualTime,
+    settings.srs?.enabled,
+    settings.srs?.manualTime,
+    settings.writing?.enabled,
+    settings.writing?.manualTime,
+    settings.streakSaverEnabled,
+    settings.srsBatchEnabled,
+    evaluateScheduleTick,
+  ]);
 
   return {
     evaluateNow: evaluateScheduleTick,

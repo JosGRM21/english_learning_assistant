@@ -86,18 +86,18 @@ export class NotificationRuleEngine {
           return false;
         }
 
-        const candidateCat = this.getNotificationCategory(candidateType);
-        const lastCat = this.getNotificationCategory(context.lastNotificationType);
-
-        // Same category cooldown
-        if (candidateCat === lastCat) {
+        // Cross-activity burst protection:
+        // When two practice activities are scheduled at different hours (e.g. SRS at 19:00, Writing at 20:00),
+        // we only prevent burst collisions within 5 minutes, allowing distinct scheduled reminders.
+        // For identical notification types, the full defaultCooldownMinutes applies.
+        if (candidateType === context.lastNotificationType) {
           const elapsedMs = currentTime.getTime() - context.lastNotificationAt.getTime();
           const elapsedMinutes = elapsedMs / (1000 * 60);
           if (elapsedMinutes < this.defaultCooldownMinutes) {
             return true;
           }
         } else {
-          // Cross-category burst protection (prevent 2 popups in less than 5 minutes)
+          // Different notification types (cross-activity or cross-category): 5 min burst protection
           const elapsedMs = currentTime.getTime() - context.lastNotificationAt.getTime();
           const elapsedMinutes = elapsedMs / (1000 * 60);
           if (elapsedMinutes < 5) {
@@ -116,9 +116,9 @@ export class NotificationRuleEngine {
       return false;
     };
 
-    const effectiveTime = context.effectivePracticeTime || '19:30';
+    const effectiveTime = context.effectivePracticeTime || settings.manualTime || '20:00';
     const [practiceH, practiceM] = effectiveTime.split(':').map(Number);
-    const practiceMinutes = (practiceH ?? 19) * 60 + (practiceM ?? 30);
+    const practiceMinutes = (practiceH ?? 20) * 60 + (practiceM ?? 0);
 
     const parseMinutes = (timeStr?: string, defaultH = 19, defaultM = 0) => {
       if (!timeStr) return defaultH * 60 + defaultM;
@@ -128,16 +128,14 @@ export class NotificationRuleEngine {
 
     const srsTimeStr =
       context.effectiveSrsTime ||
-      (settings.srs?.scheduleMode === 'AUTO'
-        ? settings.srs?.detectedTime || '19:00'
-        : settings.srs?.manualTime || '19:00');
+      settings.srs?.manualTime ||
+      '19:00';
     const srsMinutes = parseMinutes(srsTimeStr, 19, 0);
 
     const writingTimeStr =
       context.effectiveWritingTime ||
-      (settings.writing?.scheduleMode === 'AUTO'
-        ? settings.writing?.detectedTime || '21:00'
-        : settings.writing?.manualTime || '21:00');
+      settings.writing?.manualTime ||
+      '21:00';
     const writingMinutes = parseMinutes(writingTimeStr, 21, 0);
 
     // 4. Activity-Specific Practice Reminders

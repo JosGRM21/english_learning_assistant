@@ -10,7 +10,7 @@ describe('CardRepository Enhanced Methods', () => {
   let cardRepo: CardRepository;
 
   beforeEach(async () => {
-    db = await createTestDatabase();
+    db = await createTestDatabase(false);
     cardRepo = new CardRepository(db);
 
     // Insert vocab
@@ -177,7 +177,7 @@ describe('CardRepository Enhanced Methods', () => {
       .insertInto('phraseological_units')
       .values({
         id: 'phrase_1',
-        chunk_type: 'COLLOCATION',
+        chunk_type: 'IDIOM',
         text: 'bear in mind',
         meaning_es: 'tener en cuenta',
         example_1: 'Please bear in mind that rules apply to everyone.',
@@ -300,5 +300,241 @@ describe('CardRepository Enhanced Methods', () => {
     expect(logs.length).toBeGreaterThanOrEqual(1);
     expect(logs[0].cardId).toBe(card.id);
     expect(logs[0].rating).toBe(3);
+  });
+
+  it('accurately counts new cards reviewed today using local day boundaries', async () => {
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0).toISOString();
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999).toISOString();
+
+    const card1 = await cardRepo.createCard({
+      id: 'card_count_1',
+      userId: 'user_count_test',
+      targetType: 'VOCAB',
+      targetId: 'voc_1',
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+    });
+
+    const card2 = await cardRepo.createCard({
+      id: 'card_count_2',
+      userId: 'user_count_test',
+      targetType: 'VOCAB',
+      targetId: 'voc_2',
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      scheduledFor: new Date().toISOString(),
+    });
+
+    // Before any review: 0
+    const count0 = await cardRepo.getNewCardsReviewedTodayCount('user_count_test', startOfDay, endOfDay);
+    expect(count0).toBe(0);
+
+    // 1. First review of card1 (stateBefore: 'NEW')
+    await cardRepo.recordReviewLog({
+      id: 'rev_log_c1_1',
+      cardId: card1.id,
+      rating: 3,
+      stateBefore: 'NEW',
+      stabilityBefore: 0,
+      difficultyBefore: 5.0,
+      newStability: 3.17,
+      newDifficulty: 5.0,
+      elapsedMs: 1500,
+      reviewedAt: new Date(today.getTime() - 1000 * 60 * 30).toISOString(), // 30 mins ago
+    });
+
+    // 2. Second review of card1 (intra-session or intraday, stateBefore: 'LEARNING')
+    await cardRepo.recordReviewLog({
+      id: 'rev_log_c1_2',
+      cardId: card1.id,
+      rating: 3,
+      stateBefore: 'LEARNING',
+      stabilityBefore: 3.17,
+      difficultyBefore: 5.0,
+      newStability: 4.5,
+      newDifficulty: 5.0,
+      elapsedMs: 1200,
+      reviewedAt: new Date(today.getTime() - 1000 * 60 * 10).toISOString(), // 10 mins ago
+    });
+
+    // Card 1 should only be counted once even though it had multiple logs
+    const count1 = await cardRepo.getNewCardsReviewedTodayCount('user_count_test', startOfDay, endOfDay);
+    expect(count1).toBe(1);
+
+    // 3. Review of card2 reviewed YESTERDAY (outside today's range)
+    const yesterday = new Date(today.getTime() - 1000 * 60 * 60 * 25).toISOString();
+    await cardRepo.recordReviewLog({
+      id: 'rev_log_c2_yesterday',
+      cardId: card2.id,
+      rating: 3,
+      stateBefore: 'NEW',
+      stabilityBefore: 0,
+      difficultyBefore: 5.0,
+      newStability: 3.17,
+      newDifficulty: 5.0,
+      elapsedMs: 1000,
+      reviewedAt: yesterday,
+    });
+
+    // Still 1 for today
+    const countStill1 = await cardRepo.getNewCardsReviewedTodayCount('user_count_test', startOfDay, endOfDay);
+    expect(countStill1).toBe(1);
+
+    // 4. Now card2 reviewed TODAY with stateBefore = 'NEW'
+    await cardRepo.recordReviewLog({
+      id: 'rev_log_c2_today',
+      cardId: card2.id,
+      rating: 3,
+      stateBefore: 'NEW',
+      stabilityBefore: 0,
+      difficultyBefore: 5.0,
+      newStability: 3.17,
+      newDifficulty: 5.0,
+      elapsedMs: 1100,
+      reviewedAt: new Date().toISOString(),
+    });
+
+    // Now exactly 2 distinct new cards reviewed today
+    const count2 = await cardRepo.getNewCardsReviewedTodayCount('user_count_test', startOfDay, endOfDay);
+    expect(count2).toBe(2);
+  });
+
+  it('hydrates polysemic card targeting specific sense with targetId containing #senseIndex', async () => {
+    await db
+      .insertInto('vocab_items')
+      .values({
+        id: 'voc_run_poly',
+        word: 'run',
+        grammatical_dimension: 'CONTENT',
+        part_of_speech: 'VERB',
+        definition_en: 'to move fast with two feet',
+        translation_es: 'correr',
+        ipa_general_american: 'rʌn',
+        cefr_level: 'A1',
+        is_false_friend: 0,
+        alternate_senses_json: JSON.stringify([
+          {
+            senseId: 'sense_2',
+            contextualHint: 'run a business or company',
+            partOfSpeech: 'VERB',
+            definitionEn: 'to manage or direct an organization',
+            translationEs: 'administrar / dirigir',
+            cefrLevel: 'B1',
+          },
+        ]),
+        created_at: new Date().toISOString(),
+      })
+      .execute();
+
+    await db
+      .insertInto('vocab_context_examples')
+      .values([
+        {
+          id: 'ctx_run_s0',
+          vocab_id: 'voc_run_poly',
+          phrase_id: null,
+          sense_index: 0,
+          sentence_en: 'I run in the park every morning.',
+          sentence_es: 'Corro en el parque todas las mañanas.',
+          cloze_target: 'run',
+          cefr_level: 'A1',
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'ctx_run_s1',
+          vocab_id: 'voc_run_poly',
+          phrase_id: null,
+          sense_index: 1,
+          sentence_en: 'She runs a successful tech startup.',
+          sentence_es: 'Ella administra una startup tecnológica exitosa.',
+          cloze_target: 'runs',
+          cefr_level: 'B1',
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .execute();
+
+    await cardRepo.createCard({
+      id: 'card_run_s1',
+      userId: 'user_poly_test',
+      targetType: 'VOCAB',
+      targetId: 'voc_run_poly#1',
+      state: 'NEW',
+      stability: 0,
+      difficulty: 5.0,
+      reps: 0,
+      lapses: 0,
+      scheduledFor: new Date().toISOString(),
+      lastReviewedAt: null,
+    });
+
+    const populated = await cardRepo.getNewCardsWithDetails('user_poly_test', 10);
+    expect(populated.length).toBe(1);
+    expect(populated[0].currentSenseIndex).toBe(1);
+    expect(populated[0].currentSense?.contextualHint).toBe('run a business or company');
+    expect(populated[0].vocab?.translationEs).toBe('administrar / dirigir');
+    expect(populated[0].vocab?.definitionEn).toBe('to manage or direct an organization');
+    expect(populated[0].allContexts[0].sentenceEn).toBe('She runs a successful tech startup.');
+  });
+
+  it('retrieves unactivated phrasal units filtered by CEFR levels and tracks activation', async () => {
+    await db
+      .insertInto('phraseological_units')
+      .values([
+        {
+          id: 'phr_test_a1',
+          primary_vocab_id: null,
+          chunk_type: 'PHRASAL_VERB',
+          text: 'get up',
+          meaning_es: 'levantarse',
+          definition_en: 'to rise from bed',
+          cefr_level: 'A1',
+          example_1: 'I get up at 7 AM.',
+          example_1_es: 'Me levanto a las 7 AM.',
+          mastery_status: 'INACTIVE',
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'phr_test_b2',
+          primary_vocab_id: null,
+          chunk_type: 'PHRASAL_VERB',
+          text: 'carry out',
+          meaning_es: 'llevar a cabo',
+          definition_en: 'to perform or conduct an experiment',
+          cefr_level: 'B2',
+          example_1: 'They will carry out the investigation.',
+          example_1_es: 'Llevarán a cabo la investigación.',
+          mastery_status: 'INACTIVE',
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .execute();
+
+    const a1Phrases = await cardRepo.getNextUnactivatedPhrases({
+      cefrLevels: ['A1', 'A2'],
+      limit: 10,
+    });
+
+    expect(a1Phrases.some((p) => p.id === 'phr_test_a1')).toBe(true);
+    expect(a1Phrases.some((p) => p.id === 'phr_test_b2')).toBe(false);
+
+    // Activate the A1 phrase
+    await cardRepo.activatePhraseCard('phr_test_a1');
+
+    const remainingA1 = await cardRepo.getNextUnactivatedPhrases({
+      cefrLevels: ['A1', 'A2'],
+      limit: 10,
+    });
+    expect(remainingA1.some((p) => p.id === 'phr_test_a1')).toBe(false);
   });
 });

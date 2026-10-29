@@ -1,78 +1,10 @@
 import dayjs from 'dayjs';
 import {
-  DailyQuest,
   UserStreak,
-  QuestType,
   StreakUpdateResult,
 } from '../types/habits';
 
 export class HabitsManager {
-  /**
-   * Generates a balanced set of daily quests for the given user and date.
-   */
-  public generateDailyQuests(userId: string, dateStr: string = dayjs().format('YYYY-MM-DD')): DailyQuest[] {
-    return [
-      {
-        id: `quest_${userId}_${dateStr}_srs`,
-        userId,
-        questDate: dateStr,
-        questType: 'VOCAB_SRS',
-        title: 'Repaso Activo FSRS',
-        description: 'Completa al menos 5 repasos espaciados en la sesión de hoy.',
-        targetCount: 5,
-        currentCount: 0,
-        isCompleted: false,
-        xpReward: 50,
-      },
-      {
-        id: `quest_${userId}_${dateStr}_write`,
-        userId,
-        questDate: dateStr,
-        questType: 'WRITING_SUBMISSION',
-        title: 'Taller de Redacción',
-        description: 'Escribe y auto-corrige 1 texto guiado por pistas de IA.',
-        targetCount: 1,
-        currentCount: 0,
-        isCompleted: false,
-        xpReward: 75,
-      },
-    ];
-  }
-
-  /**
-   * Increments progress on matching daily quest and marks completion.
-   */
-  public updateQuestProgress(
-    quests: DailyQuest[],
-    questType: QuestType,
-    increment = 1,
-    now: Date = new Date(),
-  ): { quests: DailyQuest[]; newlyCompleted: DailyQuest[] } {
-    const newlyCompleted: DailyQuest[] = [];
-
-    const updated = quests.map((q) => {
-      if (q.questType !== questType) return q;
-
-      const newCount = q.currentCount + increment;
-      const justCompleted = !q.isCompleted && newCount >= q.targetCount;
-
-      const modified: DailyQuest = {
-        ...q,
-        currentCount: newCount,
-        isCompleted: q.isCompleted || newCount >= q.targetCount,
-        completedAt: justCompleted ? now.toISOString() : q.completedAt,
-      };
-
-      if (justCompleted) {
-        newlyCompleted.push(modified);
-      }
-
-      return modified;
-    });
-
-    return { quests: updated, newlyCompleted };
-  }
-
   /**
    * Evaluates streak progression, handling same-day actions, daily increments,
    * streak freeze protections, and resets.
@@ -131,7 +63,7 @@ export class HabitsManager {
         streakIncremented: true,
         freezeConsumed: false,
         streakReset: false,
-        message: `¡Racha aumentada a ${nextStreak} días consecutivos!`,
+        message: `¡Racha aumentada a ${nextStreak} días!`,
       };
     }
 
@@ -140,11 +72,12 @@ export class HabitsManager {
       const missedDays = diffDays - 1;
       if (currentStreakState.availableFreezes >= missedDays) {
         // Freezes protect the streak!
+        const nextStreak = currentStreakState.currentStreak + 1;
         const updated: UserStreak = {
           ...currentStreakState,
           availableFreezes: currentStreakState.availableFreezes - missedDays,
-          currentStreak: currentStreakState.currentStreak + 1,
-          longestStreak: Math.max(currentStreakState.currentStreak + 1, currentStreakState.longestStreak),
+          currentStreak: nextStreak,
+          longestStreak: Math.max(nextStreak, currentStreakState.longestStreak),
           lastActivityDate: todayStr,
           updatedAt: new Date().toISOString(),
         };
@@ -182,6 +115,21 @@ export class HabitsManager {
       freezeConsumed: false,
       streakReset: false,
       message: 'Sin cambios en la racha.',
+    };
+  }
+
+  /**
+   * Refills streak freezes if conditions are met (e.g. 7 consecutive days).
+   */
+  public grantStreakFreeze(currentStreakState: UserStreak, maxFreezes = 2): UserStreak {
+    if (currentStreakState.availableFreezes >= maxFreezes) {
+      return currentStreakState;
+    }
+
+    return {
+      ...currentStreakState,
+      availableFreezes: currentStreakState.availableFreezes + 1,
+      updatedAt: new Date().toISOString(),
     };
   }
 }

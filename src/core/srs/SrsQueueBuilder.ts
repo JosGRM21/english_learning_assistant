@@ -11,6 +11,7 @@ export interface QueueBuilderOptions {
 export interface BuildQueueFilters {
   srsProfile?: SrsProfile;
   includeLeeches?: boolean;
+  maxNewCards?: number;
 }
 
 export class SrsQueueBuilder {
@@ -44,7 +45,7 @@ export class SrsQueueBuilder {
    * 2. Due reviews ordered by lowest Retrievability R first (highest forgetting risk).
    * 3. New cards capped by daily limit.
    * 4. Excludes leeches (unless explicitly requested).
-   * 5. Interleaves items with identical lemmas, subcategories, or taxonomy error codes.
+   * 5. Interleaves items with identical lemmas or subcategories.
    */
   public buildQueue(
     dueCards: CardWithTarget[],
@@ -96,25 +97,19 @@ export class SrsQueueBuilder {
       : [...intradayCards, ...reviewCards, ...otherDue];
 
     // Priority 3: New cards capped
-    const cappedNew = filteredNew.slice(0, this.maxNewCardsPerDay);
+    const maxNew = filters?.maxNewCards ?? this.maxNewCardsPerDay;
+    const cappedNew = filteredNew.slice(0, maxNew);
     const orderedNew = this.shuffle ? this.shuffleArray(cappedNew) : [...cappedNew];
 
     const candidates = [...orderedDue, ...orderedNew].map((item) => {
-      const isWritingError = item.card.targetType === 'WRITING_ERROR' || Boolean(item.writingError);
       return {
         ...item,
         cardId: item.card.id,
-        // Priority 1: same word/lemma OR same error taxonomy code
-        primaryClusterId: isWritingError
-          ? item.writingError?.taxonomyCode || 'WRITING_ERROR'
-          : item.vocab?.word?.trim().toLowerCase() || undefined,
-        // Priority 2: same subcategory OR same error type
-        secondaryClusterId: isWritingError
-          ? item.writingError?.errorType || undefined
-          : item.vocab?.subcategory || item.vocab?.partOfSpeech || undefined,
-        semanticClusterId: isWritingError
-          ? item.writingError?.taxonomyCode || undefined
-          : item.vocab?.subcategory || item.vocab?.partOfSpeech || undefined,
+        // Priority 1: same word/lemma
+        primaryClusterId: item.vocab?.word?.trim().toLowerCase() || undefined,
+        // Priority 2: same subcategory OR part of speech
+        secondaryClusterId: item.vocab?.subcategory || item.vocab?.partOfSpeech || undefined,
+        semanticClusterId: item.vocab?.subcategory || item.vocab?.partOfSpeech || undefined,
       };
     });
 

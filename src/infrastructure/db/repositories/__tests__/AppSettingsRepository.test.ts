@@ -4,7 +4,7 @@ import { AppSettingsRepository } from '../AppSettingsRepository';
 
 describe('AppSettingsRepository', () => {
   it('stores, retrieves, updates and deletes settings in SQLite', async () => {
-    const db = await createTestDatabase();
+    const db = await createTestDatabase(false);
     const repo = new AppSettingsRepository(db);
 
     // Initial state
@@ -33,5 +33,34 @@ describe('AppSettingsRepository', () => {
     await repo.deleteSetting('test_key');
     const afterDelete = await repo.getSetting('test_key');
     expect(afterDelete).toBeNull();
+  }, 15000);
+
+  it('handles typed SRS goal settings with sensible defaults and updates', async () => {
+    const db = await createTestDatabase(false);
+    const repo = new AppSettingsRepository(db);
+
+    // Initial defaults
+    const defaults = await repo.getSrsGoalSettings();
+    expect(defaults.activeGoal).toBe('TOP_500');
+    expect(defaults.dailyNewCardsTarget).toBe(10);
+    expect(defaults.overloadThreshold).toBe(35);
+    expect(defaults.includePhrasalVerbs).toBe(true);
+    expect(defaults.phrasalVerbsRatio).toBe(0.2);
+
+    // Update settings
+    await repo.setSrsGoalSettings({
+      activeGoal: 'TOP_1000',
+      dailyNewCardsTarget: 15,
+      overloadThreshold: 35,
+      includePhrasalVerbs: false,
+      phrasalVerbsRatio: 0.3,
+    });
+
+    const updated = await repo.getSrsGoalSettings();
+    expect(updated.activeGoal).toBe('TOP_1000');
+    expect(updated.dailyNewCardsTarget).toBe(15);
+    expect(updated.overloadThreshold).toBe(35);
+    expect(updated.includePhrasalVerbs).toBe(false);
+    expect(updated.phrasalVerbsRatio).toBe(0.3);
   });
 });

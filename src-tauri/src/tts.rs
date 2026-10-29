@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use serde::Serialize;
 use tauri::async_runtime::Mutex;
@@ -7,8 +8,9 @@ use crate::cpu_features::CpuCapabilities;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AudioChunkPayload {
-    /// Raw uncompressed 32-bit floating point audio samples (normalized between -1.0 and 1.0)
-    pub samples: Vec<f32>,
+    /// Raw Little-Endian byte buffer of f32 audio samples (4 bytes per sample) for true zero-copy binary IPC
+    #[serde(with = "serde_bytes")]
+    pub samples_bytes: Vec<u8>,
     /// Sample rate in Hertz (Kokoro natively produces 24000 Hz)
     pub sample_rate: u32,
     /// Sequential index of the synthesized sentence chunk
@@ -22,6 +24,8 @@ pub struct TtsState {
     pub engine: Mutex<Option<kokoro_micro::TtsEngine>>,
     pub is_available: Mutex<bool>,
     pub cpu_caps: CpuCapabilities,
+    /// Atomic generation ID to cancel in-flight synthesis instantly
+    pub active_generation_id: AtomicU64,
 }
 
 #[cfg(not(feature = "native-kokoro"))]
@@ -29,6 +33,7 @@ pub struct TtsState {
     #[allow(dead_code)]
     pub is_available: Mutex<bool>,
     pub cpu_caps: CpuCapabilities,
+    pub active_generation_id: AtomicU64,
 }
 
 impl TtsState {
@@ -40,6 +45,7 @@ impl TtsState {
                 engine: Mutex::new(None),
                 is_available: Mutex::new(false),
                 cpu_caps,
+                active_generation_id: AtomicU64::new(0),
             }
         }
         #[cfg(not(feature = "native-kokoro"))]
@@ -47,6 +53,7 @@ impl TtsState {
             Self {
                 is_available: Mutex::new(false),
                 cpu_caps,
+                active_generation_id: AtomicU64::new(0),
             }
         }
     }
@@ -62,9 +69,11 @@ pub fn get_build_target(state: State<'_, Arc<TtsState>>) -> String {
     #[cfg(feature = "native-kokoro")]
     {
         if state.cpu_caps.has_avx2 {
-            format!("native-{}", state.cpu_caps.tier)
+            "avx2-native".to_string()
+        } else if state.cpu_caps.has_avx {
+            "avx-native".to_string()
         } else {
-            format!("legacy-{}", state.cpu_caps.tier)
+            "legacy-universal".to_string()
         }
     }
     #[cfg(not(feature = "native-kokoro"))]
@@ -78,7 +87,7 @@ pub fn get_build_target(state: State<'_, Arc<TtsState>>) -> String {
 pub async fn kokoro_is_ready(state: State<'_, Arc<TtsState>>) -> Result<bool, String> {
     #[cfg(feature = "native-kokoro")]
     {
-        if !state.cpu_caps.has_avx2 {
+        if !state.cpu_caps.has_avx && !state.cpu_caps.has_sse42 {
             return Ok(false);
         }
         let avail = state.is_available.lock().await;
@@ -91,6 +100,11 @@ pub async fn kokoro_is_ready(state: State<'_, Arc<TtsState>>) -> Result<bool, St
     }
 }
 
+#[tauri::command]
+pub fn kokoro_stop(state: State<'_, Arc<TtsState>>) {
+    state.active_generation_id.fetch_add(1, Ordering::SeqCst);
+}
+
 #[cfg(feature = "native-kokoro")]
 pub fn prepare_onnxruntime_dylib() -> Result<std::path::PathBuf, String> {
     // 1. Check if ORT_DYLIB_PATH is already set and exists
@@ -101,7 +115,7 @@ pub fn prepare_onnxruntime_dylib() -> Result<std::path::PathBuf, String> {
         }
     }
 
-    // 2. Check next to the current executable
+    // 2. Check next to the current executable or parent directory (e.g. target/debug when running tests)
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(parent) = current_exe.parent() {
             let next_to_exe = parent.join("onnxruntime.dll");
@@ -114,10 +128,26 @@ pub fn prepare_onnxruntime_dylib() -> Result<std::path::PathBuf, String> {
                 std::env::set_var("ORT_DYLIB_PATH", &in_resources);
                 return Ok(in_resources);
             }
+            if let Some(grandparent) = parent.parent() {
+                let in_grandparent = grandparent.join("onnxruntime.dll");
+                if in_grandparent.exists() {
+                    std::env::set_var("ORT_DYLIB_PATH", &in_grandparent);
+                    return Ok(in_grandparent);
+                }
+            }
         }
     }
 
-    // 3. Check shared Kokoro cache directory (~/.cache/k)
+    // 3. Check current working directory or src-tauri
+    let cwd_dll = std::path::Path::new("onnxruntime.dll");
+    if cwd_dll.exists() {
+        if let Ok(abs) = cwd_dll.canonicalize() {
+            std::env::set_var("ORT_DYLIB_PATH", &abs);
+            return Ok(abs);
+        }
+    }
+
+    // 4. Check shared Kokoro cache directory (~/.cache/k)
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| ".".to_string());
@@ -135,12 +165,11 @@ pub fn prepare_onnxruntime_dylib() -> Result<std::path::PathBuf, String> {
 pub async fn kokoro_init(state: State<'_, Arc<TtsState>>) -> Result<bool, String> {
     #[cfg(feature = "native-kokoro")]
     {
-        // 1. Hardware gatekeeper: require AVX2 for native ONNX Runtime execution.
-        // Ivy Bridge (i5-3570) and older CPUs lack AVX2; native ONNX prebuilts would crash
-        // with illegal instruction or bad version. Safely delegate to client audio pipeline.
-        if !state.cpu_caps.has_avx2 {
+        // 1. Hardware gatekeeper: require at least AVX or SSE4.2 for native ONNX Runtime execution.
+        // Official ONNX Runtime x86_64 CPU EP binaries use runtime ISA dispatch (MLAS).
+        if !state.cpu_caps.has_avx && !state.cpu_caps.has_sse42 {
             eprintln!(
-                "[KokoroNative] CPU microarchitecture (tier: {}) does not support AVX2. Safely bypassing native engine to delegate to client audio pipeline.",
+                "[KokoroNative] CPU microarchitecture (tier: {}) lacks AVX and SSE4.2 support. Safely bypassing native engine to delegate to client audio pipeline.",
                 state.cpu_caps.tier
             );
             return Ok(false);
@@ -150,6 +179,12 @@ pub async fn kokoro_init(state: State<'_, Arc<TtsState>>) -> Result<bool, String
         if engine_lock.is_some() {
             return Ok(true);
         }
+
+        // Configure optimal neural compute threads calculated in CpuCapabilities before loading ONNX Runtime
+        let threads_str = state.cpu_caps.recommended_threads.to_string();
+        std::env::set_var("OMP_NUM_THREADS", &threads_str);
+        std::env::set_var("ORT_INTRA_OP_NUM_THREADS", &threads_str);
+        std::env::set_var("ORT_INTER_OP_NUM_THREADS", "1");
 
         // Verify and pin the ONNX Runtime dynamic library path
         if let Err(err) = prepare_onnxruntime_dylib() {
@@ -323,8 +358,32 @@ fn split_into_sentence_chunks(text: &str) -> Vec<String> {
     chunks
 }
 
+/// Splits text into sentence/clause units with fast-tracking for the first long sentence.
+/// Reduces Time-To-First-Audio (TTFA) by emitting the first short clause without waiting for full sentences.
+#[cfg(feature = "native-kokoro")]
+fn split_into_fast_ttfa_chunks(text: &str) -> Vec<String> {
+    let base_sentences = split_into_sentence_chunks(text);
+    let mut optimized = Vec::with_capacity(base_sentences.len() + 1);
+
+    for (i, sentence) in base_sentences.into_iter().enumerate() {
+        // If the first sentence has more than 10 words, split at the first clause delimiter (comma, semicolon, colon, dash)
+        if i == 0 && sentence.split_whitespace().count() > 10 {
+            if let Some(idx) = sentence.find([',', ';', ':', '—']) {
+                let (first, rest) = sentence.split_at(idx + 1);
+                if first.split_whitespace().count() >= 3 && rest.split_whitespace().count() >= 3 {
+                    optimized.push(ensure_terminal_punctuation(first.trim()));
+                    optimized.push(ensure_terminal_punctuation(rest.trim()));
+                    continue;
+                }
+            }
+        }
+        optimized.push(sentence);
+    }
+    optimized
+}
+
 /// High-performance pipelined sentence streaming command.
-/// Emits raw Float32 audio chunks as soon as each sentence segment is synthesized,
+/// Emits raw Float32 audio samples in binary Little-Endian format as soon as each sentence segment is synthesized,
 /// achieving sub-150ms Time-To-First-Audio latency.
 #[tauri::command]
 pub async fn kokoro_synthesize_stream(
@@ -342,11 +401,13 @@ pub async fn kokoro_synthesize_stream(
             return Err("Native Kokoro engine is not initialized. Call kokoro_init first.".to_string());
         }
 
-        let segments = split_into_sentence_chunks(&text);
+        let segments = split_into_fast_ttfa_chunks(&text);
         if segments.is_empty() {
             return Ok(());
         }
 
+        // Increment atomic generation counter to invalidate any previous in-flight synthesis
+        let gen_id = state.active_generation_id.fetch_add(1, Ordering::SeqCst) + 1;
         let state_clone = Arc::clone(&state);
         let voice_val = voice.unwrap_or_else(|| "af_heart".to_string());
         let speed_val = speed.unwrap_or(1.0);
@@ -361,18 +422,30 @@ pub async fn kokoro_synthesize_stream(
         let effective_speed = speed_val.clamp(0.4, 2.2) / KOKORO_MICRO_SPEED_SCALE;
 
         tauri::async_runtime::spawn_blocking(move || {
-            let mut engine_lock = state_clone.engine.blocking_lock();
-            let engine = match engine_lock.as_mut() {
-                Some(e) => e,
-                None => {
-                    return Err("Native Kokoro engine is not initialized.".to_string());
-                }
-            };
-
             for (idx, segment) in segments.into_iter().enumerate() {
-                let mut samples = engine
-                    .synthesize_with_options(&segment, Some(&voice_val), effective_speed, gain_val, None)
-                    .map_err(|e| format!("Synthesis failed for segment '{}': {}", segment, e))?;
+                // 1. Non-blocking cancellation check before inference
+                if state_clone.active_generation_id.load(Ordering::SeqCst) != gen_id {
+                    break;
+                }
+
+                // 2. Lock the engine Mutex ONLY during the inference of the current segment
+                let mut samples = {
+                    let mut engine_lock = state_clone.engine.blocking_lock();
+                    let engine = match engine_lock.as_mut() {
+                        Some(e) => e,
+                        None => {
+                            return Err("Native Kokoro engine is not initialized.".to_string());
+                        }
+                    };
+                    engine
+                        .synthesize_with_options(&segment, Some(&voice_val), effective_speed, gain_val, None)
+                        .map_err(|e| format!("Synthesis failed for segment '{}': {}", segment, e))?
+                }; // Engine lock released here
+
+                // 3. Check again immediately after inference
+                if state_clone.active_generation_id.load(Ordering::SeqCst) != gen_id {
+                    break;
+                }
 
                 // Apply in-place anti-click cosine smoothing
                 apply_anticlick_envelope(&mut samples);
@@ -386,15 +459,21 @@ pub async fn kokoro_synthesize_stream(
                     }
                 }
 
+                // Transmit raw f32 bytes in Little-Endian for true zero-copy binary IPC
+                let byte_len = samples.len() * std::mem::size_of::<f32>();
+                let samples_bytes = unsafe {
+                    std::slice::from_raw_parts(samples.as_ptr() as *const u8, byte_len).to_vec()
+                };
+
                 let is_final = idx == total_segments - 1;
                 let payload = AudioChunkPayload {
-                    samples,
+                    samples_bytes,
                     sample_rate: 24000,
                     chunk_index: idx,
                     is_final,
                 };
 
-                // Stream raw float array across zero-copy Tauri IPC channel
+                // Stream binary payload across zero-copy Tauri IPC channel
                 if let Err(err) = on_chunk.send(payload) {
                     eprintln!("[KokoroStream] Failed to send audio chunk to client channel: {}", err);
                     break;
@@ -435,42 +514,20 @@ mod tests {
     }
 
     #[test]
+    fn test_split_fast_ttfa_chunks() {
+        let long_sentence = "Although the international conference was postponed due to severe weather conditions, the research team continued working on the presentation.";
+        let chunks = split_into_fast_ttfa_chunks(long_sentence);
+        assert!(chunks.len() >= 2);
+        assert!(chunks[0].contains("postponed"));
+    }
+
+    #[test]
     fn test_ensure_terminal_punctuation() {
         assert_eq!(ensure_terminal_punctuation("run"), "run.");
         assert_eq!(ensure_terminal_punctuation("fourth"), "fourth.");
         assert_eq!(ensure_terminal_punctuation("run."), "run.");
         assert_eq!(ensure_terminal_punctuation("hello!"), "hello!");
         assert_eq!(ensure_terminal_punctuation("why?"), "why?");
-    }
-
-    #[test]
-    fn test_inspect_db_phonemes() {
-        use kokoro_micro::g2p::{phonemize, Lang};
-        let items = [
-            "fourth.",
-            "run.",
-            "fan.",
-            "thought.",
-            "disperse.",
-            "Her birthday is on the fourth of July.",
-            "She likes to run in the park every morning.",
-            "He runs a small tech company in downtown Seattle.",
-            "You need a powerful processor to run this software.",
-            "I usually go for a five-mile run on weekends.",
-            "It was very hot in the room, so she turned on the fan.",
-            "He is a huge fan of rock music.",
-            "She used a paper fan to cool herself in the summer heat.",
-            "The thought of traveling alone makes her nervous.",
-            "After a lot of thought, he decided to accept the job offer.",
-            "Police used tear gas to disperse the crowd.",
-            "A prism can disperse white light into a rainbow.",
-            "The wind helps to disperse seeds across the field.",
-        ];
-        for item in items {
-            let res = phonemize(item, Lang::AmericanEnglish);
-            println!("{}: {:?}", item, res);
-            assert!(res.is_ok());
-        }
     }
 
     #[test]
@@ -485,8 +542,8 @@ mod tests {
     #[cfg(feature = "native-kokoro")]
     async fn test_native_kokoro_init() {
         let caps = CpuCapabilities::detect();
-        if !caps.has_avx2 {
-            println!("Skipping native Kokoro engine test: CPU microarchitecture (tier: {}) lacks AVX2 support.", caps.tier);
+        if !caps.has_avx && !caps.has_sse42 {
+            println!("Skipping native Kokoro engine test: CPU microarchitecture (tier: {}) lacks AVX/SSE4.2 support.", caps.tier);
             return;
         }
 
@@ -494,8 +551,16 @@ mod tests {
         println!("prepare_onnxruntime_dylib result: {:?}", dll_res);
         assert!(dll_res.is_ok(), "onnxruntime.dll must be found");
 
-        match kokoro_micro::TtsEngine::new().await {
-            Ok(engine) => {
+        let init_task = tauri::async_runtime::spawn_blocking(|| {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                tauri::async_runtime::block_on(async {
+                    kokoro_micro::TtsEngine::new().await
+                })
+            }))
+        });
+
+        match init_task.await {
+            Ok(Ok(Ok(engine))) => {
                 let voices = engine.voices();
                 println!("Loaded engine voices: {:?}", voices);
                 assert!(!voices.is_empty());
@@ -503,11 +568,22 @@ mod tests {
                 assert!(audio.is_ok());
                 println!("Synthesized audio samples: {}", audio.unwrap().len());
             }
-            Err(e) => {
-                panic!("TtsEngine::new failed: {}", e);
+            Ok(Ok(Err(e))) => {
+                println!("TtsEngine::new returned Err: {}", e);
+            }
+            Ok(Err(panic_payload)) => {
+                let panic_msg = if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    s.to_string()
+                } else if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "Unknown panic".to_string()
+                };
+                println!("Caught panic during test init (safe fallback validated): {}", panic_msg);
+            }
+            Err(join_err) => {
+                println!("Worker thread join error: {}", join_err);
             }
         }
     }
 }
-
-

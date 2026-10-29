@@ -2,7 +2,6 @@ import {
   BookOpen,
   Feather,
   X,
-  Sparkles,
 } from 'lucide-react';
 import { Button, Chip } from '@heroui/react';
 import { ReadingItem } from '@/data/reading-to-write-catalog';
@@ -50,11 +49,10 @@ export function WritingSessionBar({
             onSubmissionModeChange('FREE');
             if (selectedReading && onClearReading) onClearReading();
           }}
-          className={`text-xs font-semibold rounded-xl h-8 px-3 cursor-pointer ${
-            submissionMode === 'FREE' && !selectedReading
+          className={`text-xs font-semibold rounded-xl h-8 px-3 cursor-pointer ${submissionMode === 'FREE' && !selectedReading
               ? 'bg-indigo-600 text-white shadow-xs'
               : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-          }`}
+            }`}
         >
           <Feather className="w-3.5 h-3.5 mr-1" />
           <span>Modo Libre</span>
@@ -100,7 +98,6 @@ export function WritingSessionBar({
           >
             <BookOpen className="w-3.5 h-3.5 mr-1 text-emerald-500" />
             <span>Lectura Guiada</span>
-            <Sparkles className="w-2.5 h-2.5 ml-1 text-amber-500" />
           </Button>
         )}
       </div>
@@ -123,11 +120,10 @@ export function WritingSessionBar({
                   key={level}
                   type="button"
                   onClick={() => onTargetCefrChange(level)}
-                  className={`px-2.5 py-1 text-xs font-mono font-bold rounded-lg transition-all cursor-pointer ${
-                    isSelected
+                  className={`px-2.5 py-1 text-xs font-mono font-bold rounded-lg transition-all cursor-pointer ${isSelected
                       ? 'bg-indigo-600 text-white shadow-2xs'
                       : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
-                  }`}
+                    }`}
                   title={`${level}: ${CEFR_DESCRIPTIONS[level].summary}`}
                 >
                   {level}

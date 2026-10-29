@@ -5,42 +5,6 @@ import { UserStreak } from '../../types/habits';
 describe('HabitsManager', () => {
   const habits = new HabitsManager();
 
-  describe('generateDailyQuests', () => {
-    it('creates balanced daily quests for given date with targets and XP rewards', () => {
-      const quests = habits.generateDailyQuests('user_test', '2026-09-29');
-
-      expect(quests).toHaveLength(2);
-      expect(quests.map((q) => q.questType)).toEqual([
-        'VOCAB_SRS',
-        'WRITING_SUBMISSION',
-      ]);
-      expect(quests.every((q) => q.targetCount > 0)).toBe(true);
-      expect(quests.every((q) => q.xpReward > 0)).toBe(true);
-      expect(quests.every((q) => !q.isCompleted)).toBe(true);
-    });
-  });
-
-  describe('updateQuestProgress', () => {
-    it('increments matching quest and signals newly completed', () => {
-      const quests = habits.generateDailyQuests('user_test', '2026-09-29');
-
-      // Update VOCAB_SRS by 5 (target is 5)
-      const { quests: updated, newlyCompleted } = habits.updateQuestProgress(
-        quests,
-        'VOCAB_SRS',
-        5,
-      );
-
-      const srsQuest = updated.find((q) => q.questType === 'VOCAB_SRS');
-      expect(srsQuest?.currentCount).toBe(5);
-      expect(srsQuest?.isCompleted).toBe(true);
-      expect(srsQuest?.completedAt).toBeDefined();
-
-      expect(newlyCompleted).toHaveLength(1);
-      expect(newlyCompleted[0].questType).toBe('VOCAB_SRS');
-    });
-  });
-
   describe('updateStreak', () => {
     it('starts streak at 1 on first day of activity', () => {
       const initial: UserStreak = {

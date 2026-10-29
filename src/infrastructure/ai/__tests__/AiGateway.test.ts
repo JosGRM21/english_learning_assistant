@@ -3,6 +3,7 @@ import { MockAiGateway } from '../MockAiGateway';
 import {
   SocraticFeedbackResponseSchema,
   WritingEvaluationResponseSchema,
+  WritingEvaluationResponse,
   VocabEnrichmentResponseSchema,
   stripLeadingGreetings,
   sanitizeSocraticFeedback,
@@ -64,7 +65,7 @@ describe('MockAiGateway', () => {
       expect(response.rubric_scores.pragmatics_and_complexity).toBeGreaterThan(0);
     });
 
-    it('identifies uncorrected L1 transfer errors with positive production drills (RF-ERR-02)', async () => {
+    it('identifies uncorrected L1 transfer errors with canonical taxonomy codes (RF-WRT-09)', async () => {
       const draft1 = 'It depend of money.';
       const draft2 = 'It still depend of money actually.';
 
@@ -75,11 +76,7 @@ describe('MockAiGateway', () => {
       expect(prepError).toBeDefined();
       expect(prepError?.is_l1_spanish_transfer).toBe(true);
       expect(prepError?.native_reformulation).toContain('depend on');
-      expect(prepError?.drill).toBeDefined();
-      expect(prepError?.drill?.format).toBe('CONTEXTUAL_CLOZE');
-      expect(prepError?.drill?.expected_token).toBe('on');
-      // No options / zero negative priming
-      expect((prepError?.drill as any)?.options).toBeUndefined();
+      expect(prepError?.error_span).toBe('depend of');
     });
 
     it('gracefully normalizes and parses corrections with diverse or non-standard error_types', () => {
@@ -325,6 +322,35 @@ describe('MockAiGateway', () => {
       expect(sanitized.corrections.length).toBe(1);
       expect(sanitized.corrections[0].error_span).toBe('depend of');
       expect(sanitized.corrections[0].error_type).toBe('PREPOSITION');
+    });
+
+    it('strips phantom repairs when draft 1 and draft 2 are identical', () => {
+      const mockRaw: WritingEvaluationResponse = {
+        overall_feedback_es: 'Buen intento general.',
+        qualitative_recommendations_es: 'Sigue practicando.',
+        clean_structural_version: 'Hello world.',
+        native_recast_version: 'Hello world, native style.',
+        rubric_scores: {
+          accuracy: 8,
+          range_and_precision: 8,
+          cohesion_and_flow: 8,
+          pragmatics_and_complexity: 8,
+        },
+        estimated_cefr: 'B2',
+        corrections: [],
+        noticing_the_gap_contrasts: [],
+        successful_repairs: [
+          {
+            original_snippet: 'Smartphones are ubiquitous',
+            corrected_snippet: 'Smartphones are ubiquitous',
+            praise_es: 'Buen uso',
+          },
+        ],
+      };
+
+      const identicalDraft = 'Smartphones are ubiquitous';
+      const sanitized = sanitizeWritingEvaluation(mockRaw, identicalDraft, identicalDraft);
+      expect(sanitized.successful_repairs).toEqual([]);
     });
   });
 });

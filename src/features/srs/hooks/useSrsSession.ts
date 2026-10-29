@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import dayjs from 'dayjs';
 import { useSrsStore } from '../store/srsStore';
 import { useDatabase } from '@/shared/hooks/useDatabase';
 import { useAudio } from '@/shared/hooks/useAudio';
@@ -7,14 +8,16 @@ import { FsrsScheduler } from '@/core/srs/FsrsScheduler';
 import { ContextRotator } from '@/core/srs/ContextRotator';
 import { SrsSessionEngine, SrsSessionStats } from '@/core/srs/SrsSessionEngine';
 import { SrsQueueBuilder } from '@/core/srs/SrsQueueBuilder';
-import { VocabItem, VocabContextExample } from '@/core/types/vocab';
-import { CardWithTarget, FsrsGrade, ReviewLog } from '@/core/types/srs';
-import { eventBus } from '@/core/common/events/DomainEventBus';
+import {
+  SrsIngestionCoordinator,
+  DEFAULT_SRS_GOAL_SETTINGS,
+} from '@/core/srs/SrsIngestionCoordinator';
+import { VocabItem, VocabContextExample, CefrLevel } from '@/core/types/vocab';
+import { CardWithTarget, FsrsGrade, ReviewLog, SrsGoalSettings } from '@/core/types/srs';
 
 export function useSrsSession() {
-  const { cardRepo, isReady } = useDatabase();
+  const { cardRepo, vocabRepo, appSettingsRepo, isReady } = useDatabase();
   const { audioService } = useAudio();
-  const updateQuestProgress = useHabitsStore((s) => s.updateQuestProgress);
   const updateStreak = useHabitsStore((s) => s.updateStreak);
   const incrementStoreReviewCount = useSrsStore((s) => s.incrementReviewCount);
   const setStoreVocabList = useSrsStore((s) => s.setVocabList);
@@ -23,7 +26,13 @@ export function useSrsSession() {
 
   const scheduler = useMemo(() => new FsrsScheduler(0.9), []);
   const rotator = useMemo(() => new ContextRotator(), []);
+  const coordinator = useMemo(() => new SrsIngestionCoordinator(), []);
   const queueBuilder = useMemo(() => new SrsQueueBuilder({ maxNewCardsPerDay: 15 }), []);
+
+  // Goal & Overload states
+  const [srsGoalSettings, setSrsGoalSettings] = useState<SrsGoalSettings>(DEFAULT_SRS_GOAL_SETTINGS);
+  const [isOverloaded, setIsOverloaded] = useState(false);
+  const [overloadDueCount, setOverloadDueCount] = useState(0);
 
   // Session state
   const [sessionEngine, setSessionEngine] = useState<SrsSessionEngine | null>(null);
@@ -39,26 +48,157 @@ export function useSrsSession() {
   // Mutex lock to prevent race conditions on double clicks
   const isRatingRef = useRef(false);
 
+  // Concurrency lock, reload tracking, and mounted flag for loadSession
+  const isLoadingSessionRef = useRef(false);
+  const pendingReloadRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Reaction time stopwatch
   const presentationStartRef = useRef<number>(performance.now());
 
-  // Load and build session queue from SQLite
+  // Load and build session queue from SQLite with JIT ingestion
   const loadSession = useCallback(async () => {
     if (!isReady || !cardRepo) return;
+    if (isLoadingSessionRef.current) {
+      pendingReloadRef.current = true;
+      return;
+    }
+
+    isLoadingSessionRef.current = true;
 
     try {
-      setIsLoadingSession(true);
+      if (isMountedRef.current) {
+        setIsLoadingSession(true);
+      }
       const userId = 'user_local';
 
-      // 1. Fetch due cards (scheduled <= now and not NEW)
+      // 1. Load active SRS goal settings from SQLite
+      const settings = appSettingsRepo
+        ? await appSettingsRepo.getSrsGoalSettings()
+        : DEFAULT_SRS_GOAL_SETTINGS;
+      if (isMountedRef.current) {
+        setSrsGoalSettings(settings);
+      }
+
+      // 2. Fetch due cards (scheduled <= now and not NEW)
       const due = await cardRepo.getDueCardsWithDetails(userId, 50, 'VOCAB_AGILE');
 
-      // 2. Fetch new cards (state === NEW and scheduled <= now)
-      let newCards = await cardRepo.getNewCardsWithDetails(userId, 30, 'VOCAB_AGILE');
+      // 3. Fetch count of new cards already reviewed today (local midnight-to-midnight)
+      const startOfDayIso = dayjs().startOf('day').toISOString();
+      const endOfDayIso = dayjs().endOf('day').toISOString();
+      const newReviewedToday = cardRepo.getNewCardsReviewedTodayCount
+        ? await cardRepo.getNewCardsReviewedTodayCount(userId, startOfDayIso, endOfDayIso)
+        : 0;
 
-      // 3. Fetch all deck cards for the deck explorer
+      // 4. Fetch existing new cards (state === NEW and scheduled <= now)
+      let existingNew = await cardRepo.getNewCardsWithDetails(
+        userId,
+        settings.dailyNewCardsTarget,
+        'VOCAB_AGILE',
+      );
+
+      // 5. Evaluate Ingestion Plan with Anti-Burnout Throttling & Daily Quota tracking
+      const plan = coordinator.evaluatePlan(
+        due.length,
+        existingNew.length,
+        newReviewedToday,
+        settings,
+      );
+      if (isMountedRef.current) {
+        setIsOverloaded(plan.isOverloaded);
+        setOverloadDueCount(plan.overloadDueCount);
+      }
+
+      // 6. Just-In-Time (JIT) replenishment if under overload threshold and quota not met
+      if (!plan.isOverloaded && plan.newCardsNeeded > 0) {
+        let neededCards = plan.newCardsNeeded;
+
+        // 6a. Check for cascaded polysemous senses (words whose primary sense reached mastery)
+        if (vocabRepo && typeof vocabRepo.getNextEligiblePolysemousSenses === 'function') {
+          try {
+            const eligibleSenses = await vocabRepo.getNextEligiblePolysemousSenses({
+              minStabilityDays: 21,
+              limit: Math.min(2, neededCards),
+            });
+            for (const candidate of eligibleSenses) {
+              if (!isMountedRef.current || neededCards <= 0) break;
+              await vocabRepo.activateVocabSense(candidate.vocabId, candidate.senseIndex);
+              neededCards--;
+            }
+          } catch (err) {
+            console.warn('[useSrsSession] Error during polysemous cascaded ingestion:', err);
+          }
+        }
+
+        // 6b. CEFR-aligned phrasal verbs replenishment (80/20 balanced ratio)
+        const goalToCefrMap: Record<string, CefrLevel[]> = {
+          TOP_500: ['A1', 'A2'],
+          TOP_1000: ['A2', 'B1'],
+          TOP_3000: ['B1', 'B2'],
+          TOP_5000: ['B2', 'C1'],
+        };
+        const eligibleCefr = goalToCefrMap[settings.activeGoal] || ['A1', 'A2'];
+        const includePhrasal = settings.includePhrasalVerbs !== false;
+        const phrasalRatio = settings.phrasalVerbsRatio ?? 0.2;
+        const phrasalTarget = includePhrasal && neededCards > 0
+          ? Math.max(1, Math.round(neededCards * phrasalRatio))
+          : 0;
+
+        if (
+          cardRepo &&
+          typeof cardRepo.getNextUnactivatedPhrases === 'function' &&
+          phrasalTarget > 0 &&
+          neededCards > 0
+        ) {
+          try {
+            const unactivatedPhrases = await cardRepo.getNextUnactivatedPhrases({
+              cefrLevels: eligibleCefr,
+              limit: Math.min(phrasalTarget, neededCards),
+            });
+            for (const phrase of unactivatedPhrases) {
+              if (!isMountedRef.current || neededCards <= 0) break;
+              await cardRepo.activatePhraseCard(phrase.id);
+              neededCards--;
+            }
+          } catch (err) {
+            console.warn('[useSrsSession] Error during phrasal verbs ingestion:', err);
+          }
+        }
+
+        // 6c. Replenish remaining quota with base core vocabulary
+        if (neededCards > 0 && vocabRepo && typeof vocabRepo.getNextUnactivatedWords === 'function') {
+          const unactivated = await vocabRepo.getNextUnactivatedWords({
+            frequencyBand: settings.activeGoal,
+            limit: neededCards,
+          });
+
+          for (const item of unactivated) {
+            if (!isMountedRef.current) break;
+            await vocabRepo.activateVocabItem(item.id, 'NEW');
+          }
+        }
+
+        if (isMountedRef.current) {
+          existingNew = await cardRepo.getNewCardsWithDetails(
+            userId,
+            settings.dailyNewCardsTarget,
+            'VOCAB_AGILE',
+          );
+        }
+      }
+
+      // 7. Fetch all deck cards for the deck explorer
       const allDeck = await cardRepo.getAllCardsWithDetails(userId, 200, 'VOCAB_AGILE');
-      setDeckCards(allDeck);
+      if (isMountedRef.current) {
+        setDeckCards(allDeck);
+      }
 
       // Synchronize vocabList for dashboard/catalog helpers
       const vocabs = allDeck
@@ -66,22 +206,35 @@ export function useSrsSession() {
         .filter((v): v is VocabItem => v !== undefined);
       setStoreVocabList(vocabs);
 
-      // 4. Build session queue with daily limit and interleaving
-      const queue = queueBuilder.buildQueue(due, newCards);
+      // 8. Build session queue with remaining new quota and interleaving
+      const remainingNewQuota = Math.max(0, settings.dailyNewCardsTarget - newReviewedToday);
+      const candidateNew = plan.isOverloaded ? [] : existingNew.slice(0, remainingNewQuota);
+      const queue = queueBuilder.buildQueue(due, candidateNew, {
+        maxNewCards: remainingNewQuota,
+      });
       const engine = new SrsSessionEngine(queue);
-      setSessionEngine(engine);
+      if (isMountedRef.current) {
+        setSessionEngine(engine);
 
-      const firstCard = engine.getCurrentCard();
-      setCurrentCard(firstCard);
-      setCurrentContextOverride(firstCard?.currentContext || firstCard?.allContexts[0] || null);
-      setShowAnswer(false);
-      presentationStartRef.current = performance.now();
+        const firstCard = engine.getCurrentCard();
+        setCurrentCard(firstCard);
+        setCurrentContextOverride(firstCard?.currentContext || firstCard?.allContexts[0] || null);
+        setShowAnswer(false);
+        presentationStartRef.current = performance.now();
+      }
     } catch (err) {
       console.error('[useSrsSession] Error loading session queue:', err);
     } finally {
-      setIsLoadingSession(false);
+      isLoadingSessionRef.current = false;
+      if (isMountedRef.current) {
+        setIsLoadingSession(false);
+      }
+      if (pendingReloadRef.current && isMountedRef.current) {
+        pendingReloadRef.current = false;
+        loadSession();
+      }
     }
-  }, [isReady, cardRepo, queueBuilder, setStoreVocabList]);
+  }, [isReady, cardRepo, vocabRepo, appSettingsRepo, coordinator, queueBuilder, setStoreVocabList]);
 
   useEffect(() => {
     loadSession();
@@ -160,6 +313,22 @@ export function useSrsSession() {
         // 2. Persist update in SQLite atomically
         try {
           await cardRepo.recordReview(updatedCard, fullLog);
+
+          // 2.1 Update vocabulary mastery status when applicable
+          if (vocabRepo && typeof vocabRepo.updateMasteryStatus === 'function' && currentCard.card.targetType === 'VOCAB') {
+            const targetId = currentCard.card.targetId;
+            if (currentCard.card.state === 'NEW' || currentCard.card.reps === 0) {
+              await vocabRepo.updateMasteryStatus(targetId, 'LEARNING');
+            } else if (
+              coordinator.isEligibleForMastery(
+                updatedCard.stability,
+                updatedCard.reps,
+                updatedCard.isLeech,
+              )
+            ) {
+              await vocabRepo.updateMasteryStatus(targetId, 'RECEPTIVE_MASTERY');
+            }
+          }
         } catch (dbErr) {
           console.error('[useSrsSession] Failed to persist review to SQLite:', dbErr);
         }
@@ -183,21 +352,7 @@ export function useSrsSession() {
         // 6. Play audio feedback chime
         audioService.playFeedback(grade >= 3);
 
-        // 7. Publish domain event
-        eventBus.publish('CARD_REVIEWED', {
-          userId: 'user_local',
-          cardId: currentCard.card.id,
-          rating: grade,
-          elapsedMs: latencyMs,
-          newStability: updatedCard.stability,
-          newDifficulty: updatedCard.difficulty,
-          stateBefore: currentCard.card.state,
-          stateAfter: updatedCard.state,
-          timestamp: now.toISOString(),
-        });
-
-        // 8. Update habits quest & streak
-        updateQuestProgress('VOCAB_SRS', 1);
+        // 7. Update habits streak
         updateStreak();
       } finally {
         isRatingRef.current = false;
@@ -208,10 +363,11 @@ export function useSrsSession() {
       currentCard,
       sessionEngine,
       cardRepo,
+      vocabRepo,
+      coordinator,
       scheduler,
       audioService,
       incrementStoreReviewCount,
-      updateQuestProgress,
       updateStreak,
     ],
   );
@@ -316,6 +472,11 @@ export function useSrsSession() {
     cooldownCards,
     cooldownCount: cooldownCards.length,
     earliestCooldownDate,
+
+    // Goal & Overload states
+    srsGoalSettings,
+    isOverloaded,
+    overloadDueCount,
 
     // UI state & Controls
     showAnswer,

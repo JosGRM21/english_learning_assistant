@@ -35,7 +35,15 @@ describe('Phase 5 Functional Specifications Verification', () => {
     isCore: true,
     frequencyBand: 'TOP_1000',
     masteryStatus: 'LEARNING',
-    collocationsJson: ['the plane took off smoothly', 'take off immediately'],
+    sensesJson: [
+      {
+        translationEs: 'despegar (un avión)',
+        definitionEn: 'When an aircraft leaves the ground and starts flying.',
+        partOfSpeech: 'VERB',
+        cefrLevel: 'B1',
+        contextualHint: 'el avión despega',
+      },
+    ],
     phoneticEdEnding: null,
     isFalseFriend: false,
     createdAt: new Date().toISOString(),
@@ -105,8 +113,8 @@ describe('Phase 5 Functional Specifications Verification', () => {
     });
   });
 
-  describe('RF-SRS-04: Collocation Clue & Polysemy Disambiguation', () => {
-    it('displays the key collocation clue on the front face to disambiguate meaning', () => {
+  describe('RF-SRS-04: Contextual Hint & Polysemy Disambiguation', () => {
+    it('displays the key contextual hint on the front face to disambiguate meaning', () => {
       render(
         <SrsCardDisplay
           selectedVocab={sampleVocab}
@@ -122,8 +130,8 @@ describe('Phase 5 Functional Specifications Verification', () => {
         />
       );
 
-      expect(screen.getByText(/Pista de colocación:/i)).toBeDefined();
-      expect(screen.getAllByText(/the plane took off smoothly/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText(/Pista:/i)).toBeDefined();
+      expect(screen.getByText(/el avión despega/i)).toBeDefined();
     });
   });
 
@@ -181,15 +189,15 @@ describe('Phase 5 Functional Specifications Verification', () => {
     });
   });
 
-  describe('RF-SRS-01 & RF-SRS-09: SrsSessionComplete Bento & Agile Cadence', () => {
-    it('highlights agile pace compliance when average review speed is within 3 to 5 seconds', () => {
+  describe('RF-SRS-01 & RF-SRS-09: SrsSessionComplete Bento & Metrics', () => {
+    it('renders completion screen with natural feedback and review metrics', () => {
       render(
         <SrsSessionComplete
           stats={{
             totalReviewed: 12,
             successfulRecalls: 11,
             lapses: 1,
-            averageLatencyMs: 3400, // 3.4 seconds (within 3-5s)
+            averageLatencyMs: 3400, // 3.4 seconds
             startedAt: new Date().toISOString(),
             finishedAt: new Date().toISOString(),
           }}
@@ -198,7 +206,7 @@ describe('Phase 5 Functional Specifications Verification', () => {
       );
 
       expect(screen.getByText(/¡Sesión de Repaso Completada!/i)).toBeDefined();
-      expect(screen.getByText(/⚡ Ritmo Ágil Cumplido/i)).toBeDefined();
+      expect(screen.getByText(/¡Excelente trabajo! Has repasado todas las palabras pendientes de hoy/i)).toBeDefined();
       expect(screen.getByText('3.4s')).toBeDefined();
       expect(screen.getByText('92%')).toBeDefined();
     });

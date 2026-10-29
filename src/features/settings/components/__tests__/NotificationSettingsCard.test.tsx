@@ -11,7 +11,7 @@ describe('NotificationSettingsCard Component', () => {
   let dbContextValue: DatabaseContextValue;
 
   beforeEach(async () => {
-    const db = await createTestDatabase();
+    const db = await createTestDatabase(false);
     const notificationRepo = new NotificationRepository(db);
     const cardRepo = new CardRepository(db);
 
@@ -30,20 +30,14 @@ describe('NotificationSettingsCard Component', () => {
       settings: {
         userId: 'user_local',
         enabled: true,
-        scheduleMode: 'AUTO',
         manualTime: '20:00',
-        detectedTime: '19:30',
         srs: {
           enabled: true,
-          scheduleMode: 'AUTO',
           manualTime: '18:30',
-          detectedTime: '19:00',
         },
         writing: {
           enabled: true,
-          scheduleMode: 'AUTO',
           manualTime: '21:30',
-          detectedTime: '21:00',
         },
         streakSaverEnabled: true,
         srsBatchEnabled: true,
@@ -53,71 +47,56 @@ describe('NotificationSettingsCard Component', () => {
         minimizeToTray: true,
         updatedAt: new Date().toISOString(),
       },
-      habitAnalysis: {
-        optimalHour: 19,
-        optimalMinute: 30,
-        suggestedTime: '19:30',
-        confidence: 'HIGH',
-        sessionCount: 12,
-        hourlyDistribution: Array(24).fill(4.1),
-      },
-      srsHabitAnalysis: {
-        optimalHour: 19,
-        optimalMinute: 0,
-        suggestedTime: '19:00',
-        confidence: 'HIGH',
-        sessionCount: 10,
-        hourlyDistribution: Array(24).fill(4.1),
-      },
-      writingHabitAnalysis: {
-        optimalHour: 21,
-        optimalMinute: 0,
-        suggestedTime: '21:00',
-        confidence: 'MEDIUM',
-        sessionCount: 5,
-        hourlyDistribution: Array(24).fill(4.1),
-      },
       permissionGranted: true,
       todayLogs: [],
       isLoading: false,
     });
   });
 
-  it('renders settings title and activity cards for SRS and Writing', () => {
+  it('renders minimalist settings title and activity controls for SRS and Writing', () => {
     render(
       <DatabaseContext.Provider value={dbContextValue}>
         <NotificationSettingsCard />
       </DatabaseContext.Provider>,
     );
 
-    expect(screen.getByText(/Notificaciones y Horarios de Práctica/i)).toBeDefined();
+    expect(screen.getByText(/Notificaciones y Recordatorios/i)).toBeDefined();
+    expect(screen.getByText(/Horarios Manuales/i)).toBeDefined();
     expect(screen.getByText(/Repaso de Tarjetas \(FSRS Vocabulario\)/i)).toBeDefined();
     expect(screen.getByText(/Taller de Redacción Socrática/i)).toBeDefined();
   });
 
-  it('switches between auto and manual schedule mode for activities', async () => {
+  it('updates manual time for activities directly', async () => {
     render(
       <DatabaseContext.Provider value={dbContextValue}>
         <NotificationSettingsCard />
       </DatabaseContext.Provider>,
     );
 
-    // Switch SRS to manual
-    const manualButtons = screen.getAllByRole('button', { name: /Manual/i });
-    fireEvent.click(manualButtons[0]);
+    const srsTimeInput = screen.getByTitle(/Hora programada para repaso SRS/i);
+    expect(srsTimeInput).toBeDefined();
+
+    fireEvent.change(srsTimeInput, { target: { value: '17:45' } });
 
     await waitFor(() => {
-      expect(useNotificationSettingsStore.getState().settings.srs.scheduleMode).toBe('MANUAL');
-      expect(screen.getByText(/Hora fija para repaso de tarjetas/i)).toBeDefined();
+      expect(useNotificationSettingsStore.getState().settings.srs.manualTime).toBe('17:45');
     });
+  });
 
-    // Switch SRS back to auto
-    const autoButtons = screen.getAllByRole('button', { name: /Auto/i });
-    fireEvent.click(autoButtons[0]);
+  it('toggles activity reminders on and off', async () => {
+    render(
+      <DatabaseContext.Provider value={dbContextValue}>
+        <NotificationSettingsCard />
+      </DatabaseContext.Provider>,
+    );
+
+    const srsSwitch = screen.getByLabelText(/Activar recordatorio de repaso de tarjetas/i);
+    expect(srsSwitch).toBeDefined();
+
+    fireEvent.click(srsSwitch);
 
     await waitFor(() => {
-      expect(useNotificationSettingsStore.getState().settings.srs.scheduleMode).toBe('AUTO');
-      expect(screen.getByText(/Horario Sugerido para Repaso SRS/i)).toBeDefined();
+      expect(useNotificationSettingsStore.getState().settings.srs.enabled).toBe(false);
     });
   });
 

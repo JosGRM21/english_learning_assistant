@@ -1,6 +1,12 @@
 import { Kysely, Selectable, sql } from 'kysely';
 import { DatabaseSchema, VocabItemsTable, VocabContextExamplesTable } from '../../../core/types/database';
-import { IVocabRepository, CoreCorpusCoverage, CreateVocabInput } from '../../../core/repositories/IVocabRepository';
+import {
+  IVocabRepository,
+  CoreCorpusCoverage,
+  CreateVocabInput,
+  VocabPageFilter,
+  VocabPageResult,
+} from '../../../core/repositories/IVocabRepository';
 import {
   VocabItem,
   VocabContextExample,
@@ -16,7 +22,6 @@ import {
 import {
   searchCoreCorpusLocally,
   getCoreCorpusWord,
-  getCorePhrasalUnits,
   toDomainCoreVocab,
   CORE_VOCAB_DATA,
 } from '@/data/core-vocab-corpus';
@@ -31,6 +36,15 @@ export function mapVocabRowToDomain(row: Selectable<VocabItemsTable>): VocabItem
     }
   }
 
+  let sensesJson: VocabSense[] | null = null;
+  if (row.senses_json) {
+    try {
+      sensesJson = JSON.parse(row.senses_json);
+    } catch {
+      sensesJson = null;
+    }
+  }
+
   let alternateSenses: VocabSense[] | null = null;
   if (row.alternate_senses_json) {
     try {
@@ -38,50 +52,33 @@ export function mapVocabRowToDomain(row: Selectable<VocabItemsTable>): VocabItem
     } catch {
       alternateSenses = null;
     }
+  } else if (sensesJson && sensesJson.length > 1) {
+    alternateSenses = sensesJson.slice(1);
   }
 
-  let collocations: string[] = [];
-  if (row.collocations_json) {
+  // Fallback if row does not have senses_json populated yet
+  if (!sensesJson) {
+    const primarySense: VocabSense = {
+      translationEs: row.translation_es,
+      definitionEn: row.definition_en,
+      partOfSpeech: row.part_of_speech as PartOfSpeech,
+      cefrLevel: row.cefr_level as CefrLevel,
+    };
+
+    sensesJson = [
+      primarySense,
+      ...(alternateSenses || []),
+    ];
+  }
+
+  let phrasalVerbsJson: PhrasalVerbItem[] | null = null;
+  if (row.phrasal_verbs_json) {
     try {
-      collocations = JSON.parse(row.collocations_json);
+      phrasalVerbsJson = JSON.parse(row.phrasal_verbs_json);
     } catch {
-      collocations = [];
+      phrasalVerbsJson = null;
     }
   }
-
-  let primaryGraduatedExamples: any = null;
-  if (row.is_core) {
-    const coreWord = getCoreCorpusWord(row.word);
-    if (coreWord?.graduatedExamples) {
-      primaryGraduatedExamples = coreWord.graduatedExamples;
-    }
-  }
-
-  const primarySense: VocabSense = {
-    translationEs: row.translation_es,
-    definitionEn: row.definition_en,
-    partOfSpeech: row.part_of_speech as PartOfSpeech,
-    cefrLevel: row.cefr_level as CefrLevel,
-    collocations,
-    graduatedExamples: primaryGraduatedExamples,
-  };
-
-  const sensesJson: VocabSense[] = [
-    primarySense,
-    ...(alternateSenses || []),
-  ];
-
-  const corePhrasals = getCorePhrasalUnits(row.id);
-  const phrasalVerbsJson: PhrasalVerbItem[] = corePhrasals.map((p) => ({
-    id: p.id,
-    text: p.text,
-    meaningEs: p.meaningEs,
-    type: p.phrasalVerbType || 'TYPE_3_INSEPARABLE',
-    pronounMustSplit: Boolean(p.pronounMustSplit),
-    cefrLevel: p.cefrLevel,
-    example1: p.example1,
-    example2: p.example2,
-  }));
 
   return {
     id: row.id,
@@ -98,7 +95,6 @@ export function mapVocabRowToDomain(row: Selectable<VocabItemsTable>): VocabItem
     frequencyBand: (row.frequency_band as FrequencyBand) ?? 'TOP_3000',
     masteryStatus: (row.mastery_status as VocabMasteryStatus) ?? 'INACTIVE',
     isCore: Boolean(row.is_core),
-    collocationsJson: collocations,
     isSeparable: row.is_separable === null ? null : Boolean(row.is_separable),
     phoneticEdEnding: (row.phonetic_ed_ending as '/t/' | '/d/' | '/ɪd/' | null) ?? null,
     isFalseFriend: Boolean(row.is_false_friend),
@@ -125,6 +121,7 @@ export class VocabRepository implements IVocabRepository {
       id: row.id,
       vocabId: row.vocab_id,
       phraseId: row.phrase_id,
+      senseIndex: typeof row.sense_index === 'number' ? row.sense_index : Number(row.sense_index ?? 0),
       sentenceEn: row.sentence_en,
       sentenceEs: row.sentence_es,
       clozeTarget: row.cloze_target,
@@ -152,6 +149,146 @@ export class VocabRepository implements IVocabRepository {
     }
 
     return null;
+  }
+
+  async getVocabsPage(filter: VocabPageFilter): Promise<VocabPageResult> {
+    const page = Math.max(1, filter.page);
+    const pageSize = Math.max(1, filter.pageSize);
+    const offset = (page - 1) * pageSize;
+
+    let baseQuery = this.db.selectFrom('vocab_items');
+
+    if (filter.origin === 'CORE') {
+      baseQuery = baseQuery.where('is_core', '=', 1);
+    } else if (filter.origin === 'VAULT') {
+      baseQuery = baseQuery.where('is_core', '=', 0);
+    }
+
+    if (filter.frequencyBand && filter.frequencyBand !== 'ALL') {
+      baseQuery = baseQuery.where('frequency_band', '=', filter.frequencyBand as any);
+    }
+
+    if (filter.masteryStatus && filter.masteryStatus !== 'ALL') {
+      baseQuery = baseQuery.where('mastery_status', '=', filter.masteryStatus as any);
+    }
+
+    if (filter.onlyFalseFriends) {
+      baseQuery = baseQuery.where('is_false_friend', '=', 1);
+    }
+
+    if (filter.cefrLevel && filter.cefrLevel !== 'ALL') {
+      baseQuery = baseQuery.where((eb) =>
+        eb.or([
+          eb('cefr_level', '=', filter.cefrLevel as any),
+          eb('alternate_senses_json', 'like', `%"cefrLevel":"${filter.cefrLevel}"%`),
+        ]),
+      );
+    }
+
+    if (filter.dimension && filter.dimension !== 'ALL') {
+      baseQuery = baseQuery.where('grammatical_dimension', '=', filter.dimension as any);
+    }
+
+    if (filter.partOfSpeech && filter.partOfSpeech !== 'ALL') {
+      baseQuery = baseQuery.where((eb) =>
+        eb.or([
+          eb('part_of_speech', '=', filter.partOfSpeech as any),
+          eb('alternate_senses_json', 'like', `%"partOfSpeech":"${filter.partOfSpeech}"%`),
+        ]),
+      );
+    }
+
+    const clean = filter.search?.trim().toLowerCase();
+    if (clean) {
+      baseQuery = baseQuery.where((eb) =>
+        eb.or([
+          eb(sql`word COLLATE NOCASE`, 'like', `${clean}%`),
+          eb(sql`word COLLATE NOCASE`, 'like', `%${clean}%`),
+          eb('translation_es', 'like', `%${clean}%`),
+          eb('definition_en', 'like', `%${clean}%`),
+          eb('ipa_general_american', 'like', `%${clean}%`),
+          eb('alternate_senses_json', 'like', `%${clean}%`),
+        ]),
+      );
+    }
+
+    // Filtered count directly in SQLite
+    const countRes = await baseQuery
+      .select(sql<number>`count(*)`.as('count'))
+      .executeTakeFirst();
+    const filteredCount = Number(countRes?.count ?? 0);
+
+    // Sorting
+    let sortedQuery = baseQuery.selectAll();
+    switch (filter.sortBy) {
+      case 'ALPHA_ASC':
+        sortedQuery = sortedQuery.orderBy(sql`word COLLATE NOCASE`, 'asc');
+        break;
+      case 'ALPHA_DESC':
+        sortedQuery = sortedQuery.orderBy(sql`word COLLATE NOCASE`, 'desc');
+        break;
+      case 'CEFR_ASC':
+        sortedQuery = sortedQuery
+          .orderBy(
+            sql`CASE cefr_level WHEN 'A1' THEN 1 WHEN 'A2' THEN 2 WHEN 'B1' THEN 3 WHEN 'B2' THEN 4 WHEN 'C1' THEN 5 WHEN 'C2' THEN 6 ELSE 99 END`,
+            'asc',
+          )
+          .orderBy(sql`word COLLATE NOCASE`, 'asc');
+        break;
+      case 'RECENT':
+      default:
+        if (clean) {
+          sortedQuery = sortedQuery
+            .orderBy(
+              sql`CASE 
+                WHEN word COLLATE NOCASE = ${clean} THEN 1 
+                WHEN word COLLATE NOCASE LIKE ${clean + '%'} THEN 2 
+                WHEN translation_es LIKE ${clean + '%'} THEN 3 
+                ELSE 4 END`,
+              'asc',
+            )
+            .orderBy('created_at', 'desc');
+        } else {
+          sortedQuery = sortedQuery.orderBy('created_at', 'desc').orderBy('id', 'desc');
+        }
+        break;
+    }
+
+    const rows = await sortedQuery.limit(pageSize).offset(offset).execute();
+    const items = rows.map((r) => this.toDomainVocab(r));
+
+    // Parallel aggregate counts
+    const [totalsRow, cefrRows] = await Promise.all([
+      this.db
+        .selectFrom('vocab_items')
+        .select([
+          sql<number>`count(*)`.as('totalCount'),
+          sql<number>`coalesce(sum(case when is_core = 1 then 1 else 0 end), 0)`.as('coreCount'),
+          sql<number>`coalesce(sum(case when is_core = 0 then 1 else 0 end), 0)`.as('vaultCount'),
+        ])
+        .executeTakeFirst(),
+      this.db
+        .selectFrom('vocab_items')
+        .select(['cefr_level', sql<number>`count(*)`.as('count')])
+        .groupBy('cefr_level')
+        .execute(),
+    ]);
+
+    const cefrCounts: Record<string, number> = { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0 };
+    for (const cr of cefrRows) {
+      if (cr.cefr_level && cefrCounts[cr.cefr_level] !== undefined) {
+        cefrCounts[cr.cefr_level] = Number(cr.count ?? 0);
+      }
+    }
+
+    return {
+      items,
+      totalCount: Number(totalsRow?.totalCount ?? 0),
+      coreCount: Number(totalsRow?.coreCount ?? 0),
+      vaultCount: Number(totalsRow?.vaultCount ?? 0),
+      filteredCount,
+      cefrCounts,
+    };
   }
 
   async searchVocabs(query: string, cefrLevel?: CefrLevel): Promise<VocabItem[]> {
@@ -185,7 +322,7 @@ export class VocabRepository implements IVocabRepository {
       .where('is_core', '=', 1)
       .where((eb) =>
         eb.or([
-          eb(sql`lower(word)`, 'like', `${clean}%`),
+          eb(sql`word COLLATE NOCASE`, 'like', `${clean}%`),
           eb('translation_es', 'like', `%${clean}%`),
         ]),
       )
@@ -273,6 +410,7 @@ export class VocabRepository implements IVocabRepository {
             {
               id: `ctx_core_${vocabId}_basic`,
               vocabId,
+              senseIndex: 0,
               sentenceEn: coreWord.graduatedExamples.sentenceBasicEn,
               sentenceEs: coreWord.graduatedExamples.sentenceBasicEs,
               clozeTarget: basicCloze,
@@ -282,6 +420,7 @@ export class VocabRepository implements IVocabRepository {
             {
               id: `ctx_core_${vocabId}_adv`,
               vocabId,
+              senseIndex: 0,
               sentenceEn: coreWord.graduatedExamples.sentenceAdvancedEn,
               sentenceEs: coreWord.graduatedExamples.sentenceAdvancedEs,
               clozeTarget: advCloze,
@@ -302,7 +441,7 @@ export class VocabRepository implements IVocabRepository {
     const rows = await this.db
       .selectFrom('vocab_items')
       .selectAll()
-      .where(sql`lower(word)`, '=', clean)
+      .where(sql`word COLLATE NOCASE`, '=', clean)
       .execute();
 
     if (rows.length > 0) {
@@ -331,7 +470,7 @@ export class VocabRepository implements IVocabRepository {
     return rows.map((row) => this.toDomainVocab(row));
   }
 
-  async activateVocabItem(id: string): Promise<VocabItem> {
+  async activateVocabItem(id: string, initialStatus: VocabMasteryStatus = 'NEW'): Promise<VocabItem> {
     const dbRow = await this.db
       .selectFrom('vocab_items')
       .selectAll()
@@ -342,9 +481,9 @@ export class VocabRepository implements IVocabRepository {
       const coreWord = CORE_VOCAB_DATA.find((item) => item.id === id);
       if (coreWord) {
         await this.createVocab({
-          ...toDomainCoreVocab(coreWord, 'LEARNING'),
+          ...toDomainCoreVocab(coreWord, initialStatus),
           id: coreWord.id,
-          masteryStatus: 'LEARNING',
+          masteryStatus: initialStatus,
         });
       } else {
         throw new Error(`Vocabulario con id ${id} no encontrado`);
@@ -352,7 +491,7 @@ export class VocabRepository implements IVocabRepository {
     } else {
       await this.db
         .updateTable('vocab_items')
-        .set({ mastery_status: 'LEARNING' })
+        .set({ mastery_status: initialStatus })
         .where('id', '=', id)
         .execute();
     }
@@ -367,30 +506,200 @@ export class VocabRepository implements IVocabRepository {
 
     if (!existingCard) {
       const now = new Date().toISOString();
-      await this.db
-        .insertInto('srs_cards')
-        .values({
-          id: `card_voc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          user_id: 'user_local',
-          target_type: 'VOCAB',
-          target_id: id,
-          state: 'NEW',
-          stability: 0.0,
-          difficulty: 5.0,
-          reps: 0,
-          lapses: 0,
-          consecutive_lapses: 0,
-          is_leech: 0,
-          srs_profile: 'VOCAB_AGILE',
-          last_reviewed_at: null,
-          scheduled_for: now,
-          created_at: now,
-        })
-        .execute();
+      try {
+        await this.db
+          .insertInto('srs_cards')
+          .values({
+            id: `card_voc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            user_id: 'user_local',
+            target_type: 'VOCAB',
+            target_id: id,
+            state: 'NEW',
+            stability: 0.0,
+            difficulty: 5.0,
+            reps: 0,
+            lapses: 0,
+            consecutive_lapses: 0,
+            is_leech: 0,
+            srs_profile: 'VOCAB_AGILE',
+            last_reviewed_at: null,
+            scheduled_for: now,
+            created_at: now,
+          })
+          .execute();
+      } catch (insertErr: unknown) {
+        const msg = String(insertErr);
+        if (
+          !msg.includes('UNIQUE constraint failed') &&
+          !msg.includes('2067') &&
+          !msg.includes('idx_srs_target_unique')
+        ) {
+          throw insertErr;
+        }
+      }
     }
 
     const updated = await this.getVocabById(id);
     return updated!;
+  }
+
+  async activateVocabSense(vocabId: string, senseIndex: number): Promise<void> {
+    const targetId = senseIndex === 0 ? vocabId : `${vocabId}#${senseIndex}`;
+
+    // Ensure vocab itself is at least in LEARNING if currently INACTIVE
+    const currentVocab = await this.getVocabById(vocabId);
+    if (currentVocab && currentVocab.masteryStatus === 'INACTIVE') {
+      await this.updateMasteryStatus(vocabId, 'LEARNING');
+    }
+
+    const existingCard = await this.db
+      .selectFrom('srs_cards')
+      .select('id')
+      .where('target_id', '=', targetId)
+      .where('target_type', '=', 'VOCAB')
+      .executeTakeFirst();
+
+    if (!existingCard) {
+      const now = new Date().toISOString();
+      try {
+        await this.db
+          .insertInto('srs_cards')
+          .values({
+            id: `card_voc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            user_id: 'user_local',
+            target_type: 'VOCAB',
+            target_id: targetId,
+            state: 'NEW',
+            stability: 0.0,
+            difficulty: 5.0,
+            reps: 0,
+            lapses: 0,
+            consecutive_lapses: 0,
+            is_leech: 0,
+            srs_profile: 'VOCAB_AGILE',
+            last_reviewed_at: null,
+            scheduled_for: now,
+            created_at: now,
+          })
+          .execute();
+      } catch (insertErr: unknown) {
+        const msg = String(insertErr);
+        if (
+          !msg.includes('UNIQUE constraint failed') &&
+          !msg.includes('2067') &&
+          !msg.includes('idx_srs_target_unique')
+        ) {
+          throw insertErr;
+        }
+      }
+    }
+  }
+
+  async getNextEligiblePolysemousSenses(options: {
+    minStabilityDays?: number;
+    limit: number;
+  }): Promise<Array<{ vocabId: string; senseIndex: number; sense: VocabSense; word: string }>> {
+    const minStability = options.minStabilityDays ?? 21;
+    const limit = options.limit ?? 2;
+
+    const consolidatedPrimaryCards = await this.db
+      .selectFrom('srs_cards')
+      .select(['target_id', 'stability'])
+      .where('target_type', '=', 'VOCAB')
+      .where('stability', '>=', minStability)
+      .execute();
+
+    if (consolidatedPrimaryCards.length === 0) {
+      return [];
+    }
+
+    const eligibleBaseVocabIds = consolidatedPrimaryCards
+      .map((c) => c.target_id)
+      .filter((id) => !id.includes('#'));
+
+    if (eligibleBaseVocabIds.length === 0) {
+      return [];
+    }
+
+    const vocabRows = await this.db
+      .selectFrom('vocab_items')
+      .selectAll()
+      .where('id', 'in', eligibleBaseVocabIds)
+      .execute();
+
+    const existingSenseCards = await this.db
+      .selectFrom('srs_cards')
+      .select('target_id')
+      .where('target_type', '=', 'VOCAB')
+      .execute();
+    const existingTargetIds = new Set(existingSenseCards.map((c) => c.target_id));
+
+    const candidates: Array<{ vocabId: string; senseIndex: number; sense: VocabSense; word: string }> = [];
+
+    for (const row of vocabRows) {
+      if (candidates.length >= limit) break;
+      if (!row.alternate_senses_json) continue;
+
+      let altSenses: VocabSense[] = [];
+      try {
+        altSenses = JSON.parse(row.alternate_senses_json);
+      } catch {
+        altSenses = [];
+      }
+
+      if (!Array.isArray(altSenses)) continue;
+
+      altSenses.forEach((altSense, idx) => {
+        if (candidates.length >= limit) return;
+        const senseIndex = idx + 1;
+        const targetId = `${row.id}#${senseIndex}`;
+        if (!existingTargetIds.has(targetId)) {
+          candidates.push({
+            vocabId: row.id,
+            senseIndex,
+            sense: altSense,
+            word: row.word,
+          });
+        }
+      });
+    }
+
+    return candidates;
+  }
+
+  async getNextUnactivatedWords(options: {
+    frequencyBand: FrequencyBand;
+    limit: number;
+  }): Promise<VocabItem[]> {
+    const limit = options.limit ?? 10;
+
+    const rows = await this.db
+      .selectFrom('vocab_items')
+      .selectAll()
+      .where('is_core', '=', 1)
+      .where('mastery_status', '=', 'INACTIVE')
+      .where('frequency_band', '=', options.frequencyBand)
+      .orderBy('created_at', 'asc')
+      .orderBy('id', 'asc')
+      .limit(limit)
+      .execute();
+
+    if (rows.length >= limit || CORE_VOCAB_DATA.length === 0) {
+      return rows.map((r) => this.toDomainVocab(r));
+    }
+
+    const items = rows.map((r) => this.toDomainVocab(r));
+    const existingIds = new Set(items.map((i) => i.id));
+
+    for (const coreWord of CORE_VOCAB_DATA) {
+      if (items.length >= limit) break;
+      if (coreWord.frequencyBand !== options.frequencyBand) continue;
+      if (existingIds.has(coreWord.id)) continue;
+      items.push(toDomainCoreVocab(coreWord, 'INACTIVE'));
+      existingIds.add(coreWord.id);
+    }
+
+    return items;
   }
 
   async batchActivateByCriteria(options: {
@@ -413,33 +722,71 @@ export class VocabRepository implements IVocabRepository {
       query = query.where('frequency_band', '=', options.frequencyBand);
     }
 
-    const candidates = await query.limit(limit).execute();
+    const candidates = await query
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
+      .limit(limit)
+      .execute();
+
     const activatedItems: VocabItem[] = [];
 
-    for (const row of candidates) {
-      const activated = await this.activateVocabItem(row.id);
-      activatedItems.push(activated);
-    }
+    if (candidates.length > 0) {
+      await this.db.transaction().execute(async (trx) => {
+        const candidateIds = candidates.map((c) => c.id);
+        const now = new Date().toISOString();
 
-    // If DB candidates were fewer than limit, fallback to in-memory core corpus if not yet seeded
-    if (activatedItems.length < limit) {
-      for (const item of CORE_VOCAB_DATA) {
-        if (activatedItems.length >= limit) break;
-        if (options.cefrLevel && item.cefrLevel !== options.cefrLevel) continue;
-        if (options.frequencyBand && item.frequencyBand !== options.frequencyBand) continue;
+        await trx
+          .updateTable('vocab_items')
+          .set({ mastery_status: 'LEARNING' })
+          .where('id', 'in', candidateIds)
+          .execute();
 
-        const dbExists = await this.db
-          .selectFrom('vocab_items')
-          .select(['id', 'mastery_status'])
-          .where('id', '=', item.id)
-          .executeTakeFirst();
+        const existingCards = await trx
+          .selectFrom('srs_cards')
+          .select('target_id')
+          .where('target_id', 'in', candidateIds)
+          .where('target_type', '=', 'VOCAB')
+          .execute();
+        const existingTargetIds = new Set(existingCards.map((c) => c.target_id));
 
-        if (!dbExists || dbExists.mastery_status === 'INACTIVE') {
-          const activated = await this.activateVocabItem(item.id);
-          if (!activatedItems.some((a) => a.id === activated.id)) {
-            activatedItems.push(activated);
+        const cardsToInsert = candidateIds
+          .filter((id) => !existingTargetIds.has(id))
+          .map((id) => ({
+            id: `card_voc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            user_id: 'user_local',
+            target_type: 'VOCAB' as const,
+            target_id: id,
+            state: 'NEW' as const,
+            stability: 0.0,
+            difficulty: 5.0,
+            reps: 0,
+            lapses: 0,
+            consecutive_lapses: 0,
+            is_leech: 0,
+            srs_profile: 'VOCAB_AGILE' as const,
+            last_reviewed_at: null,
+            scheduled_for: now,
+            created_at: now,
+          }));
+
+        if (cardsToInsert.length > 0) {
+          try {
+            await trx.insertInto('srs_cards').values(cardsToInsert).execute();
+          } catch (insertErr: unknown) {
+            const msg = String(insertErr);
+            if (
+              !msg.includes('UNIQUE constraint failed') &&
+              !msg.includes('2067') &&
+              !msg.includes('idx_srs_target_unique')
+            ) {
+              throw insertErr;
+            }
           }
         }
+      });
+
+      for (const row of candidates) {
+        activatedItems.push(this.toDomainVocab({ ...row, mastery_status: 'LEARNING' }));
       }
     }
 
@@ -468,8 +815,13 @@ export class VocabRepository implements IVocabRepository {
   async getCoreCorpusCoverage(): Promise<CoreCorpusCoverage> {
     const rows = await this.db
       .selectFrom('vocab_items')
-      .select(['frequency_band', 'mastery_status'])
+      .select([
+        'frequency_band',
+        'mastery_status',
+        sql<number>`count(*)`.as('count'),
+      ])
       .where('is_core', '=', 1)
+      .groupBy(['frequency_band', 'mastery_status'])
       .execute();
 
     const byBand: Record<FrequencyBand, { total: number; active: number; mastered: number }> = {
@@ -486,21 +838,22 @@ export class VocabRepository implements IVocabRepository {
 
     for (const r of rows) {
       const band = (r.frequency_band as FrequencyBand) || 'TOP_3000';
+      const count = Number(r.count ?? 0);
       if (!byBand[band]) {
         byBand[band] = { total: 0, active: 0, mastered: 0 };
       }
 
       if (r.mastery_status !== 'INACTIVE') {
-        activeCore++;
-        byBand[band].active++;
+        activeCore += count;
+        byBand[band].active += count;
       }
 
-      if (r.mastery_status === 'RECEPTIVE_MASTERY') {
-        receptiveMastery++;
-        byBand[band].mastered++;
-      } else if (r.mastery_status === 'PRODUCTIVE_MASTERY') {
-        productiveMastery++;
-        byBand[band].mastered++;
+      if (r.mastery_status === 'RECEPTIVE_MASTERY' || r.mastery_status === 'RECEPTIVE_MASTERED') {
+        receptiveMastery += count;
+        byBand[band].mastered += count;
+      } else if (r.mastery_status === 'PRODUCTIVE_MASTERY' || r.mastery_status === 'PRODUCTIVE_ACTIVE') {
+        productiveMastery += count;
+        byBand[band].mastered += count;
       }
     }
 
@@ -518,8 +871,8 @@ export class VocabRepository implements IVocabRepository {
     const createdAt = new Date().toISOString();
     const verbTensesJson = vocab.verbTensesJson ? JSON.stringify(vocab.verbTensesJson) : null;
     const alternateSensesJson = vocab.alternateSensesJson ? JSON.stringify(vocab.alternateSensesJson) : null;
-    const collocationsJson = vocab.collocationsJson ? JSON.stringify(vocab.collocationsJson) : JSON.stringify([]);
-
+    const sensesJson = vocab.sensesJson ? JSON.stringify(vocab.sensesJson) : null;
+    const phrasalVerbsJson = vocab.phrasalVerbsJson ? JSON.stringify(vocab.phrasalVerbsJson) : null;
     const dbMasteryStatus =
       vocab.masteryStatus === 'PRODUCTIVE_MASTERY' || vocab.masteryStatus === 'PRODUCTIVE_ACTIVE'
         ? 'PRODUCTIVE_MASTERY'
@@ -548,7 +901,6 @@ export class VocabRepository implements IVocabRepository {
         frequency_band: vocab.frequencyBand ?? 'TOP_3000',
         is_core: vocab.isCore ? 1 : 0,
         mastery_status: dbMasteryStatus,
-        collocations_json: collocationsJson,
         is_separable: vocab.isSeparable === null || vocab.isSeparable === undefined ? null : (vocab.isSeparable ? 1 : 0),
         phonetic_ed_ending: vocab.phoneticEdEnding ?? null,
         is_false_friend: vocab.isFalseFriend ? 1 : 0,
@@ -556,6 +908,9 @@ export class VocabRepository implements IVocabRepository {
         verb_tenses_json: verbTensesJson,
         domain_category: vocab.domainCategory ?? null,
         alternate_senses_json: alternateSensesJson,
+        senses_json: sensesJson,
+        phrasal_verbs_json: phrasalVerbsJson,
+        created_at: createdAt,
       })
       .execute();
 
@@ -573,7 +928,6 @@ export class VocabRepository implements IVocabRepository {
       frequencyBand: vocab.frequencyBand ?? 'TOP_3000',
       isCore: vocab.isCore ?? false,
       masteryStatus: vocab.masteryStatus ?? 'LEARNING',
-      collocationsJson: vocab.collocationsJson ?? [],
       isSeparable: vocab.isSeparable ?? null,
       phoneticEdEnding: vocab.phoneticEdEnding ?? null,
       isFalseFriend: vocab.isFalseFriend,
@@ -581,6 +935,8 @@ export class VocabRepository implements IVocabRepository {
       verbTensesJson: vocab.verbTensesJson ?? null,
       domainCategory: vocab.domainCategory ?? null,
       alternateSensesJson: vocab.alternateSensesJson ?? null,
+      sensesJson: vocab.sensesJson ?? null,
+      phrasalVerbsJson: vocab.phrasalVerbsJson ?? null,
       createdAt,
     };
   }
@@ -637,7 +993,6 @@ export class VocabRepository implements IVocabRepository {
     if (updates.frequencyBand !== undefined) updateValues.frequency_band = updates.frequencyBand;
     if (updates.isCore !== undefined) updateValues.is_core = updates.isCore ? 1 : 0;
     if (updates.masteryStatus !== undefined) updateValues.mastery_status = updates.masteryStatus;
-    if (updates.collocationsJson !== undefined) updateValues.collocations_json = JSON.stringify(updates.collocationsJson);
     if (updates.isSeparable !== undefined) updateValues.is_separable = updates.isSeparable === null ? null : (updates.isSeparable ? 1 : 0);
     if (updates.phoneticEdEnding !== undefined) updateValues.phonetic_ed_ending = updates.phoneticEdEnding;
     if (updates.isFalseFriend !== undefined) updateValues.is_false_friend = updates.isFalseFriend ? 1 : 0;
@@ -648,6 +1003,12 @@ export class VocabRepository implements IVocabRepository {
     }
     if (updates.alternateSensesJson !== undefined) {
       updateValues.alternate_senses_json = updates.alternateSensesJson ? JSON.stringify(updates.alternateSensesJson) : null;
+    }
+    if (updates.sensesJson !== undefined) {
+      updateValues.senses_json = updates.sensesJson ? JSON.stringify(updates.sensesJson) : null;
+    }
+    if (updates.phrasalVerbsJson !== undefined) {
+      updateValues.phrasal_verbs_json = updates.phrasalVerbsJson ? JSON.stringify(updates.phrasalVerbsJson) : null;
     }
 
     if (Object.keys(updateValues).length > 0) {

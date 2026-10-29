@@ -13,7 +13,6 @@ import '@fontsource/charis-sil/700.css';
 import '@fontsource/newsreader/400.css';
 import '@fontsource/newsreader/600.css';
 import '@fontsource-variable/jetbrains-mono';
-import 'katex/dist/katex.min.css';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

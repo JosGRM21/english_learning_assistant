@@ -10,7 +10,7 @@ describe('WritingRepository Integration Tests', () => {
   let repo: WritingRepository;
 
   beforeEach(async () => {
-    db = await createTestDatabase();
+    db = await createTestDatabase(false);
     repo = new WritingRepository(db);
   });
 
@@ -81,12 +81,6 @@ describe('WritingRepository Integration Tests', () => {
           native_reformulation: 'depends on',
           original_sentence: 'it depend of the server.',
           expanded_context: 'it depend of the server.',
-          drill: {
-            format: 'CONTEXTUAL_CLOZE',
-            cloze_sentence: 'It depends [ ___ ] the server.',
-            expected_token: 'on',
-            explanation_es: 'En inglés depend rige on',
-          },
         },
       ],
     };
@@ -165,82 +159,87 @@ describe('WritingRepository Integration Tests', () => {
     expect(revList[0].draft_text).toBe('Draft rev 1 updated');
   });
 
-  it('logs writing errors, creates isolated reflective SRS cards, and detects recidivism', async () => {
+  it('deletes a single submission and cascades to revisions and evaluations', async () => {
     const subId = await repo.createSubmission({
       userId: 'user_local',
-      userText: 'She is married with an architect and depend of him.',
-      wordCount: 10,
+      userText: 'Submission to delete',
+      wordCount: 3,
+      status: 'SOCRATIC_PHASE_1',
     });
 
-    // First error log: PREP_MARRIED_TO
-    await repo.logWritingErrors(
-      subId,
-      [
-        {
-          error_span: 'married with',
-          error_type: 'PREPOSITION',
-          taxonomy_code: 'PREPOSITION',
-          is_l1_spanish_transfer: true,
-          explanation_es: 'En inglés se dice married to.',
-          native_reformulation: 'married to',
-          original_sentence: 'She is married with an architect.',
-          expanded_context: 'She is married with an architect.',
-        },
-      ],
-      'user_local',
-      'She is married with an architect.',
-    );
+    await repo.recordRevision({
+      submissionId: subId,
+      revisionNumber: 1,
+      draftText: 'Draft rev 1 to delete',
+    });
 
-    // Verify error was logged and isolated SRS card created
-    const stats = await repo.getWritingErrorStats('user_local');
-    expect(stats.find((s) => s.taxonomyCode === 'PREPOSITION')?.count).toBe(1);
+    const mockEval: WritingEvaluationResponse = {
+      overall_feedback_es: 'Feedback a eliminar',
+      clean_structural_version: 'Clean text',
+      native_recast_version: 'Native text',
+      noticing_the_gap_contrasts: [],
+      rubric_scores: {
+        accuracy: 8,
+        range_and_precision: 8,
+        cohesion_and_flow: 8,
+        pragmatics_and_complexity: 8,
+      },
+      estimated_cefr: 'B1',
+      qualitative_recommendations_es: 'Recs',
+      successful_repairs: [],
+      corrections: [],
+    };
 
-    const srsCards = await db
-      .selectFrom('srs_cards')
+    await repo.recordEvaluation({
+      submissionId: subId,
+      evaluation: mockEval,
+    });
+
+    // Verify exists
+    const beforeDelete = await repo.getSubmissionById(subId);
+    expect(beforeDelete).not.toBeNull();
+
+    // Delete single submission
+    await repo.deleteSubmission(subId);
+
+    // Verify submission is gone
+    const afterDelete = await repo.getSubmissionById(subId);
+    expect(afterDelete).toBeNull();
+
+    // Verify revisions and evaluations are cleaned up
+    const revs = await db
+      .selectFrom('writing_draft_revisions')
       .selectAll()
-      .where('target_type', '=', 'WRITING_ERROR')
+      .where('submission_id', '=', subId)
       .execute();
-    expect(srsCards).toHaveLength(1);
-    expect(srsCards[0].srs_profile).toBe('WRITING_ERROR_REFLECTIVE');
+    expect(revs).toHaveLength(0);
 
-    // Second occurrence of same error -> recidivism check
-    const recCheckBefore = await repo.checkRecidivism('user_local', 'PREPOSITION', 'married with');
-    expect(recCheckBefore.isRecidivist).toBe(false);
-    expect(recCheckBefore.count).toBe(1);
+    const evals = await db
+      .selectFrom('writing_evaluations')
+      .selectAll()
+      .where('submission_id', '=', subId)
+      .execute();
+    expect(evals).toHaveLength(0);
+  });
 
-    // Second submission with same error
-    const subId2 = await repo.createSubmission({
+  it('deletes all submissions for a user', async () => {
+    await repo.createSubmission({
       userId: 'user_local',
-      userText: 'My sister is married with a doctor.',
-      wordCount: 7,
+      userText: 'Submission 1',
+      wordCount: 2,
+    });
+    await repo.createSubmission({
+      userId: 'user_local',
+      userText: 'Submission 2',
+      wordCount: 2,
     });
 
-    await repo.logWritingErrors(
-      subId2,
-      [
-        {
-          error_span: 'married with',
-          error_type: 'PREPOSITION',
-          taxonomy_code: 'PREPOSITION',
-          is_l1_spanish_transfer: true,
-          explanation_es: 'En inglés se dice married to.',
-          native_reformulation: 'married to',
-          original_sentence: 'My sister is married with a doctor.',
-          expanded_context: 'My sister is married with a doctor.',
-        },
-      ],
-      'user_local',
-      'My sister is married with a doctor.',
-    );
+    const before = await repo.getSubmissions('user_local');
+    expect(before.length).toBeGreaterThanOrEqual(2);
 
-    // Third check -> now recidivist!
-    const recCheckAfter = await repo.checkRecidivism('user_local', 'PREPOSITION', 'married with');
-    expect(recCheckAfter.isRecidivist).toBe(true);
-    expect(recCheckAfter.count).toBe(2);
+    await repo.deleteAllSubmissions('user_local');
 
-    // Check fossilized errors query
-    const fossilized = await repo.getFossilizedErrors('user_local');
-    expect(fossilized.length).toBeGreaterThanOrEqual(1);
-    expect(fossilized[0].isFossilizedAlert).toBe(true);
+    const after = await repo.getSubmissions('user_local');
+    expect(after).toHaveLength(0);
   });
 });

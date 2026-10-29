@@ -57,7 +57,6 @@ export const GRAMMATICAL_DIMENSION_LABELS_ES: Record<GrammaticalDimension, strin
 };
 
 export type ChunkType =
-  | 'COLLOCATION'
   | 'PHRASAL_VERB'
   | 'IDIOM'
   | 'BINOMIAL'
@@ -68,6 +67,13 @@ export type PhrasalVerbType =
   | 'TYPE_2_SEPARABLE'
   | 'TYPE_3_INSEPARABLE'
   | 'TYPE_4_THREE_PART';
+
+export const PHRASAL_VERB_TYPE_LABELS_ES: Record<PhrasalVerbType, string> = {
+  TYPE_1_INTRANSITIVE: 'Intransitivo (sin objeto)',
+  TYPE_2_SEPARABLE: 'Separable (con objeto)',
+  TYPE_3_INSEPARABLE: 'Inseparable (con objeto)',
+  TYPE_4_THREE_PART: '3 partes (inseparable)',
+};
 
 export interface VerbTenses {
   infinitive: string;
@@ -94,14 +100,13 @@ export interface VocabSense {
   grammarPattern?: string | null;
   countability?: 'COUNTABLE' | 'UNCOUNTABLE' | 'BOTH' | null;
   connotation?: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
-  collocations?: string[];
   graduatedExamples?: {
     sentenceBasicEn: string;
     sentenceBasicEs: string;
     clozeTargetBasic?: string;
-    sentenceAdvancedEn: string;
-    sentenceAdvancedEs: string;
-    clozeTargetAdvanced?: string;
+    sentenceAdvancedEn?: string | null;
+    sentenceAdvancedEs?: string | null;
+    clozeTargetAdvanced?: string | null;
   };
 }
 
@@ -143,7 +148,6 @@ export interface VocabItem {
   frequencyBand?: FrequencyBand | null;
   isCore: boolean;
   masteryStatus: VocabMasteryStatus;
-  collocationsJson?: string[] | null;
   isSeparable?: boolean | null;
   phoneticEdEnding?: '/t/' | '/d/' | '/ɪd/' | null;
   isFalseFriend: boolean;
@@ -172,6 +176,7 @@ export interface PhraseologicalUnit {
   example2?: string | null;
   example2Es?: string | null;
   cefrLevel: CefrLevel;
+  masteryStatus?: VocabMasteryStatus;
   createdAt: string;
 }
 
@@ -179,6 +184,7 @@ export interface VocabContextExample {
   id: string;
   vocabId?: string | null;
   phraseId?: string | null;
+  senseIndex?: number;
   sentenceEn: string;
   sentenceEs: string;
   clozeTarget: string;

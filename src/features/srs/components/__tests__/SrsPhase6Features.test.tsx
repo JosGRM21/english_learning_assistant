@@ -36,7 +36,6 @@ describe('SRS Flashcards: Enhanced Syntax & Phonetics Conditioning (RF-VOC-04, R
     isFalseFriend: false,
     isCore: true,
     masteryStatus: 'LEARNING',
-    collocationsJson: ['turn on the lights', 'turn on the television'],
     createdAt: new Date().toISOString(),
     sensesJson: [
       {
@@ -48,7 +47,6 @@ describe('SRS Flashcards: Enhanced Syntax & Phonetics Conditioning (RF-VOC-04, R
         cefrLevel: 'A2',
         grammarPattern: 'turn + obj + ON',
         countability: null,
-        collocations: ['turn on the lights'],
       },
     ],
   };
@@ -72,7 +70,7 @@ describe('SRS Flashcards: Enhanced Syntax & Phonetics Conditioning (RF-VOC-04, R
   };
 
   describe('SrsCardDisplay (Front Face Active Recall)', () => {
-    it('renders -ed ending, weak form badge in top strip, and contextual hint/collocation anchors', () => {
+    it('renders -ed ending, weak form badge in top strip, and contextual hint anchor', () => {
       render(
         <SrsCardDisplay
           selectedVocab={testVocab}
@@ -92,16 +90,14 @@ describe('SRS Flashcards: Enhanced Syntax & Phonetics Conditioning (RF-VOC-04, R
       expect(screen.getAllByText(/-ed: \/d\//i).length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText(/débil/i).length).toBeGreaterThanOrEqual(1);
 
-      // Recall anchors: Contextual hint & Collocation clue
+      // Recall anchors: Contextual hint
       expect(screen.getByText('Pista:')).toBeDefined();
       expect(screen.getByText('activate electrical appliances')).toBeDefined();
-      expect(screen.getByText('Pista de colocación:')).toBeDefined();
-      expect(screen.getAllByText(/turn on the lights/i).length).toBeGreaterThanOrEqual(1);
     });
   });
 
   describe('SrsCardBack (Back Face Pedagogical Feedback)', () => {
-    it('renders weak form, regular -ed ending, syntax pattern formula, and strict separable pronoun rule', () => {
+    it('renders weak form, regular -ed ending, strict separable pronoun rule, and excludes grammar pattern', () => {
       render(
         <SrsCardBack
           selectedVocab={testVocab}
@@ -123,17 +119,13 @@ describe('SRS Flashcards: Enhanced Syntax & Phonetics Conditioning (RF-VOC-04, R
       // -ed ending
       expect(screen.getByText(/-ed: \/d\//i)).toBeDefined();
 
-      // Grammar pattern pill
-      expect(screen.getByText('Patrón:')).toBeDefined();
-      expect(screen.getByText('turn + obj + ON')).toBeDefined();
+      // Grammar pattern should not be displayed
+      expect(screen.queryByText('Patrón:')).toBeNull();
+      expect(screen.queryByText('turn + obj + ON')).toBeNull();
 
       // Separable phrasal verb strict pronoun rule banner
       expect(screen.getByText('Regla estricta del pronombre:')).toBeDefined();
       expect(screen.getByText(/Los pronombres deben dividir la partícula/i)).toBeDefined();
-
-      // Sense-level collocations
-      expect(screen.getByText('Colocaciones:')).toBeDefined();
-      expect(screen.getByText('turn on the lights')).toBeDefined();
     });
   });
 });

@@ -13,12 +13,12 @@ export class KeyPoolManager {
   private keys: ManagedApiKey[] = [];
   private currentIndex = 0;
 
-  // Parámetros de seguridad para gemini-2.5-flash-lite / 3.5-flash-lite (15 RPM)
-  // Intervalo mínimo entre llamadas de una misma clave: 4.100 ms (14.6 RPM efectivo)
+  // Parámetros de seguridad y ritmo (10 RPM por worker / clave)
+  // Intervalo mínimo entre llamadas de una misma clave: 6.000 ms (10 RPM efectivo)
   private readonly minIntervalMs: number;
   private readonly maxConcurrentPerKey: number;
 
-  constructor(apiKeys: string[], minIntervalMs = 4100, maxConcurrentPerKey = 1) {
+  constructor(apiKeys: string[], minIntervalMs = 6000, maxConcurrentPerKey = 1) {
     if (apiKeys.length === 0) {
       throw new Error('KeyPoolManager requiere al menos una API Key válida.');
     }

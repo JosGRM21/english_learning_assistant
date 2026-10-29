@@ -4,7 +4,9 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { WritingCanvas } from '../components/WritingCanvas';
 import { WritingAssistantPanel } from '../components/WritingAssistantPanel';
 import { WritingSessionBar } from '../components/WritingSessionBar';
+import { WritingStageTwo } from '../components/WritingStageTwo';
 import { ReadingItem, WritingMission } from '@/data/reading-to-write-catalog';
+import { SocraticFeedbackResponse } from '@/infrastructure/ai/schemas';
 
 const mockMission: WritingMission = {
   type: 'OPINION',
@@ -177,6 +179,71 @@ describe('Taller de Redacción Tweaks', () => {
 
       // Clear/trash button should NOT exist
       expect(screen.queryByRole('button', { name: /borrar borrador actual/i })).toBeNull();
+    });
+  });
+
+  describe('6. Paginación de pistas con HeroUI y alineación vertical', () => {
+    const mockSocraticTwoClues: SocraticFeedbackResponse = {
+      overall_impression_es: 'Buen intento.',
+      error_count: 2,
+      allow_self_correction: true,
+      scaffolded_clues: [
+        {
+          paragraph_index: 0,
+          clue_type: 'PREPOSITION',
+          is_l1_spanish_transfer: true,
+          hint_question_es: 'Revisa la preposición.',
+          highlighted_area: 'depend of',
+          sentence_context: 'It depend of the weather.',
+          zpd_contrastive_es: 'En inglés se dice depend on.',
+          zpd_cloze_sentence: 'It depend [ ___ ] the weather.',
+          zpd_expected_token: 'on',
+          zpd_native_model: 'depend on',
+        },
+        {
+          paragraph_index: 0,
+          clue_type: 'AGREEMENT',
+          is_l1_spanish_transfer: false,
+          hint_question_es: 'Revisa la concordancia del sujeto con el verbo.',
+          highlighted_area: 'depend',
+          sentence_context: 'It depend of the weather.',
+          zpd_contrastive_es: 'El sujeto "It" requiere tercera persona singular.',
+          zpd_cloze_sentence: 'It [ ___ ] on the weather.',
+          zpd_expected_token: 'depends',
+          zpd_native_model: 'depends',
+        },
+      ],
+    };
+
+    it('renders only 1 clue at a time and displays pagination summary at the bottom', () => {
+      render(
+        <WritingStageTwo
+          socraticResult={mockSocraticTwoClues}
+          draft1="It depend of the weather."
+          draft2="It depend of the weather."
+          isLoading={false}
+          onDraftChange={() => {}}
+          onBackToStageOne={() => {}}
+          onEvaluateFinal={() => {}}
+        />,
+      );
+
+      // Only clue #1 is visible initially
+      expect(screen.getByText(/Pista #1/i)).toBeDefined();
+      expect(screen.getAllByText('"depend of"').length).toBeGreaterThan(0);
+      expect(screen.queryByText(/Pista #2/i)).toBeNull();
+
+      // Summary at the bottom
+      expect(screen.getByText('Mostrando 1 de 2')).toBeDefined();
+
+      // Click next page link (page 2)
+      const page2Btn = screen.getByRole('button', { name: /Ir a pista 2/i });
+      fireEvent.click(page2Btn);
+
+      // Now clue #2 is visible and clue #1 is hidden
+      expect(screen.getByText(/Pista #2/i)).toBeDefined();
+      expect(screen.queryByText(/Pista #1/i)).toBeNull();
+      expect(screen.getByText('Mostrando 2 de 2')).toBeDefined();
     });
   });
 });

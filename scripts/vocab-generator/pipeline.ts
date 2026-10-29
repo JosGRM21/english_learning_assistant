@@ -5,11 +5,71 @@ import { BatchStorageManager } from './storage-manager';
 import { classifyGeminiError, GeminiErrorKind } from './error-classifier';
 import { VOCAB_GENERATOR_SYSTEM_PROMPT, buildBatchUserPrompt, LemmaInputItem } from './prompt-builder';
 import { BatchVocabResponseSchema, GeneratedVocabWord } from './schema';
+import {
+  isCanonicalWeakFormLemma,
+  getCanonicalWeakFormSpec,
+  calculatePhoneticEdEnding,
+  COMMON_IRREGULAR_VERBS,
+  isModalAuxiliaryVerb,
+} from '../../src/core/phonetics/phonetic-rules';
+
+/**
+ * Aplica una capa de sanitización y guardarraíles deterministas post-LLM (Capa 1 en memoria)
+ * para garantizar cumplimiento absoluto de invariantes fonológicas, morfológicas y léxicas.
+ */
+export function sanitizeGeneratedVocabWord(rawWord: GeneratedVocabWord): GeneratedVocabWord {
+  const word = { ...rawWord };
+  const lemma = word.word.toLowerCase().trim();
+
+  // 1. Guardarraíl de Verbos, Irregulares y Modales Defectivos
+  const hasVerbSense = word.senses.some((s) => s.partOfSpeech === 'VERB');
+  const isKnownIrregular = COMMON_IRREGULAR_VERBS.has(lemma);
+  const isModal = isModalAuxiliaryVerb(lemma);
+  const isMarkedIrregular = word.verbTenses?.isIrregular ?? false;
+  const isIrregular = isKnownIrregular || isMarkedIrregular;
+
+  if (word.verbTenses && isKnownIrregular) {
+    word.verbTenses.isIrregular = true;
+  }
+
+  if (!hasVerbSense || isIrregular || isModal || word.verbTenses === null) {
+    // Si no tiene acepción verbal, es irregular, es verbo modal o no tiene conjugación regular, phoneticEdEnding DEBE ser null
+    word.phoneticEdEnding = null;
+    if (!hasVerbSense || isModal) {
+      word.verbTenses = null;
+    }
+  } else if (hasVerbSense && !isIrregular && !isModal && word.verbTenses !== null) {
+    // Verbo regular con conjugación completa: calcular y forzar deterministamente el alófono exacto
+    word.phoneticEdEnding = calculatePhoneticEdEnding(word.ipaGeneralAmerican || lemma, lemma);
+  }
+
+  // 2. Guardarraíl de Formas Débiles (ipaWeakForm)
+  if (word.grammaticalDimension === 'CONTENT') {
+    // Palabras de contenido NUNCA tienen ipaWeakForm
+    word.ipaWeakForm = null;
+  } else if (word.grammaticalDimension === 'FUNCTION') {
+    if (!isCanonicalWeakFormLemma(lemma)) {
+      // Si la palabra funcional no está en el catálogo canónico (ej. each, during, if, etc.), debe ser null
+      word.ipaWeakForm = null;
+    } else {
+      const spec = getCanonicalWeakFormSpec(lemma);
+      if (spec) {
+        // Si el LLM omitió la forma débil o la copió idéntica a la fuerte, asignar la forma canónica
+        if (!word.ipaWeakForm || word.ipaWeakForm === word.ipaGeneralAmerican) {
+          word.ipaWeakForm = spec.weakIpa;
+        }
+      }
+    }
+  }
+
+  return word;
+}
 
 export interface PipelineConfig {
-  batchSize: number; // 10 a 15 (def: 10)
+  batchSize: number; // 4 palabras por lote (def: 4)
+  minIntervalMs?: number; // def: 6000 (10 RPM por worker)
   maxRetriesPerBatch: number; // def: 5
-  modelId: string; // def: 'gemini-2.5-flash-lite'
+  modelId: string; // def: 'gemini-3.5-flash-lite'
   destinationCorpusPath: string; // def: 'src/data/core-vocab-corpus.json'
 }
 
@@ -23,10 +83,12 @@ export class VocabGeneratorPipeline {
     storageBaseDir = 'scripts/.cache/vocab_pipeline',
     configPartial: Partial<PipelineConfig> = {}
   ) {
-    this.keyPool = new KeyPoolManager(apiKeys);
+    const minIntervalMs = configPartial.minIntervalMs ?? 6000;
+    this.keyPool = new KeyPoolManager(apiKeys, minIntervalMs);
     this.storage = new BatchStorageManager(storageBaseDir);
     this.config = {
-      batchSize: configPartial.batchSize ?? 10,
+      batchSize: configPartial.batchSize ?? 4,
+      minIntervalMs,
       maxRetriesPerBatch: configPartial.maxRetriesPerBatch ?? 5,
       modelId: configPartial.modelId ?? 'gemini-3.5-flash-lite',
       destinationCorpusPath: configPartial.destinationCorpusPath ?? 'src/data/core-vocab-corpus.json',
@@ -88,7 +150,7 @@ export class VocabGeneratorPipeline {
             }
           }
 
-          return {
+          return sanitizeGeneratedVocabWord({
             ...raw,
             word: raw.word.toLowerCase().trim(),
             frequencyBand,
@@ -96,7 +158,7 @@ export class VocabGeneratorPipeline {
               ...s,
               senseId: s.senseId || `sense_${sIdx + 1}`,
             })),
-          };
+          });
         });
 
         // Éxito comprobado
@@ -200,7 +262,8 @@ export class VocabGeneratorPipeline {
           const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
           const percent = ((completedCount / batches.length) * 100).toFixed(1);
           const remainingBatches = batches.length - completedCount;
-          const etaMinutes = ((remainingBatches * Math.max(parseFloat(elapsedSec), 4.1)) / (60 * concurrency)).toFixed(1);
+          const minIntervalSec = (this.config.minIntervalMs ?? 6000) / 1000;
+          const etaMinutes = ((remainingBatches * Math.max(parseFloat(elapsedSec), minIntervalSec)) / (60 * concurrency)).toFixed(1);
           console.log(
             `[Progreso ${percent}% | ETA ~${etaMinutes}m] [Worker ${workerId}] Lote ${task.batchId} (${task.lemmas.length} palabras) completado en ${elapsedSec}s. (${completedCount}/${batches.length})`
           );
@@ -224,5 +287,33 @@ export class VocabGeneratorPipeline {
     console.log(`\n🎉 ¡Proceso finalizado con éxito!`);
     console.log(`Palabras generadas e indexadas: ${result.totalWords}`);
     console.log(`Archivo compilado en: ${result.destination}`);
+  }
+
+  /**
+   * Genera lemas directamente en memoria sin persistir en disco ni compilar corpus.
+   * Diseñado para testing en vivo, suites de regresión y benchmarks sin efectos colaterales.
+   */
+  public async generateLemmasDirectly(
+    seedLemmas: Array<string | LemmaInputItem>,
+    onBatchProgress?: (completedBatches: number, totalBatches: number, currentBatchItems: GeneratedVocabWord[]) => void
+  ): Promise<GeneratedVocabWord[]> {
+    const results: GeneratedVocabWord[] = [];
+    const batches: Array<{ batchId: string; lemmas: Array<string | LemmaInputItem> }> = [];
+
+    for (let i = 0; i < seedLemmas.length; i += this.config.batchSize) {
+      const slice = seedLemmas.slice(i, i + this.config.batchSize);
+      const batchNum = Math.floor(i / this.config.batchSize) + 1;
+      const batchId = `eval_live_batch_${String(batchNum).padStart(4, '0')}`;
+      batches.push({ batchId, lemmas: slice });
+    }
+
+    for (let i = 0; i < batches.length; i++) {
+      const b = batches[i];
+      const items = await this.processSingleBatchWithRetry(b.batchId, b.lemmas);
+      results.push(...items);
+      onBatchProgress?.(i + 1, batches.length, items);
+    }
+
+    return results;
   }
 }

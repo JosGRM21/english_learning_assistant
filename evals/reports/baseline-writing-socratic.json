@@ -1,0 +1,361 @@
+{
+  "runId": "run_writing_1793158757655_fast_l1_l2",
+  "timestamp": "2026-10-28T03:39:17.655Z",
+  "datasetVersion": "v1.0.0",
+  "domain": "writing_socratic",
+  "mode": "FAST_L1_L2",
+  "totalSamples": 18,
+  "passedSamples": 18,
+  "failedSamples": 0,
+  "passRate": 100,
+  "averageScore": 0.861,
+  "averageDurationMs": 0.46,
+  "layerBreakdown": {
+    "l1Passed": 18,
+    "l2Passed": 18
+  },
+  "samples": [
+    {
+      "sampleId": "GS-WRT-SOC-001",
+      "domain": "writing_socratic",
+      "category": "nominal",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 3.28,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-002",
+      "domain": "writing_socratic",
+      "category": "nominal",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.98,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-003",
+      "domain": "writing_socratic",
+      "category": "edge_case",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.36,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-004",
+      "domain": "writing_socratic",
+      "category": "edge_case",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.31,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-005",
+      "domain": "writing_socratic",
+      "category": "edge_case",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.5,
+      "durationMs": 0.33,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-006",
+      "domain": "writing_socratic",
+      "category": "edge_case",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.51,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-007",
+      "domain": "writing_socratic",
+      "category": "adversarial",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.5,
+      "durationMs": 0.24,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-008",
+      "domain": "writing_socratic",
+      "category": "out_of_domain",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.13,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-009",
+      "domain": "writing_socratic",
+      "category": "nominal",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.27,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-010",
+      "domain": "writing_socratic",
+      "category": "nominal",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.27,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-011",
+      "domain": "writing_socratic",
+      "category": "edge_case",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.5,
+      "durationMs": 0.21,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-012",
+      "domain": "writing_socratic",
+      "category": "edge_case",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.27,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-013",
+      "domain": "writing_socratic",
+      "category": "edge_case",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.17,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-014",
+      "domain": "writing_socratic",
+      "category": "edge_case",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.18,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-015",
+      "domain": "writing_socratic",
+      "category": "edge_case",
+      "criticality": 3,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.22,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-016",
+      "domain": "writing_socratic",
+      "category": "edge_case",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.5,
+      "durationMs": 0.28,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-017",
+      "domain": "writing_socratic",
+      "category": "adversarial",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.5,
+      "durationMs": 0.17,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-SOC-018",
+      "domain": "writing_socratic",
+      "category": "out_of_domain",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.08,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    }
+  ]
+}

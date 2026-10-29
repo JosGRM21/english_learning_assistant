@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { VocabCard } from '../VocabCard';
 import { VocabDetailDrawer } from '../VocabDetailDrawer';
+import { VerbTensesTable } from '../VerbTensesTable';
 import * as audioHook from '@/shared/hooks/useAudio';
 import * as dbHook from '@/shared/hooks/useDatabase';
 import { VocabItem, VocabContextExample } from '@/core/types/vocab';
@@ -97,13 +98,40 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
       expect(screen.getByText(/She proved to be remarkably resilient/i)).toBeDefined();
     });
 
-    it('plays audio pronunciation when clicking the audio icon', async () => {
+    it('plays audio pronunciation when clicking the audio icon with default US accent', async () => {
       render(<VocabCard vocab={mockVocab} />);
 
       const speakBtn = screen.getByTitle(/Escuchar pronunciación nativa/i);
       fireEvent.click(speakBtn);
 
-      expect(mockAudioService.speak).toHaveBeenCalledWith('resilient', 1.0);
+      expect(mockAudioService.speak).toHaveBeenCalledWith('resilient', 1.0, 'af_heart');
+    });
+
+    it('plays audio pronunciation with UK voice (bf_emma) when accentPreference is UK', async () => {
+      render(<VocabCard vocab={mockVocab} accentPreference="UK" />);
+
+      const speakBtn = screen.getByTitle(/Escuchar pronunciación nativa/i);
+      fireEvent.click(speakBtn);
+
+      expect(mockAudioService.speak).toHaveBeenCalledWith('resilient', 1.0, 'bf_emma');
+    });
+
+    it('synchronizes accent and plays audio with UK voice when accentPreference prop updates', async () => {
+      const { rerender } = render(<VocabCard vocab={mockVocab} accentPreference="US" />);
+
+      // Initially US
+      expect(screen.getByText('/rɪˈzɪliənt/')).toBeDefined();
+
+      // Change prop to UK
+      rerender(<VocabCard vocab={mockVocab} accentPreference="UK" />);
+
+      // Should update to Received Pronunciation
+      expect(screen.getByText('/rɪˈzɪl.jənt/')).toBeDefined();
+
+      const speakBtn = screen.getByTitle(/Escuchar pronunciación nativa/i);
+      fireEvent.click(speakBtn);
+
+      expect(mockAudioService.speak).toHaveBeenCalledWith('resilient', 1.0, 'bf_emma');
     });
 
     it('does not display clutter badges like false friend on card header, keeping only CEFR level', () => {
@@ -167,13 +195,22 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
       expect(screen.queryByText(/Past Participle/i)).toBeNull();
     });
 
-    it('plays context example audio when clicking the example audio button', async () => {
+    it('plays context example audio when clicking the example audio button with default US accent', async () => {
       render(<VocabCard vocab={mockVocab} examples={[mockExample]} />);
 
       const speakExBtn = screen.getByTitle(/Escuchar oración/i);
       fireEvent.click(speakExBtn);
 
-      expect(mockAudioService.speak).toHaveBeenCalledWith(mockExample.sentenceEn, 0.95);
+      expect(mockAudioService.speak).toHaveBeenCalledWith(mockExample.sentenceEn, 0.95, 'af_heart');
+    });
+
+    it('plays context example audio with UK voice when accentPreference is UK', async () => {
+      render(<VocabCard vocab={mockVocab} examples={[mockExample]} accentPreference="UK" />);
+
+      const speakExBtn = screen.getByTitle(/Escuchar oración/i);
+      fireEvent.click(speakExBtn);
+
+      expect(mockAudioService.speak).toHaveBeenCalledWith(mockExample.sentenceEn, 0.95, 'bf_emma');
     });
 
     it('renders phrasal verbs with phonetic IPA, distinct English definition, and contextual sentence translation', () => {
@@ -212,6 +249,101 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
       expect(screen.getByText('To record information on paper or on a digital device.')).toBeDefined();
       expect(screen.getByText(/Please write down this phone number/i)).toBeDefined();
       expect(screen.getByText(/Por favor, apunta este número de teléfono/i)).toBeDefined();
+    });
+
+    it('triggers onContextMenu on right click', () => {
+      const onContextMenu = vi.fn();
+      render(<VocabCard vocab={mockVocab} onContextMenu={onContextMenu} />);
+
+      const card = screen.getByText('resilient').closest('.group');
+      expect(card).toBeDefined();
+      fireEvent.contextMenu(card!);
+
+      expect(onContextMenu).toHaveBeenCalledTimes(1);
+    });
+
+    it('toggles selection with a single left click when isSelectionMode is true', () => {
+      const onToggleSelect = vi.fn();
+      const onSelectWord = vi.fn();
+      render(
+        <VocabCard
+          vocab={mockVocab}
+          isSelectionMode={true}
+          onToggleSelect={onToggleSelect}
+          onSelectWord={onSelectWord}
+        />
+      );
+
+      const card = screen.getByText('resilient').closest('.group');
+      fireEvent.click(card!);
+
+      expect(onToggleSelect).toHaveBeenCalledWith(mockVocab);
+      expect(onSelectWord).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('VerbTensesTable', () => {
+    it('renders all verb forms vertically with labels, values, and audio controls', () => {
+      const tenses = {
+        infinitive: 'speak',
+        pastSimple: 'spoke',
+        pastParticiple: 'spoken',
+        thirdPersonPresent: 'speaks',
+        gerund: 'speaking',
+        isIrregular: true,
+      };
+
+      render(<VerbTensesTable tenses={tenses} />);
+
+      expect(screen.getByText('V1')).toBeDefined();
+      expect(screen.getByText('Base Form (Infinitivo)')).toBeDefined();
+      expect(screen.getByText('speak')).toBeDefined();
+
+      expect(screen.getByText('V2')).toBeDefined();
+      expect(screen.getByText('Past Simple (Pasado Simple)')).toBeDefined();
+      expect(screen.getByText('spoke')).toBeDefined();
+
+      expect(screen.getByText('V3')).toBeDefined();
+      expect(screen.getByText('Past Participle (Participio)')).toBeDefined();
+      expect(screen.getByText('spoken')).toBeDefined();
+
+      expect(screen.getByText('3ª SG')).toBeDefined();
+      expect(screen.getByText('speaks')).toBeDefined();
+
+      expect(screen.getByText('-ING')).toBeDefined();
+      expect(screen.getByText('speaking')).toBeDefined();
+    });
+
+    it('plays verb form audio with US voice by default', async () => {
+      const tenses = {
+        infinitive: 'speak',
+        pastSimple: 'spoke',
+        pastParticiple: 'spoken',
+        thirdPersonPresent: 'speaks',
+        gerund: 'speaking',
+        isIrregular: true,
+      };
+
+      render(<VerbTensesTable tenses={tenses} accentPreference="US" />);
+      const audioBtns = screen.getAllByTitle(/Escuchar "speak"/i);
+      fireEvent.click(audioBtns[0]);
+      expect(mockAudioService.speak).toHaveBeenCalledWith('speak', 0.95, 'af_heart');
+    });
+
+    it('plays verb form audio with UK voice (bf_emma) when accentPreference is UK', async () => {
+      const tenses = {
+        infinitive: 'speak',
+        pastSimple: 'spoke',
+        pastParticiple: 'spoken',
+        thirdPersonPresent: 'speaks',
+        gerund: 'speaking',
+        isIrregular: true,
+      };
+
+      render(<VerbTensesTable tenses={tenses} accentPreference="UK" />);
+      const audioBtns = screen.getAllByTitle(/Escuchar "speak"/i);
+      fireEvent.click(audioBtns[0]);
+      expect(mockAudioService.speak).toHaveBeenCalledWith('speak', 0.95, 'bf_emma');
     });
   });
 
@@ -357,7 +489,7 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
       expect(onNavigateMock).toHaveBeenCalledWith('next');
     });
 
-    it('plays slow 0.75x audio when clicking the slow audio button', async () => {
+    it('plays slow 0.75x audio when clicking the slow audio button with default US accent', async () => {
       render(
         <VocabDetailDrawer
           vocab={mockVocab}
@@ -369,7 +501,44 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
       const slowBtn = screen.getByTitle(/Escuchar a velocidad lenta \(0.75x\)/i);
       fireEvent.click(slowBtn);
 
-      expect(mockAudioService.speak).toHaveBeenCalledWith('resilient', 0.75);
+      expect(mockAudioService.speak).toHaveBeenCalledWith('resilient', 0.75, 'af_heart');
+    });
+
+    it('plays 1.0x and 0.75x audio with UK voice (bf_emma) when accentPreference is UK in VocabDetailDrawer', async () => {
+      render(
+        <VocabDetailDrawer
+          vocab={mockVocab}
+          isOpen={true}
+          onClose={vi.fn()}
+          accentPreference="UK"
+        />
+      );
+
+      const normalBtn = screen.getByTitle(/Pronunciación normal \(1.0x\)/i);
+      fireEvent.click(normalBtn);
+      expect(mockAudioService.speak).toHaveBeenCalledWith('resilient', 1.0, 'bf_emma');
+
+      const slowBtn = screen.getByTitle(/Escuchar a velocidad lenta \(0.75x\)/i);
+      fireEvent.click(slowBtn);
+      expect(mockAudioService.speak).toHaveBeenCalledWith('resilient', 0.75, 'bf_emma');
+    });
+
+    it('allows toggling accent when clicking regional IPA badge buttons in VocabDetailDrawer', () => {
+      const onToggleAccentMock = vi.fn();
+      render(
+        <VocabDetailDrawer
+          vocab={mockVocab}
+          isOpen={true}
+          onClose={vi.fn()}
+          accentPreference="US"
+          onToggleAccent={onToggleAccentMock}
+        />
+      );
+
+      const ukBadgeBtn = screen.getByTitle(/Acento Received Pronunciation \(UK\)/i);
+      fireEvent.click(ukBadgeBtn);
+
+      expect(onToggleAccentMock).toHaveBeenCalled();
     });
 
     it('progressively discloses context examples when there are more than 2 examples', () => {
@@ -524,6 +693,120 @@ describe('VocabCard and VocabDetailDrawer UX Components', () => {
       expect(phrasalBadges).toHaveLength(1);
       // And "Uso General" is rendered as the domain category badge
       expect(screen.getByText('Uso General')).toBeDefined();
+    });
+
+    it('activates inactive vocab word when clicking "Activar para estudio"', async () => {
+      const onActivateWordMock = vi.fn().mockResolvedValue({
+        ...mockVocab,
+        masteryStatus: 'LEARNING',
+      });
+
+      render(
+        <VocabDetailDrawer
+          vocab={{
+            ...mockVocab,
+            masteryStatus: 'INACTIVE',
+          }}
+          isOpen={true}
+          onClose={vi.fn()}
+          onActivateWord={onActivateWordMock}
+        />
+      );
+
+      const activateBtn = screen.getByText('Activar para estudio');
+      expect(activateBtn).toBeDefined();
+
+      fireEvent.click(activateBtn);
+
+      await waitFor(() => {
+        expect(onActivateWordMock).toHaveBeenCalledWith('voc_test_1');
+      });
+    });
+
+    it('activates inactive phrasal verb when clicking "Activar para estudio" using onActivatePhrase and fetches PHRASE card', async () => {
+      const onActivatePhraseMock = vi.fn().mockResolvedValue(true);
+      const onActivateWordMock = vi.fn().mockResolvedValue(null);
+
+      const phrasalVocab: VocabItem = {
+        id: 'phr_look_forward',
+        word: 'look forward to',
+        ipaGeneralAmerican: '/lʊk ˈfɔːrwərd tuː/',
+        translationEs: 'esperar con ilusión',
+        definitionEn: 'To feel excited about something that is going to happen.',
+        cefrLevel: 'B1',
+        partOfSpeech: 'VERB',
+        subcategory: 'PHRASAL_VERB',
+        grammaticalDimension: 'CHUNK',
+        isFalseFriend: false,
+        isCore: true,
+        masteryStatus: 'INACTIVE',
+        domainCategory: 'Uso General',
+        createdAt: new Date().toISOString(),
+      };
+
+      render(
+        <VocabDetailDrawer
+          vocab={phrasalVocab}
+          isOpen={true}
+          onClose={vi.fn()}
+          onActivateWord={onActivateWordMock}
+          onActivatePhrase={onActivatePhraseMock}
+        />
+      );
+
+      const activateBtn = screen.getByText('Activar para estudio');
+      expect(activateBtn).toBeDefined();
+
+      fireEvent.click(activateBtn);
+
+      await waitFor(() => {
+        expect(onActivatePhraseMock).toHaveBeenCalledWith('phr_look_forward');
+        expect(onActivateWordMock).not.toHaveBeenCalled();
+        expect(mockCardRepo.getCardByTargetId).toHaveBeenCalledWith('phr_look_forward', 'PHRASE');
+      });
+    });
+
+    it('activates inactive phrasal verb falling back to onActivateWord when onActivatePhrase is omitted', async () => {
+      const onActivateWordMock = vi.fn().mockResolvedValue({
+        id: 'phr_call_off',
+        word: 'call off',
+        masteryStatus: 'LEARNING',
+      });
+
+      const phrasalVocab: VocabItem = {
+        id: 'phr_call_off',
+        word: 'call off',
+        ipaGeneralAmerican: '/kɔːl ɔːf/',
+        translationEs: 'cancelar',
+        definitionEn: 'To cancel an event or agreement.',
+        cefrLevel: 'B2',
+        partOfSpeech: 'VERB',
+        subcategory: 'PHRASAL_VERB',
+        grammaticalDimension: 'CHUNK',
+        isFalseFriend: false,
+        isCore: true,
+        masteryStatus: 'INACTIVE',
+        domainCategory: 'Uso General',
+        createdAt: new Date().toISOString(),
+      };
+
+      render(
+        <VocabDetailDrawer
+          vocab={phrasalVocab}
+          isOpen={true}
+          onClose={vi.fn()}
+          onActivateWord={onActivateWordMock}
+        />
+      );
+
+      const activateBtn = screen.getByText('Activar para estudio');
+      expect(activateBtn).toBeDefined();
+
+      fireEvent.click(activateBtn);
+
+      await waitFor(() => {
+        expect(onActivateWordMock).toHaveBeenCalledWith('phr_call_off');
+      });
     });
   });
 });

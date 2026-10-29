@@ -32,7 +32,7 @@ export const CEFR_DESCRIPTIONS: Record<CefrLevel, { name: string; summary: strin
   },
   C1: {
     name: 'Avanzado',
-    summary: 'Precisión estilística, colocaciones idiomáticas y cohesión compleja.',
+    summary: 'Precisión estilística, combinación idiomática y cohesión compleja.',
     detail: 'Matices finos de significado, retórica académica, transiciones elegantes y cohesión sin fisuras.',
   },
   C2: {

@@ -1,4 +1,4 @@
-import { CheckCircle2, RotateCw, Clock, Award, Target, Hourglass, Sparkles, Zap, ArrowRight } from 'lucide-react';
+import { CheckCircle2, RotateCw, Clock, Award, Target, Hourglass, Sparkles, ArrowRight } from 'lucide-react';
 import { SrsSessionStats } from '@/core/srs/SrsSessionEngine';
 
 export interface SrsSessionCompleteProps {
@@ -28,7 +28,6 @@ export function SrsSessionComplete({
       : 100;
 
   const avgLatencySec = (stats.averageLatencyMs / 1000).toFixed(1);
-  const isAgilePace = stats.averageLatencyMs > 0 && stats.averageLatencyMs <= 5000;
 
   // If user reviewed nothing and all new cards are resting in the 4h consolidation cooldown
   const isAllInCooldown = stats.totalReviewed === 0 && cooldownCount > 0;
@@ -76,27 +75,15 @@ export function SrsSessionComplete({
           <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto leading-relaxed">
             {isAllInCooldown ? (
               <>
-                Tienes <strong>{cooldownCount} {cooldownCount === 1 ? 'palabra' : 'palabras'}</strong> en periodo de consolidación neural inicial (cooldown de 4h). Para evitar el sesgo de recuerdo inmediato (<em>priming</em>), tu primer test FSRS madurará {formatCooldownTime(earliestCooldownDate)}.
+                Tienes <strong>{cooldownCount} {cooldownCount === 1 ? 'palabra' : 'palabras'}</strong> en periodo de descanso y asimilación inicial (4h). Podrás repasarlas {formatCooldownTime(earliestCooldownDate)}.
               </>
             ) : stats.totalReviewed > 0 ? (
-              'Has completado todas las tarjetas programadas para esta sesión bajo el Perfil Ágil (r = 0.90). El motor FSRS ha recalculado la estabilidad e intervalos óptimos de memoria.'
+              '¡Excelente trabajo! Has repasado todas las palabras pendientes de hoy. Tu progreso ha sido guardado y el sistema adaptará los repasos según tu memoria.'
             ) : (
-              'No tienes tarjetas vencidas pendientes para hoy. El modelo de decaimiento temporal FSRS te notificará cuando sea el momento exacto para consolidar tu recuerdo.'
+              '¡Estás al día! No tienes palabras pendientes por repasar en este momento. Te avisaremos cuando sea momento de reforzar tu memoria.'
             )}
           </p>
         </div>
-
-        {/* Pacing Badge for Agile Cadence */}
-        {stats.totalReviewed > 0 && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-[#161B28] border border-gray-200/60 dark:border-gray-800 text-xs">
-            <Zap className={`w-3.5 h-3.5 ${isAgilePace ? 'text-emerald-500' : 'text-amber-500'}`} />
-            <span className="font-semibold text-gray-700 dark:text-gray-300">
-              {isAgilePace
-                ? '⚡ Ritmo Ágil Cumplido (Promedio 3–5s por tarjeta)'
-                : '🎯 Ritmo Reflexivo (Se recomienda 3–5s para fluidez léxica)'}
-            </span>
-          </div>
-        )}
 
         {/* Bento Metrics Grid */}
         <div className="grid grid-cols-3 gap-3 pt-2">

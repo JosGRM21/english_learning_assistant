@@ -1,0 +1,285 @@
+{
+  "runId": "run_writing_1793158757790_fast_l1_l2",
+  "timestamp": "2026-10-28T03:39:17.790Z",
+  "datasetVersion": "v1.0.0",
+  "domain": "writing_evaluation",
+  "mode": "FAST_L1_L2",
+  "totalSamples": 14,
+  "passedSamples": 14,
+  "failedSamples": 0,
+  "passRate": 100,
+  "averageScore": 0.945,
+  "averageDurationMs": 1.19,
+  "layerBreakdown": {
+    "l1Passed": 14,
+    "l2Passed": 14
+  },
+  "samples": [
+    {
+      "sampleId": "GS-WRT-EVAL-001",
+      "domain": "writing_evaluation",
+      "category": "nominal",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 4.31,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-002",
+      "domain": "writing_evaluation",
+      "category": "edge_case",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.991,
+      "durationMs": 4.21,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-003",
+      "domain": "writing_evaluation",
+      "category": "edge_case",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 1.5,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-004",
+      "domain": "writing_evaluation",
+      "category": "adversarial",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.775,
+      "durationMs": 0.62,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-005",
+      "domain": "writing_evaluation",
+      "category": "nominal",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.35,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-006",
+      "domain": "writing_evaluation",
+      "category": "nominal",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.71,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-007",
+      "domain": "writing_evaluation",
+      "category": "edge_case",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.989,
+      "durationMs": 0.69,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-008",
+      "domain": "writing_evaluation",
+      "category": "edge_case",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.988,
+      "durationMs": 0.62,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-009",
+      "domain": "writing_evaluation",
+      "category": "edge_case",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.98,
+      "durationMs": 1.3,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-010",
+      "domain": "writing_evaluation",
+      "category": "edge_case",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.995,
+      "durationMs": 0.44,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-011",
+      "domain": "writing_evaluation",
+      "category": "edge_case",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.984,
+      "durationMs": 0.36,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-012",
+      "domain": "writing_evaluation",
+      "category": "adversarial",
+      "criticality": 5,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.767,
+      "durationMs": 0.7,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-013",
+      "domain": "writing_evaluation",
+      "category": "out_of_domain",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 0.764,
+      "durationMs": 0.42,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    },
+    {
+      "sampleId": "GS-WRT-EVAL-014",
+      "domain": "writing_evaluation",
+      "category": "edge_case",
+      "criticality": 4,
+      "passed": true,
+      "failedLayer": null,
+      "overallScore": 1,
+      "durationMs": 0.49,
+      "layer1": {
+        "passed": true
+      },
+      "layer2": {
+        "passed": true,
+        "factualRecall": 1,
+        "prohibitedViolations": [],
+        "warnings": []
+      }
+    }
+  ]
+}

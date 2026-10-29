@@ -49,14 +49,22 @@ export const SocraticClueSchema = z.object({
     if (upper.includes('SPELL')) return 'SPELLING';
     return 'AGREEMENT';
   }, SocraticClueTypeEnum.catch('AGREEMENT')),
-  hint_question_es: z.preprocess(stripLeadingGreetings, z.string()),
-  highlighted_area: z.string(),
-  sentence_context: z.preprocess((val) => (typeof val === 'string' ? val.trim() : ''), z.string().min(1, 'sentence_context is required')),
-  is_l1_spanish_transfer: z.boolean().default(false),
-  zpd_contrastive_es: z.string().optional(),
-  zpd_cloze_sentence: z.string().optional(),
-  zpd_expected_token: z.string().optional(),
-  zpd_native_model: z.string().optional(),
+  hint_question_es: z.preprocess(
+    stripLeadingGreetings,
+    z.string().describe('Pregunta reflexiva clara y directa sin jerga técnica para orientar la auto-corrección.'),
+  ),
+  highlighted_area: z.string().describe('Fragmento textual exacto con el desajuste en el borrador.'),
+  sentence_context: z.preprocess(
+    (val) => (typeof val === 'string' ? val.trim() : ''),
+    z.string().min(1, 'sentence_context is required').describe('Oración completa donde ocurre el error.'),
+  ),
+  is_l1_spanish_transfer: z.boolean().default(false).describe('True si el error proviene de transferencia directa del español.'),
+  zpd_contrastive_es: z.string().optional().describe(
+    'Explicación pedagógica directa y amigable en español (marco Significado-Forma-Uso). Sin jerga lingüística (prohibido decir "partícula idiomática", "régimen preposicional", "interlenguaje", etc.). En falsos amigos como assist to vs attend, aclara qué significa la palabra errónea y cuál es el término nativo correcto.',
+  ),
+  zpd_cloze_sentence: z.string().optional().describe('Oración contextual con el elemento meta sustituido por [ ___ ].'),
+  zpd_expected_token: z.string().optional().describe('Palabra o colocación exacta esperada para rellenar [ ___ ].'),
+  zpd_native_model: z.string().optional().describe('Oración o modelo nativo completo corregido.'),
 });
 
 export const SocraticFeedbackResponseSchema = z.object({
@@ -68,42 +76,6 @@ export const SocraticFeedbackResponseSchema = z.object({
 
 export type SocraticFeedbackResponse = z.infer<typeof SocraticFeedbackResponseSchema>;
 export type SocraticClue = z.infer<typeof SocraticClueSchema>;
-
-export const PositiveDrillFormatEnum = z.enum([
-  'CONTEXTUAL_CLOZE',
-  'C_TEST',
-  'SENTENCE_REWRITE',
-  'CHUNK_SCRAMBLE',
-]);
-
-export type PositiveDrillFormat = z.infer<typeof PositiveDrillFormatEnum>;
-
-export const PositiveDrillSchema = z.object({
-  format: PositiveDrillFormatEnum.default('CONTEXTUAL_CLOZE').optional(),
-  // CONTEXTUAL_CLOZE
-  cloze_sentence: z.string().optional(),
-  expected_token: z.string().optional(),
-  hint_es: z.string().optional(),
-  options: z.array(z.string()).optional(),
-  correct_option_index: z.number().int().optional(),
-  // C_TEST
-  sentence_with_prefix: z.string().optional(),
-  c_test_prefix: z.string().optional(),
-  expected_length: z.number().int().positive().optional(),
-  // SENTENCE_REWRITE
-  prompt_instruction_es: z.string().optional(),
-  source_sentence: z.string().optional(),
-  mandatory_keyword: z.string().optional(),
-  model_solution: z.string().optional(),
-  // CHUNK_SCRAMBLE
-  scrambled_chunks: z.array(z.string()).optional(),
-  correct_sequence: z.array(z.string()).optional(),
-  // Pedagogical explanations
-  explanation_es: z.string().default(''),
-  transfer_prompt_es: z.string().optional(),
-});
-
-export type PositiveDrill = z.infer<typeof PositiveDrillSchema>;
 
 export const CorrectionItemSchema = z.preprocess(
   (raw: any) => {
@@ -155,7 +127,6 @@ export const CorrectionItemSchema = z.preprocess(
     native_reformulation: z.string().default(''),
     original_sentence: z.string().default(''),
     expanded_context: z.string().default(''),
-    drill: PositiveDrillSchema.optional(),
   }),
 );
 
@@ -231,14 +202,33 @@ export function sanitizeSocraticFeedback(response: SocraticFeedbackResponse): So
   };
 }
 
-export function sanitizeWritingEvaluation(response: WritingEvaluationResponse): WritingEvaluationResponse {
+export function sanitizeWritingEvaluation(
+  response: WritingEvaluationResponse,
+  draft1?: string,
+  draft2?: string,
+): WritingEvaluationResponse {
   const filteredCorrections = (response.corrections || []).filter(
     (corr) => !isPunctuationCorrection(corr),
   );
 
+  let filteredRepairs = response.successful_repairs || [];
+  if (draft1 && draft2 && draft1.trim().toLowerCase() === draft2.trim().toLowerCase()) {
+    // Si el estudiante no modificó nada entre borradores, no puede haber reparaciones reales
+    filteredRepairs = [];
+  } else {
+    // Filtrar reparaciones fantasma donde el fragmento original y el corregido son idénticos
+    filteredRepairs = filteredRepairs.filter((repair) => {
+      if (repair.original_snippet && repair.corrected_snippet) {
+        return repair.original_snippet.trim().toLowerCase() !== repair.corrected_snippet.trim().toLowerCase();
+      }
+      return true;
+    });
+  }
+
   return {
     ...response,
     corrections: filteredCorrections,
+    successful_repairs: filteredRepairs,
   };
 }
 
@@ -406,7 +396,6 @@ export const VocabSenseSchema = z.object({
   grammarPattern: z.string().nullable().optional(),
   countability: z.enum(['COUNTABLE', 'UNCOUNTABLE', 'BOTH']).nullable().optional(),
   connotation: z.enum(['POSITIVE', 'NEUTRAL', 'NEGATIVE']).default('NEUTRAL').optional(),
-  collocations: z.array(z.string()).default([]).optional(),
   graduatedExamples: GraduatedExamplesItemSchema.optional(),
   exampleSentenceEn: z.string().default(''),
   exampleSentenceEs: z.string().default(''),
@@ -434,7 +423,6 @@ export const VocabEnrichmentResponseSchema = z.object({
     'INTERJECTION',
   ]),
   grammaticalDimension: z.enum(['CONTENT', 'FUNCTION', 'CHUNK']),
-  collocations: z.array(z.string()).default([]).optional(),
   exampleSentenceEn: z.string(),
   exampleSentenceEs: z.string(),
   graduatedExamples: z.object({

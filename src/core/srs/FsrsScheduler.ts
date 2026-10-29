@@ -1,12 +1,12 @@
 import { CardState, FsrsGrade, SrsCard, ReviewLog, SrsProfile } from '../types/srs';
 
 export interface SchedulerProfileConfig {
-  requestedRetention: number; // 0.90 for VOCAB_AGILE, 0.92 for WRITING_ERROR_REFLECTIVE
+  requestedRetention: number; // 0.90 for VOCAB_AGILE
   initialStabilityDays: number;
   lapsePenaltyMultiplier: number;
   maxIntervalDays: number;
-  leechConsecutiveThreshold: number; // 4 for vocab, 3 for errors
-  leechTotalLapsesThreshold: number; // 6 for vocab, 5 for errors
+  leechConsecutiveThreshold: number; // 4 for vocab
+  leechTotalLapsesThreshold: number; // 6 for vocab
 }
 
 export const SRS_PROFILES_CONFIG: Record<SrsProfile, SchedulerProfileConfig> = {
@@ -17,14 +17,6 @@ export const SRS_PROFILES_CONFIG: Record<SrsProfile, SchedulerProfileConfig> = {
     maxIntervalDays: 365,
     leechConsecutiveThreshold: 4,
     leechTotalLapsesThreshold: 6,
-  },
-  WRITING_ERROR_REFLECTIVE: {
-    requestedRetention: 0.92,
-    initialStabilityDays: 0.5,
-    lapsePenaltyMultiplier: 1.3,
-    maxIntervalDays: 180,
-    leechConsecutiveThreshold: 3,
-    leechTotalLapsesThreshold: 5,
   },
 };
 
@@ -194,9 +186,7 @@ export class FsrsScheduler {
         newD = Math.min(Math.max(this.w[4] - Math.exp(this.w[5] * (grade - 1)) + 1, 1.0), 10.0);
         newState = 'REVIEW';
       } else {
-        newS = profile === 'WRITING_ERROR_REFLECTIVE' && grade === 3
-          ? config.initialStabilityDays
-          : this.w[grade - 1];
+        newS = this.w[grade - 1];
         newD = Math.min(Math.max(this.w[4] - Math.exp(this.w[5] * (grade - 1)) + 1, 1.0), 10.0);
         newState = grade === 1 ? 'LEARNING' : 'REVIEW';
       }

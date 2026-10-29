@@ -119,25 +119,7 @@ describe('WritingStageThree Enhanced (RF-WRT-07, RF-WRT-08, RF-WRT-11)', () => {
     );
   });
 
-  it('triggers onNavigateToDefossilization when CTA button is clicked (RF-WRT-10)', () => {
-    const handleNavigate = vi.fn();
-    render(
-      <WritingStageThree
-        evalResult={mockEvalResult}
-        draft1="Initial draft"
-        draft2="Revised draft"
-        onNavigateToDefossilization={handleNavigate}
-        onReset={vi.fn()}
-      />,
-    );
-
-    const defossBtn = screen.getByRole('button', { name: /Practicar en Corrector de Hábitos/i });
-    fireEvent.click(defossBtn);
-
-    expect(handleNavigate).toHaveBeenCalled();
-  });
-
-  it('renders Puntos de Mejora tab and discriminates L1 transfer badge accurately', () => {
+  it('renders Puntos de Mejora tab without technical linguistic badges', () => {
     render(
       <WritingStageThree
         evalResult={mockEvalResult}
@@ -157,8 +139,8 @@ describe('WritingStageThree Enhanced (RF-WRT-07, RF-WRT-08, RF-WRT-11)', () => {
     expect(screen.getByText('depend of')).toBeDefined();
     expect(screen.getByText('buyed')).toBeDefined();
 
-    // The L1 Spanish transfer badge should only appear once (for 'depend of', not for 'buyed')
-    const l1Badges = screen.getAllByText('Influencia del Español');
-    expect(l1Badges).toHaveLength(1);
+    // Technical badges (PREPOSITION, Influencia del Español) should NOT be rendered
+    expect(screen.queryByText('Influencia del Español')).toBeNull();
+    expect(screen.queryByText('PREPOSITION')).toBeNull();
   });
 });

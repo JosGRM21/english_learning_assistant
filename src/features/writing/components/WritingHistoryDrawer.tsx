@@ -10,12 +10,14 @@ import {
   Filter,
 } from 'lucide-react';
 import { WritingSubmissionEntity } from '@/core/repositories/IWritingRepository';
+import { WritingConfirmModal } from './WritingConfirmModal';
 
 export interface WritingHistoryDrawerProps {
   submissions: WritingSubmissionEntity[];
   isLoading: boolean;
   onSelectSubmission: (item: WritingSubmissionEntity) => void;
   onDeleteSubmission?: (id: string) => void;
+  onClearAllSubmissions?: () => void;
   onNewWriting: () => void;
 }
 
@@ -24,10 +26,13 @@ export function WritingHistoryDrawer({
   isLoading,
   onSelectSubmission,
   onDeleteSubmission,
+  onClearAllSubmissions,
   onNewWriting,
 }: WritingHistoryDrawerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCefr, setSelectedCefr] = useState<string>('ALL');
+  const [submissionToDelete, setSubmissionToDelete] = useState<WritingSubmissionEntity | null>(null);
+  const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
 
   const filteredSubmissions = useMemo(() => {
     return submissions.filter((sub) => {
@@ -90,13 +95,27 @@ export function WritingHistoryDrawer({
             <span>Historial de Redacciones Realizadas ({submissions.length})</span>
           </div>
 
-          <button
-            type="button"
-            onClick={onNewWriting}
-            className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer self-start sm:self-auto"
-          >
-            + Nueva Redacción
-          </button>
+          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+            {onClearAllSubmissions && submissions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsClearAllModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                title="Borrar todo el historial de redacciones"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Borrar todo</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onNewWriting}
+              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+            >
+              + Nueva Redacción
+            </button>
+          </div>
         </div>
 
         {/* Search and CEFR Filter Chips */}
@@ -185,22 +204,49 @@ export function WritingHistoryDrawer({
                   </div>
 
                   {sub.evaluation && sub.evaluation.rubric_scores && (
-                    <div className="grid grid-cols-4 gap-1.5 text-center text-[10px] font-mono">
-                      <div className="p-1.5 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 border border-indigo-100/60 dark:border-indigo-900/30">
-                        <span className="block text-[8px] text-gray-400 uppercase font-semibold tracking-wider truncate">Precisión</span>
-                        <span className="font-bold">{sub.evaluation.rubric_scores.accuracy}/10</span>
+                    <div className="grid grid-cols-4 gap-2 text-center font-mono">
+                      {/* Precisión */}
+                      <div className="p-2.5 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-100 dark:border-gray-800/80 flex flex-col items-center justify-center gap-0.5 shadow-2xs">
+                        <span className="block text-[9px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate w-full">
+                          Precisión
+                        </span>
+                        <div className="text-xs sm:text-sm font-bold font-mono text-gray-900 dark:text-white flex items-baseline justify-center">
+                          <span>{sub.evaluation.rubric_scores.accuracy}</span>
+                          <span className="text-[10px] font-normal text-gray-400 dark:text-gray-500 ml-0.5">/10</span>
+                        </div>
                       </div>
-                      <div className="p-1.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100/60 dark:border-emerald-900/30">
-                        <span className="block text-[8px] text-gray-400 uppercase font-semibold tracking-wider truncate">Léxico</span>
-                        <span className="font-bold">{sub.evaluation.rubric_scores.range_and_precision}/10</span>
+
+                      {/* Léxico */}
+                      <div className="p-2.5 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-100 dark:border-gray-800/80 flex flex-col items-center justify-center gap-0.5 shadow-2xs">
+                        <span className="block text-[9px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate w-full">
+                          Léxico
+                        </span>
+                        <div className="text-xs sm:text-sm font-bold font-mono text-gray-900 dark:text-white flex items-baseline justify-center">
+                          <span>{sub.evaluation.rubric_scores.range_and_precision}</span>
+                          <span className="text-[10px] font-normal text-gray-400 dark:text-gray-500 ml-0.5">/10</span>
+                        </div>
                       </div>
-                      <div className="p-1.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 border border-purple-100/60 dark:border-purple-900/30">
-                        <span className="block text-[8px] text-gray-400 uppercase font-semibold tracking-wider truncate">Cohesión</span>
-                        <span className="font-bold">{sub.evaluation.rubric_scores.cohesion_and_flow}/10</span>
+
+                      {/* Cohesión */}
+                      <div className="p-2.5 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-100 dark:border-gray-800/80 flex flex-col items-center justify-center gap-0.5 shadow-2xs">
+                        <span className="block text-[9px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate w-full">
+                          Cohesión
+                        </span>
+                        <div className="text-xs sm:text-sm font-bold font-mono text-gray-900 dark:text-white flex items-baseline justify-center">
+                          <span>{sub.evaluation.rubric_scores.cohesion_and_flow}</span>
+                          <span className="text-[10px] font-normal text-gray-400 dark:text-gray-500 ml-0.5">/10</span>
+                        </div>
                       </div>
-                      <div className="p-1.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 border border-amber-100/60 dark:border-amber-900/30">
-                        <span className="block text-[8px] text-gray-400 uppercase font-semibold tracking-wider truncate">Pragmática</span>
-                        <span className="font-bold">{sub.evaluation.rubric_scores.pragmatics_and_complexity}/10</span>
+
+                      {/* Pragmática */}
+                      <div className="p-2.5 rounded-2xl bg-gray-50/70 dark:bg-[#181D2A] border border-gray-100 dark:border-gray-800/80 flex flex-col items-center justify-center gap-0.5 shadow-2xs">
+                        <span className="block text-[9px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate w-full">
+                          Pragmática
+                        </span>
+                        <div className="text-xs sm:text-sm font-bold font-mono text-gray-900 dark:text-white flex items-baseline justify-center">
+                          <span>{sub.evaluation.rubric_scores.pragmatics_and_complexity}</span>
+                          <span className="text-[10px] font-normal text-gray-400 dark:text-gray-500 ml-0.5">/10</span>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -210,11 +256,12 @@ export function WritingHistoryDrawer({
                   {onDeleteSubmission && (
                     <button
                       type="button"
-                      onClick={() => onDeleteSubmission(sub.id)}
-                      className="text-gray-400 hover:text-rose-500 p-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                      title="Eliminar registro"
+                      onClick={() => setSubmissionToDelete(sub)}
+                      className="text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 p-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                      title="Eliminar redacción"
+                      aria-label="Eliminar redacción"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   )}
                   <button
@@ -231,6 +278,37 @@ export function WritingHistoryDrawer({
           })}
         </div>
       )}
+
+      {/* Modal: Confirm Single Submission Deletion */}
+      <WritingConfirmModal
+        isOpen={Boolean(submissionToDelete)}
+        onClose={() => setSubmissionToDelete(null)}
+        onConfirm={() => {
+          if (submissionToDelete && onDeleteSubmission) {
+            onDeleteSubmission(submissionToDelete.id);
+            setSubmissionToDelete(null);
+          }
+        }}
+        title="¿Eliminar esta redacción?"
+        description="Esta redacción y su evaluación serán eliminadas permanentemente de tu historial local."
+        snippet={submissionToDelete?.userText}
+        confirmLabel="Eliminar redacción"
+      />
+
+      {/* Modal: Confirm Clear All Submissions */}
+      <WritingConfirmModal
+        isOpen={isClearAllModalOpen}
+        onClose={() => setIsClearAllModalOpen(false)}
+        onConfirm={() => {
+          if (onClearAllSubmissions) {
+            onClearAllSubmissions();
+            setIsClearAllModalOpen(false);
+          }
+        }}
+        title="¿Borrar todo el historial de redacciones?"
+        description={`Se eliminarán de forma permanente todas tus redacciones guardadas (${submissions.length}) y sus evaluaciones asociadas. Esta acción no se puede deshacer.`}
+        confirmLabel="Borrar todo el historial"
+      />
     </div>
   );
 }

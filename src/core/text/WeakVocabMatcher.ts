@@ -1,5 +1,3 @@
-import { PositiveDrill } from '@/infrastructure/ai/schemas';
-
 /**
  * Generates common English morphological inflections for a word or phrasal chunk
  * to ensure flexible matching in learner writing (e.g., 'depend on' matches 'depends on', 'depended on').
@@ -180,38 +178,6 @@ export function isTargetWordUsedInText(targetWord: string, text: string): boolea
   }
 
   return false;
-}
-
-/**
- * Generates a deterministic high-quality positive practice drill (RF-ERR-02) as a fallback
- * if the AI model fails to supply an explicit drill object for a correction.
- * Strictly eliminates multiple choice options with the learner's mistake (zero negative priming).
- */
-export function synthesizeErrorDrillFallback(correction: {
-  error_span: string;
-  native_reformulation: string;
-  explanation_es: string;
-  sentence_context?: string;
-}): PositiveDrill {
-  const target = correction.native_reformulation.trim();
-  const mistake = correction.error_span.trim();
-
-  let clozeSentence = `We need to ensure that we [ ___ ] in this situation.`;
-  if (correction.sentence_context && correction.sentence_context.includes(mistake)) {
-    clozeSentence = correction.sentence_context.replace(
-      new RegExp(mistake.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
-      '[ ___ ]',
-    );
-  }
-
-  return {
-    format: 'CONTEXTUAL_CLOZE',
-    cloze_sentence: clozeSentence,
-    expected_token: target,
-    hint_es: `Escribe la forma nativa en inglés: "${target.slice(0, Math.min(2, target.length))}..."`,
-    explanation_es: correction.explanation_es,
-    transfer_prompt_es: `Escribe una oración propia empleando "${target}".`,
-  };
 }
 
 /**

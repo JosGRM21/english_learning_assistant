@@ -58,10 +58,10 @@ interface NavigatorWithGPU {
   };
   hardwareConcurrency?: number;
   deviceMemory?: number;
+  userAgent?: string;
 }
 
 let ttsInstance: any = null;
-let TextSplitterStreamClass: any = null;
 let activeDevice: 'webgpu' | 'wasm' = 'wasm';
 let initPromise: Promise<boolean> | null = null;
 let isWarmupCompleted = false;
@@ -70,6 +70,23 @@ let isWarmupCompleted = false;
 let activeRequestId: string | null = null;
 const abortedRequestIds = new Set<string>();
 let synthesisChain: Promise<void> = Promise.resolve();
+
+/**
+ * Applies an in-place vectorized anti-click cosine envelope to raw float32 samples.
+ * Eliminates vocoder attack clicks and DC offset transients without allocating new memory.
+ */
+export function applyAntiClickEnvelopeJS(samples: Float32Array): void {
+  const len = samples.length;
+  if (len < 32) return;
+  const ramp = Math.min(60, len >> 2);
+  const invRamp = Math.PI / ramp;
+  for (let i = 0; i < ramp; i++) {
+    const env = 0.5 * (1.0 - Math.cos(i * invRamp));
+    samples[i] = Math.max(-1.0, Math.min(1.0, (samples[i] || 0) * env));
+    const endIdx = len - 1 - i;
+    samples[endIdx] = Math.max(-1.0, Math.min(1.0, (samples[endIdx] || 0) * env));
+  }
+}
 
 async function checkWebGPUSupport(): Promise<boolean> {
   if (typeof navigator === 'undefined') {
@@ -152,13 +169,6 @@ async function runSilentShaderWarmup(tts: any): Promise<void> {
   try {
     if (typeof tts.generate === 'function') {
       await tts.generate('a', { voice: 'af_heart', speed: 1.0 });
-    } else if (TextSplitterStreamClass && typeof tts.stream === 'function') {
-      const warmSplitter = new TextSplitterStreamClass();
-      warmSplitter.push('a');
-      warmSplitter.close();
-      for await (const _chunk of tts.stream(warmSplitter, { voice: 'af_heart', speed: 1.0 })) {
-        break;
-      }
     }
     isWarmupCompleted = true;
   } catch {
@@ -166,23 +176,106 @@ async function runSilentShaderWarmup(tts: any): Promise<void> {
   }
 }
 
+// Guardamos la referencia original de fetch en el contexto del Worker
+const originalWorkerFetch = self.fetch.bind(self);
+let isFetchPatched = false;
+
+function patchWorkerFetchForSpaFallback(useLocalModels: boolean): void {
+  if (isFetchPatched) return;
+  isFetchPatched = true;
+
+  self.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const urlStr =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : (input && typeof (input as any).url === 'string')
+            ? (input as any).url
+            : String(input);
+
+    // 1. Si los modelos locales están desactivados, bloquear cualquier intento de transformers.js
+    // de buscar en rutas locales (/models/... o localhost) para que salte directo a HuggingFace Hub.
+    const isLocalOrigin =
+      urlStr.startsWith('/') ||
+      urlStr.includes('localhost:') ||
+      urlStr.includes('127.0.0.1:') ||
+      urlStr.includes('tauri.localhost');
+
+    if (!useLocalModels && isLocalOrigin && urlStr.includes('onnx-community/Kokoro')) {
+      return new Response(null, { status: 404, statusText: 'Local Models Disabled' });
+    }
+
+    const response = await originalWorkerFetch(input, init);
+
+    // 2. Protección contra el SPA Fallback de Vite:
+    // Si pedimos un archivo del modelo (.json, .onnx, .bin) y el servidor devuelve text/html (<!doctype html>),
+    // lo convertimos en un 404 para que transformers.js haga fallback limpio al Hub remoto y no corrompa JSON.parse.
+    const contentType = response.headers.get('content-type') || '';
+    if (
+      response.ok &&
+      contentType.includes('text/html') &&
+      (urlStr.endsWith('.json') ||
+        urlStr.endsWith('.onnx') ||
+        urlStr.endsWith('.bin') ||
+        /\.(json|onnx|bin)($|\?)/.test(urlStr))
+    ) {
+      return new Response(null, {
+        status: 404,
+        statusText: 'SPA HTML Fallback Intercepted',
+      });
+    }
+
+    return response;
+  };
+}
+
 async function initKokoro(): Promise<boolean> {
-  if (ttsInstance && TextSplitterStreamClass) return true;
+  if (ttsInstance) return true;
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
     try {
+      const useLocalModels =
+        typeof import.meta !== 'undefined' &&
+        (import.meta as any).env?.VITE_USE_LOCAL_MODELS === 'true';
+
+      // Aplicamos el escudo contra el SPA fallback de Vite ANTES de importar o inicializar kokoro-js
+      patchWorkerFetchForSpaFallback(useLocalModels);
+
+      // Limpiar entradas corruptas previas en CacheStorage (si Vite guardó index.html como config.json)
+      if (typeof self !== 'undefined' && 'caches' in self) {
+        try {
+          const cache = await self.caches.open('transformers-cache');
+          const keys = await cache.keys();
+          for (const req of keys) {
+            if (
+              req.url.includes('localhost') ||
+              req.url.includes('tauri.localhost')
+            ) {
+              await cache.delete(req);
+            } else {
+              const res = await cache.match(req);
+              if (res) {
+                const ct = res.headers.get('content-type') || '';
+                if (ct.includes('text/html')) {
+                  await cache.delete(req);
+                }
+              }
+            }
+          }
+        } catch {
+          // Ignorar si la caché no existe aún
+        }
+      }
+
       const kokoroModule = await import('kokoro-js');
-      const { KokoroTTS, TextSplitterStream } = kokoroModule;
-      TextSplitterStreamClass = TextSplitterStream;
+      const { KokoroTTS } = kokoroModule;
 
       const canUseWebGPU = await checkWebGPUSupport();
 
       try {
         const { env } = await import('@huggingface/transformers');
-        const useLocalModels =
-          typeof import.meta !== 'undefined' &&
-          (import.meta as any).env?.VITE_USE_LOCAL_MODELS === 'true';
         env.allowLocalModels = useLocalModels;
         env.allowRemoteModels = true;
 
@@ -235,11 +328,16 @@ async function initKokoro(): Promise<boolean> {
         }
       }
 
-      // Use q4 quantization on memory-constrained devices (<= 4 GB RAM), q8 otherwise
+      // Use 'q8' by default on desktop for superior SIMD execution speed on both AVX2 and legacy AVX CPUs.
+      // Reserve 'q4' only for severe memory constraints (<= 2 GB RAM) or mobile environments,
+      // avoiding the software nibble unpacking overhead of q4 on non-VNNI CPUs.
       const nav =
         typeof navigator !== 'undefined' ? (navigator as unknown as NavigatorWithGPU) : undefined;
       const deviceMemory = nav?.deviceMemory || 8;
-      const wasmDtype = deviceMemory <= 4 ? 'q4' : 'q8';
+      const isMobile =
+        typeof navigator !== 'undefined' &&
+        /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+      const wasmDtype = deviceMemory <= 2 || isMobile ? 'q4' : 'q8';
 
       const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-ONNX', {
         dtype: wasmDtype,
@@ -272,7 +370,7 @@ async function handleSynthesize(
 
   try {
     const isReady = await initKokoro();
-    if (!isReady || !ttsInstance || !TextSplitterStreamClass) {
+    if (!isReady || !ttsInstance) {
       const errorRes: WorkerOutMessage = {
         type: 'SYNTHESIS_ERROR',
         id,
@@ -287,39 +385,48 @@ async function handleSynthesize(
       return;
     }
 
-    const splitter = new TextSplitterStreamClass();
     const segments = splitTextForFastTTFA(text);
     for (const segment of segments) {
-      splitter.push(segment);
-    }
-    splitter.close();
-
-    for await (const chunk of ttsInstance.stream(splitter, {
-      voice: (voice as any) || 'af_heart',
-      speed: speed || 1.0,
-    })) {
       if (abortedRequestIds.has(id) || activeRequestId !== id) {
         abortedRequestIds.delete(id);
         break;
       }
 
-      if (chunk?.audio?.audio) {
-        const rawSamples = chunk.audio.audio as Float32Array;
-        // Zero-copy transfer when the Float32Array owns its exact ArrayBuffer
-        const ownsBuffer =
-          rawSamples.buffer instanceof ArrayBuffer &&
-          rawSamples.byteOffset === 0 &&
-          rawSamples.byteLength === rawSamples.buffer.byteLength;
-        const samples = ownsBuffer ? rawSamples : new Float32Array(rawSamples);
-        const sampleRate = chunk.audio.sampling_rate || 24000;
+      const result = await ttsInstance.generate(segment, {
+        voice: (voice as any) || 'af_heart',
+        speed: speed || 1.0,
+      });
 
-        const chunkRes: WorkerOutMessage = {
-          type: 'AUDIO_CHUNK',
-          id,
-          samples,
-          sampleRate,
-        };
-        (self.postMessage as any)(chunkRes, [samples.buffer]);
+      if (abortedRequestIds.has(id) || activeRequestId !== id) {
+        abortedRequestIds.delete(id);
+        break;
+      }
+
+      if (result) {
+        const rawSamples: Float32Array | null =
+          result.audio instanceof Float32Array
+            ? result.audio
+            : (result.audio?.audio as Float32Array | undefined) ||
+              (result instanceof Float32Array ? result : null);
+
+        if (rawSamples && rawSamples.length > 0) {
+          const ownsBuffer =
+            rawSamples.buffer instanceof ArrayBuffer &&
+            rawSamples.byteOffset === 0 &&
+            rawSamples.byteLength === rawSamples.buffer.byteLength;
+          const samples = ownsBuffer ? rawSamples : new Float32Array(rawSamples);
+
+          applyAntiClickEnvelopeJS(samples);
+
+          const sampleRate = result.sampling_rate || result.audio?.sampling_rate || 24000;
+          const chunkRes: WorkerOutMessage = {
+            type: 'AUDIO_CHUNK',
+            id,
+            samples,
+            sampleRate,
+          };
+          (self.postMessage as any)(chunkRes, [samples.buffer]);
+        }
       }
     }
 

@@ -33,7 +33,6 @@ describe('SrsCardBack Component', () => {
     isFalseFriend: false,
     isCore: true,
     masteryStatus: 'LEARNING',
-    collocationsJson: ['thrive on challenges', 'thrive in adverse conditions'],
     createdAt: new Date().toISOString(),
     verbTensesJson: {
       infinitive: 'thrive',
@@ -63,7 +62,7 @@ describe('SrsCardBack Component', () => {
     createdAt: new Date().toISOString(),
   };
 
-  it('renders clean hero meaning, definition, collocations, and verb tenses without technical clutter', () => {
+  it('renders clean hero meaning, definition, and verb tenses without technical clutter', () => {
     const onRate = vi.fn();
     render(
       <SrsCardBack
@@ -93,8 +92,17 @@ describe('SrsCardBack Component', () => {
     expect(screen.getAllByText('thrive').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/\/θraɪv\//i)).toBeDefined();
 
-    // Collocations
-    expect(screen.getByText('thrive on challenges')).toBeDefined();
+    // Domain category badge without "Ámbito:" prefix and clean Normal audio button
+    expect(screen.getByText('Crecimiento Personal')).toBeDefined();
+    expect(screen.queryByText(/Ámbito:/i)).toBeNull();
+    expect(screen.getByText('Normal')).toBeDefined();
+    expect(screen.queryByText('Audio')).toBeNull();
+
+    // Clean US and UK accent toggles without emojis
+    const usBtn = screen.getByRole('button', { name: /Acento General American/i });
+    const ukBtn = screen.getByRole('button', { name: /Acento Received Pronunciation/i });
+    expect(usBtn.textContent?.trim()).toBe('US');
+    expect(ukBtn.textContent?.trim()).toBe('UK');
 
     // Verb tenses
     expect(screen.getByText('Tiempos Verbales')).toBeDefined();
@@ -143,5 +151,80 @@ describe('SrsCardBack Component', () => {
     const easyBtn = screen.getByText('Fácil');
     fireEvent.click(easyBtn);
     expect(onRate).toHaveBeenCalledWith(4);
+  });
+
+  it('renders phrasal verbs with distinct Spanish meaning in hero and English definition in body', () => {
+    const phrasalCard: SrsCard = {
+      ...sampleCard,
+      id: 'card_phr_1',
+      targetType: 'PHRASE',
+      targetId: 'phr_1',
+    };
+
+    const phrasalVocab: VocabItem = {
+      id: 'phr_1',
+      word: 'be about to',
+      grammaticalDimension: 'CHUNK',
+      partOfSpeech: 'VERB',
+      subcategory: 'PHRASAL_VERB',
+      translationEs: 'estar a punto de',
+      definitionEn: 'To be very close to doing something.',
+      ipaGeneralAmerican: 'bi əˈbaʊt tu',
+      cefrLevel: 'B1',
+      isCore: true,
+      masteryStatus: 'LEARNING',
+      domainCategory: 'Phrasal Verb',
+      isFalseFriend: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    render(
+      <SrsCardBack
+        cardWithTarget={{
+          card: phrasalCard,
+          vocab: phrasalVocab,
+          phrase: {
+            id: 'phr_1',
+            chunkType: 'PHRASAL_VERB',
+            text: 'be about to',
+            meaningEs: 'estar a punto de',
+            definitionEn: 'To be very close to doing something.',
+            phrasalVerbType: 'TYPE_3_INSEPARABLE',
+            example1: 'We are about to leave.',
+            cefrLevel: 'B1',
+            createdAt: new Date().toISOString(),
+          },
+          currentSenseIndex: 0,
+          currentSense: {
+            senseId: 'sense_phr_1',
+            translationEs: 'estar a punto de',
+            definitionEn: 'To be very close to doing something.',
+            partOfSpeech: 'VERB',
+            cefrLevel: 'B1',
+          },
+          allContexts: [],
+        }}
+        selectedVocab={phrasalVocab}
+        currentContext={null}
+        availableContexts={[]}
+        srsCard={phrasalCard}
+        previewIntervals={{ 1: 0, 2: 2, 3: 6, 4: 14 }}
+        accent="US"
+        onAccentChange={vi.fn()}
+        onRotateContext={vi.fn()}
+        onRate={vi.fn()}
+        audioService={mockAudioService as any}
+      />
+    );
+
+    // Hero meaning in Spanish
+    expect(screen.getByText('estar a punto de')).toBeDefined();
+
+    // Definition in English (must be distinct from Spanish translation)
+    expect(screen.getByText('To be very close to doing something.')).toBeDefined();
+
+    // Specific phrasal verb type badge is displayed cleanly
+    expect(screen.getByText('Inseparable (con objeto)')).toBeDefined();
+    expect(screen.queryByText('Uso General')).toBeNull();
   });
 });

@@ -5,6 +5,10 @@ import {
   Sparkles,
   Plus,
   RotateCcw,
+  CheckSquare,
+  Square,
+  Trash2,
+  ExternalLink,
 } from 'lucide-react';
 import { Button, Pagination } from '@heroui/react';
 import { useVocabList, NewVocabPayload } from '../hooks/useVocabList';
@@ -14,12 +18,14 @@ import { ActiveFilterChips } from './ActiveFilterChips';
 import { VocabDetailDrawer } from './VocabDetailDrawer';
 import { VocabSkeletonGrid } from './VocabSkeletonCard';
 import { VocabStatsBento } from './VocabStatsBento';
-import { VocabItem, VocabSense } from '@/core/types/vocab';
+import { VocabItem, VocabSense, FrequencyBand } from '@/core/types/vocab';
+import { SrsGoalSettings } from '@/core/types/srs';
+import { useDatabase } from '@/shared/hooks/useDatabase';
 import {
   VocabHeader,
   VocabSearchToolbar,
   VocabSelectionBar,
-  VocabGoalsModal,
+  VocabGoalSettingsModal,
   VocabConfirmModal,
 } from './catalog-top';
 
@@ -44,6 +50,9 @@ export function VocabCatalogView() {
     accentPreference,
     sortBy,
     cefrCounts,
+    currentPage,
+    totalPages,
+    setCurrentPage,
     setSearchQuery,
     setSelectedCefr,
     setSelectedDimension,
@@ -56,7 +65,6 @@ export function VocabCatalogView() {
     resetFilters,
     activateWord,
     activatePhrase,
-    batchActivate,
     getSuggestions,
     addWord,
     addMultipleWords,
@@ -67,6 +75,19 @@ export function VocabCatalogView() {
   } = useVocabList();
 
   // Modals & Navigation state
+  const { appSettingsRepo } = useDatabase();
+  const [srsSettings, setSrsSettings] = useState<SrsGoalSettings>({
+    activeGoal: 'TOP_500',
+    dailyNewCardsTarget: 10,
+    overloadThreshold: 35,
+  });
+
+  useEffect(() => {
+    if (appSettingsRepo) {
+      appSettingsRepo.getSrsGoalSettings().then(setSrsSettings);
+    }
+  }, [appSettingsRepo]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isGoalsModalOpen, setIsGoalsModalOpen] = useState(false);
   const [selectedWordForDrawer, setSelectedWordForDrawer] = useState<VocabItem | null>(null);
@@ -84,6 +105,40 @@ export function VocabCatalogView() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  // Right-click context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    vocab: VocabItem;
+  } | null>(null);
+  const [wordToDelete, setWordToDelete] = useState<VocabItem | null>(null);
+  const [isDeletingSingle, setIsDeletingSingle] = useState(false);
+
+  // Close context menu on click outside or Escape
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClick = () => setContextMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    window.addEventListener('click', handleClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [contextMenu]);
+
+  // Right click handler for word cards
+  const handleCardContextMenu = (e: React.MouseEvent, vocab: VocabItem) => {
+    e.preventDefault();
+    const menuWidth = 200;
+    const menuHeight = 150;
+    const x = Math.min(e.clientX, window.innerWidth - menuWidth - 12);
+    const y = Math.min(e.clientY, window.innerHeight - menuHeight - 12);
+    setContextMenu({ x, y, vocab });
+  };
 
   // Clear all words modal state
   const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
@@ -109,32 +164,11 @@ export function VocabCatalogView() {
     }
   };
 
-  // Pagination state
-  const ITEMS_PER_PAGE = 12;
-  const [currentPage, setCurrentPage] = useState(1);
-
-  // Reset page to 1 whenever filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [
-    searchQuery,
-    selectedCefr,
-    selectedDimension,
-    originFilter,
-    frequencyBandFilter,
-    masteryStatusFilter,
-    selectedPartOfSpeech,
-    sortBy,
-  ]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredCount / ITEMS_PER_PAGE));
+  // Server-side paginated cards
+  const paginatedWords = words;
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
-  const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, filteredCount);
-  const paginatedWords = useMemo(
-    () => words.slice(startIndex, endIndex),
-    [words, startIndex, endIndex],
-  );
+  const startIndex = (safeCurrentPage - 1) * 12;
+  const endIndex = Math.min(startIndex + paginatedWords.length, filteredCount);
 
   const isAllPageSelected = useMemo(
     () => paginatedWords.length > 0 && paginatedWords.every((w) => selectedIds.has(w.id)),
@@ -211,47 +245,49 @@ export function VocabCatalogView() {
     return created;
   };
 
-  const handleActivateWord = async (id: string): Promise<VocabItem | null> => {
-    const activated = await activateWord(id);
-    if (activated) {
-      showToast(`¡"${activated.word}" activado para repaso en el mazo FSRS!`);
-      if (selectedWordForDrawer?.id === id) {
-        setSelectedWordForDrawer(activated);
-      }
-    }
-    return activated;
-  };
-
   const handleActivatePhrase = async (phraseId: string): Promise<boolean> => {
     const ok = await activatePhrase(phraseId);
     if (ok) {
-      showToast(`¡Verbo frasal activado para repaso en el mazo FSRS!`);
-      if (selectedWordForDrawer?.id === phraseId) {
-        setSelectedWordForDrawer((prev) => (prev ? { ...prev, masteryStatus: 'LEARNING' } : null));
-      }
+      showToast('¡Verbo frasal activado para repaso en el mazo FSRS!');
+      setSelectedWordForDrawer((prev) =>
+        prev?.id === phraseId ? { ...prev, masteryStatus: 'LEARNING' } : prev,
+      );
     }
     return ok;
   };
 
-  const handleExecuteBatchActivate = async (
-    target: 'TOP_500' | 'TOP_1000' | 'TOP_3000' | 'TOP_5000',
-    count: number,
-  ) => {
+  const handleActivateWord = async (id: string): Promise<VocabItem | null> => {
+    if (id.startsWith('phr_')) {
+      const ok = await handleActivatePhrase(id);
+      if (ok) {
+        const matching = allWords.find((w) => w.id === id);
+        return matching ? { ...matching, masteryStatus: 'LEARNING' } : null;
+      }
+      return null;
+    }
+    const activated = await activateWord(id);
+    if (activated) {
+      showToast(`¡"${activated.word}" activado para repaso en el mazo FSRS!`);
+      setSelectedWordForDrawer((prev) => (prev?.id === id ? activated : prev));
+    }
+    return activated;
+  };
+
+  const handleSaveSrsGoalSettings = async (newSettings: {
+    activeGoal: FrequencyBand;
+    dailyNewCardsTarget: number;
+  }) => {
+    if (!appSettingsRepo) return;
     try {
       setIsBatchActivating(true);
-      const activatedCount = await batchActivate({
-        frequencyBand: target,
-        limit: count,
-      });
-
-      setIsGoalsModalOpen(false);
-      if (activatedCount > 0) {
-        showToast(
-          `¡Se activaron ${activatedCount} nuevos términos de ${target.replace('_', ' ')} para estudio diario!`,
-        );
-      } else {
-        showToast(`No se encontraron más términos inactivos en ${target.replace('_', ' ')}.`);
-      }
+      await appSettingsRepo.setSrsGoalSettings(newSettings);
+      setSrsSettings((prev) => ({ ...prev, ...newSettings }));
+      showToast(
+        `¡Meta de repaso actualizada: ${newSettings.activeGoal.replace('_', ' ')} (${newSettings.dailyNewCardsTarget} palabras/día)!`,
+      );
+    } catch (err) {
+      console.error('Error saving SRS goal settings:', err);
+      showToast('Error al actualizar la meta de repaso.');
     } finally {
       setIsBatchActivating(false);
     }
@@ -273,6 +309,17 @@ export function VocabCatalogView() {
     return ok;
   };
 
+  const handleConfirmSingleDelete = async () => {
+    if (!wordToDelete) return;
+    try {
+      setIsDeletingSingle(true);
+      await handleDeleteWord(wordToDelete.id);
+      setWordToDelete(null);
+    } finally {
+      setIsDeletingSingle(false);
+    }
+  };
+
   const toggleSelectWord = (vocab: VocabItem) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -281,9 +328,7 @@ export function VocabCatalogView() {
       } else {
         next.add(vocab.id);
       }
-      if (next.size > 0 && !isSelectionMode) {
-        setIsSelectionMode(true);
-      }
+      setIsSelectionMode(next.size > 0);
       return next;
     });
   };
@@ -544,9 +589,10 @@ export function VocabCatalogView() {
                 examples={examplesMap[item.id]}
                 onSelectWord={(word) => setSelectedWordForDrawer(word)}
                 onActivateWord={handleActivateWord}
-                isSelectionMode={isSelectionMode}
+                isSelectionMode={selectedIds.size > 0 || isSelectionMode}
                 isSelected={selectedIds.has(item.id)}
                 onToggleSelect={toggleSelectWord}
+                onContextMenu={handleCardContextMenu}
                 accentPreference={accentPreference}
               />
             ))}
@@ -633,14 +679,18 @@ export function VocabCatalogView() {
         hasPrev={hasPrevWord}
         hasNext={hasNextWord}
         accentPreference={accentPreference}
+        onToggleAccent={() => setAccentPreference(accentPreference === 'US' ? 'UK' : 'US')}
       />
 
-      {/* Batch Activation by Goals Modal */}
-      <VocabGoalsModal
+      {/* SRS Goal & Daily Cadence Settings Modal */}
+      <VocabGoalSettingsModal
         isOpen={isGoalsModalOpen}
         onClose={() => setIsGoalsModalOpen(false)}
-        onExecuteBatchActivate={handleExecuteBatchActivate}
-        isBatchActivating={isBatchActivating}
+        initialGoal={srsSettings.activeGoal}
+        initialDailyQuota={srsSettings.dailyNewCardsTarget}
+        initialIncludePhrasal={srsSettings.includePhrasalVerbs}
+        onSaveSettings={handleSaveSrsGoalSettings}
+        isSaving={isBatchActivating}
       />
 
       {/* Bulk Delete Confirmation Modal */}
@@ -666,6 +716,81 @@ export function VocabCatalogView() {
         isDestructive={true}
         isLoading={isClearingAll}
       />
+
+      {/* Single Word Delete Confirmation Modal */}
+      <VocabConfirmModal
+        isOpen={Boolean(wordToDelete)}
+        onClose={() => setWordToDelete(null)}
+        onConfirm={handleConfirmSingleDelete}
+        title="¿Eliminar término del catálogo?"
+        description={`¿Estás seguro de que deseas eliminar permanentemente "${wordToDelete?.word}" (${wordToDelete?.translationEs})? Esta acción no se puede deshacer.`}
+        confirmText="Sí, eliminar término"
+        isDestructive={true}
+        isLoading={isDeletingSingle}
+      />
+
+      {/* Right-Click Floating Context Menu */}
+      {contextMenu && (
+        <div
+          style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+          className="fixed z-50 w-48 p-1.5 rounded-2xl bg-white dark:bg-[#161B28] border border-gray-200/90 dark:border-white/[0.1] shadow-2xl space-y-0.5 animate-in fade-in zoom-in-95 duration-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-2.5 py-1 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider truncate">
+            {contextMenu.vocab.word}
+          </div>
+
+          {/* Seleccionar / Deseleccionar */}
+          <button
+            type="button"
+            onClick={() => {
+              toggleSelectWord(contextMenu.vocab);
+              setContextMenu(null);
+            }}
+            className="w-full px-2.5 py-1.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200 text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors"
+          >
+            {selectedIds.has(contextMenu.vocab.id) ? (
+              <>
+                <Square className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Deseleccionar</span>
+              </>
+            ) : (
+              <>
+                <CheckSquare className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Seleccionar</span>
+              </>
+            )}
+          </button>
+
+          {/* Ver detalles */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedWordForDrawer(contextMenu.vocab);
+              setContextMenu(null);
+            }}
+            className="w-full px-2.5 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-[#1E2436] text-gray-700 dark:text-gray-200 text-xs font-medium flex items-center gap-2 cursor-pointer transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
+            <span>Ver detalles</span>
+          </button>
+
+          <div className="border-t border-gray-100 dark:border-white/[0.06] my-1" />
+
+          {/* Eliminar */}
+          <button
+            type="button"
+            onClick={() => {
+              setWordToDelete(contextMenu.vocab);
+              setContextMenu(null);
+            }}
+            className="w-full px-2.5 py-1.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Eliminar</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

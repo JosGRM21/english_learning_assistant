@@ -1,21 +1,3 @@
-export type QuestType =
-  | 'VOCAB_SRS'
-  | 'WRITING_SUBMISSION';
-
-export interface DailyQuest {
-  id: string;
-  userId: string;
-  questDate: string; // YYYY-MM-DD
-  questType: QuestType;
-  title: string;
-  description: string;
-  targetCount: number;
-  currentCount: number;
-  isCompleted: boolean;
-  completedAt?: string;
-  xpReward: number;
-}
-
 export interface UserStreak {
   id: string;
   userId: string;

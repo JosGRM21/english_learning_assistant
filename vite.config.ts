@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  optimizeDeps: {
+    exclude: ['kokoro-js', '@huggingface/transformers', 'onnxruntime-web'],
+  },
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
@@ -18,7 +21,7 @@ export default defineConfig({
     strictPort: true,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'credentialless',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
     },
     watch: {
       ignored: ['**/src-tauri/**'],
@@ -29,7 +32,7 @@ export default defineConfig({
     strictPort: true,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'credentialless',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
     },
   },
   clearScreen: false,

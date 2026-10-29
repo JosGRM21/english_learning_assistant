@@ -10,20 +10,14 @@ describe('NotificationRuleEngine', () => {
   const baseSettings: NotificationSettings = {
     userId: 'user_local',
     enabled: true,
-    scheduleMode: 'AUTO',
     manualTime: '20:00',
-    detectedTime: '14:00',
     srs: {
       enabled: false,
-      scheduleMode: 'AUTO',
       manualTime: '14:00',
-      detectedTime: '14:00',
     },
     writing: {
       enabled: false,
-      scheduleMode: 'AUTO',
       manualTime: '21:00',
-      detectedTime: '21:00',
     },
     streakSaverEnabled: true,
     srsBatchEnabled: true,
@@ -90,9 +84,7 @@ describe('NotificationRuleEngine', () => {
           ...baseSettings,
           srs: {
             enabled: true,
-            scheduleMode: 'MANUAL',
             manualTime: '18:00',
-            detectedTime: '18:00',
           },
         },
         effectiveSrsTime: '18:00',
@@ -112,9 +104,7 @@ describe('NotificationRuleEngine', () => {
           ...baseSettings,
           srs: {
             enabled: true,
-            scheduleMode: 'MANUAL',
             manualTime: '18:00',
-            detectedTime: '18:00',
           },
         },
         effectiveSrsTime: '18:00',
@@ -132,9 +122,7 @@ describe('NotificationRuleEngine', () => {
           ...baseSettings,
           writing: {
             enabled: true,
-            scheduleMode: 'MANUAL',
             manualTime: '21:00',
-            detectedTime: '21:00',
           },
         },
         effectiveWritingTime: '21:00',
@@ -154,9 +142,7 @@ describe('NotificationRuleEngine', () => {
           ...baseSettings,
           writing: {
             enabled: true,
-            scheduleMode: 'MANUAL',
             manualTime: '21:00',
-            detectedTime: '21:00',
           },
         },
         effectiveWritingTime: '21:00',
@@ -176,9 +162,7 @@ describe('NotificationRuleEngine', () => {
           ...baseSettings,
           writing: {
             enabled: true,
-            scheduleMode: 'MANUAL',
             manualTime: '23:00',
-            detectedTime: '23:00',
           },
         },
         effectiveWritingTime: '23:00',
@@ -196,9 +180,7 @@ describe('NotificationRuleEngine', () => {
           ...baseSettings,
           srs: {
             enabled: true,
-            scheduleMode: 'MANUAL',
             manualTime: '14:00',
-            detectedTime: '14:00',
           },
         },
         effectiveSrsTime: '14:00',
@@ -291,9 +273,7 @@ describe('NotificationRuleEngine', () => {
           ...baseSettings,
           srs: {
             enabled: true,
-            scheduleMode: 'MANUAL',
             manualTime: '18:00',
-            detectedTime: '18:00',
           },
         },
         effectiveSrsTime: '18:00',
@@ -317,9 +297,7 @@ describe('NotificationRuleEngine', () => {
           ...baseSettings,
           srs: {
             enabled: true,
-            scheduleMode: 'MANUAL',
             manualTime: '18:00',
-            detectedTime: '18:00',
           },
         },
         effectiveSrsTime: '18:00',
@@ -331,6 +309,30 @@ describe('NotificationRuleEngine', () => {
       expect(decision.reason).toContain('Enfriamiento activo');
     });
 
+    it('allows PRACTICE_REMINDER_WRITING even if PRACTICE_REMINDER_SRS was sent 60 mins ago', () => {
+      const now = new Date('2026-10-05T20:00:00');
+      const srsNotificationTime = new Date('2026-10-05T19:00:00'); // 60 mins ago
+
+      const ctx = createMockContext({
+        currentTime: now,
+        lastNotificationAt: srsNotificationTime,
+        lastNotificationType: 'PRACTICE_REMINDER_SRS',
+        settings: {
+          ...baseSettings,
+          writing: {
+            enabled: true,
+            manualTime: '20:00',
+          },
+        },
+        effectiveWritingTime: '20:00',
+        isWritingCompletedToday: false,
+      });
+
+      const decision = engine.evaluate(ctx);
+      expect(decision.shouldNotify).toBe(true);
+      expect(decision.type).toBe('PRACTICE_REMINDER_WRITING');
+    });
+
     it('allows PRACTICE_REMINDER_SRS inside grace window (e.g. 35 mins after scheduled time)', () => {
       const ctx = createMockContext({
         currentTime: new Date('2026-10-05T18:35:00'), // 35 min after 18:00
@@ -338,9 +340,7 @@ describe('NotificationRuleEngine', () => {
           ...baseSettings,
           srs: {
             enabled: true,
-            scheduleMode: 'MANUAL',
             manualTime: '18:00',
-            detectedTime: '18:00',
           },
         },
         effectiveSrsTime: '18:00',
@@ -353,4 +353,3 @@ describe('NotificationRuleEngine', () => {
     });
   });
 });
-

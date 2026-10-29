@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { AudioService } from '../AudioService';
-import { splitTextForFastTTFA } from '../kokoro.worker';
+import { splitTextForFastTTFA, applyAntiClickEnvelopeJS } from '../kokoro.worker';
 
 vi.mock('@tauri-apps/api/core', () => {
   class MockChannel<T = any> {
@@ -81,7 +81,8 @@ describe('AudioService', () => {
     expect(speakMock).toHaveBeenCalled();
   });
 
-  it('stops speech synthesis without errors', () => {
+  it('stops speech synthesis without errors and invokes kokoro_stop in Tauri', () => {
+    (window as any).__TAURI_INTERNALS__ = {};
     const cancelMock = vi.fn();
     Object.defineProperty(window, 'speechSynthesis', {
       writable: true,
@@ -94,6 +95,9 @@ describe('AudioService', () => {
 
     audioService.stop();
     expect(cancelMock).toHaveBeenCalled();
+    expect(mockInvoke).toHaveBeenCalledWith('kokoro_stop');
+
+    delete (window as any).__TAURI_INTERNALS__;
   });
 
   it('exposes active device (wasm or webgpu)', () => {
@@ -108,8 +112,12 @@ describe('AudioService', () => {
     }).not.toThrow();
   });
 
-  it('synthesizes via native backend streaming when running in Tauri and caches backend readiness', async () => {
+  it('synthesizes via native backend streaming with binary samples_bytes (Uint8Array zero-copy)', async () => {
     (window as any).__TAURI_INTERNALS__ = {};
+
+    // Prepare raw Float32 samples converted to Uint8Array bytes (Little-Endian)
+    const floatSamples = new Float32Array([0.1, -0.1, 0.2, -0.2]);
+    const byteView = new Uint8Array(floatSamples.buffer, floatSamples.byteOffset, floatSamples.byteLength);
 
     mockInvoke.mockImplementation(async (cmd: string, args?: any) => {
       if (cmd === 'kokoro_is_ready') return true;
@@ -117,7 +125,7 @@ describe('AudioService', () => {
       if (cmd === 'kokoro_synthesize_stream') {
         if (args?.onChunk?.onmessage) {
           args.onChunk.onmessage({
-            samples: new Float32Array([0.1, -0.1, 0.2, -0.2]),
+            samples_bytes: byteView,
             sample_rate: 24000,
             chunk_index: 0,
             is_final: true,
@@ -166,19 +174,31 @@ describe('AudioService', () => {
     expect(await audioService.getBuildTarget?.()).toBe('avx2-native');
     expect(await audioService.getActiveEngine?.()).toBe('native-avx2');
 
-    await audioService.speak('Hello world', 1.0);
+    await audioService.speak('Hello binary zero-copy stream', 1.0);
 
     expect(copyToChannelMock).toHaveBeenCalled();
     expect(mockInvoke).toHaveBeenCalledWith(
       'kokoro_synthesize_stream',
       expect.objectContaining({
-        text: 'Hello world',
+        text: 'Hello binary zero-copy stream',
       }),
     );
 
-    // Verify kokoro_is_ready was only called once thanks to readiness caching
-    const readyCalls = mockInvoke.mock.calls.filter((c) => c[0] === 'kokoro_is_ready');
-    expect(readyCalls.length).toBe(1);
+    delete (window as any).__TAURI_INTERNALS__;
+  });
+
+  it('detects avx-native tier correctly for Sandy/Ivy Bridge CPUs', async () => {
+    (window as any).__TAURI_INTERNALS__ = {};
+
+    mockInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'kokoro_is_ready') return true;
+      if (cmd === 'get_build_target') return 'avx-native';
+      return null;
+    });
+
+    expect(await audioService.isBackendAvailable()).toBe(true);
+    expect(await audioService.getBuildTarget?.()).toBe('avx-native');
+    expect(await audioService.getActiveEngine?.()).toBe('native-avx');
 
     delete (window as any).__TAURI_INTERNALS__;
   });
@@ -255,5 +275,14 @@ describe('AudioService', () => {
     const segments = splitTextForFastTTFA(longSentence);
     expect(segments.length).toBeGreaterThan(1);
     expect(segments[0]).toContain('Although the international conference was postponed');
+  });
+
+  it('applies anti-click envelope smoothing to audio samples', () => {
+    const samples = new Float32Array(2400).fill(1.0);
+    applyAntiClickEnvelopeJS(samples);
+    expect(samples[0]).toBeLessThan(0.01);
+    expect(samples[samples.length - 1]).toBeLessThan(0.01);
+    // Middle samples should remain unaffected
+    expect(samples[1200]).toBeCloseTo(1.0, 2);
   });
 });

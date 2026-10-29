@@ -2,21 +2,23 @@ import { useState } from 'react';
 import { Volume2, HelpCircle, BookA } from 'lucide-react';
 import { VerbTenses } from '@/core/types/vocab';
 import { useAudio } from '@/shared/hooks/useAudio';
+import { getVoiceForAccent } from '@/infrastructure/audio/AudioService';
 
 export interface VerbTensesTableProps {
   tenses: VerbTenses;
   edEnding?: '/t/' | '/d/' | '/ɪd/' | null;
+  accentPreference?: 'US' | 'UK';
 }
 
-export function VerbTensesTable({ tenses, edEnding }: VerbTensesTableProps) {
+export function VerbTensesTable({ tenses, edEnding, accentPreference = 'US' }: VerbTensesTableProps) {
   const { audioService } = useAudio();
   const [playingKey, setPlayingKey] = useState<string | null>(null);
 
   const handleSpeak = async (key: string, text: string) => {
-    if (playingKey) return;
+    if (playingKey || !text) return;
     try {
       setPlayingKey(key);
-      await audioService.speak(text, 0.95);
+      await audioService.speak(text, 0.95, getVoiceForAccent(accentPreference));
     } finally {
       setPlayingKey(null);
     }
@@ -37,15 +39,46 @@ export function VerbTensesTable({ tenses, edEnding }: VerbTensesTableProps) {
 
   const finalEd = edEnding || tenses.edPhoneticEnding;
 
-  const columns = [
-    { key: 'base', label: 'Base Form (V1)', shortLabel: 'V1', value: tenses.infinitive },
-    { key: 'past', label: 'Past Simple (V2)', shortLabel: 'V2', value: tenses.pastSimple },
-    { key: 'part', label: 'Past Participle (V3)', shortLabel: 'V3', value: tenses.pastParticiple },
-    { key: 'gerund', label: 'Gerund (-ing)', shortLabel: '-ing', value: tenses.gerund },
-  ];
+  const rows = [
+    {
+      key: 'base',
+      code: 'V1',
+      label: 'Base Form (Infinitivo)',
+      value: tenses.infinitive,
+      hasPhoneticEd: false,
+    },
+    {
+      key: 'past',
+      code: 'V2',
+      label: 'Past Simple (Pasado Simple)',
+      value: tenses.pastSimple,
+      hasPhoneticEd: !tenses.isIrregular && Boolean(finalEd),
+    },
+    {
+      key: 'part',
+      code: 'V3',
+      label: 'Past Participle (Participio)',
+      value: tenses.pastParticiple,
+      hasPhoneticEd: !tenses.isIrregular && Boolean(finalEd),
+    },
+    {
+      key: 'third',
+      code: '3ª SG',
+      label: '3ª Persona Singular (he / she / it)',
+      value: tenses.thirdPersonPresent,
+      hasPhoneticEd: false,
+    },
+    {
+      key: 'gerund',
+      code: '-ING',
+      label: 'Gerund (Gerundio / Participio)',
+      value: tenses.gerund,
+      hasPhoneticEd: false,
+    },
+  ].filter((item) => Boolean(item.value));
 
   return (
-    <div className="rounded-2xl border border-indigo-100 dark:border-indigo-950/60 bg-gradient-to-br from-indigo-50/40 via-white to-purple-50/20 dark:from-[#131726] dark:via-[#10131E] dark:to-[#171328] p-4 sm:p-5 space-y-3.5 shadow-xs">
+    <div className="rounded-3xl border border-indigo-100 dark:border-indigo-950/60 bg-gradient-to-br from-indigo-50/40 via-white to-purple-50/20 dark:from-[#131726] dark:via-[#10131E] dark:to-[#171328] p-4 sm:p-5 space-y-4 shadow-xs">
       {/* Header Bar */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
@@ -84,57 +117,65 @@ export function VerbTensesTable({ tenses, edEnding }: VerbTensesTableProps) {
         </div>
       </div>
 
-      {/* 4-column tense cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {columns.map((col) => {
-          const isPlaying = playingKey === col.key;
+      {/* Vertical List of Verb Forms */}
+      <div className="space-y-2">
+        {rows.map((row) => {
+          const isPlaying = playingKey === row.key;
           return (
             <div
-              key={col.key}
-              className="p-3 rounded-xl bg-white/90 dark:bg-[#161B28]/90 border border-gray-200/70 dark:border-white/[0.08] flex flex-col justify-between gap-1.5 shadow-2xs hover:border-indigo-400/60 dark:hover:border-indigo-600/60 hover:shadow-xs transition-all group"
+              key={row.key}
+              className="p-3 sm:px-4 rounded-2xl bg-white/95 dark:bg-[#161B28]/90 border border-gray-200/80 dark:border-white/[0.08] flex items-center justify-between gap-3 shadow-2xs hover:border-indigo-400/60 dark:hover:border-indigo-600/60 hover:shadow-xs transition-all group"
             >
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[10px] font-mono font-bold text-gray-400 dark:text-gray-400 tracking-wider">
-                  {col.label}
+              {/* Left Column: Code Badge + Label */}
+              <div className="flex items-center gap-2.5 min-w-0 sm:min-w-[200px]">
+                <span className="w-10 sm:w-12 text-center py-0.5 rounded-md font-mono text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 shrink-0">
+                  {row.code}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => handleSpeak(col.key, col.value)}
-                  disabled={isPlaying}
-                  className={`p-1 rounded-md text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer shrink-0 ${
-                    isPlaying ? 'text-indigo-600 dark:text-indigo-400 animate-pulse bg-indigo-50 dark:bg-indigo-950/40' : ''
-                  }`}
-                  title={`Escuchar "${col.value}"`}
-                >
-                  <Volume2 className="w-3.5 h-3.5" />
-                </button>
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 truncate">
+                  {row.label}
+                </span>
               </div>
-              <p className="text-sm font-bold text-gray-900 dark:text-white truncate font-sans tracking-tight">
-                {col.value}
-              </p>
+
+              {/* Middle Column: Conjugated Verb Form + Optional -ed ending */}
+              <div className="flex items-center gap-2 flex-1 justify-start min-w-0 pl-1">
+                <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white truncate font-sans tracking-tight">
+                  {row.value}
+                </span>
+
+                {row.hasPhoneticEd && (
+                  <span
+                    className="hidden sm:inline-block px-2 py-0.2 rounded text-[10px] font-bold font-phonetic bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 shrink-0"
+                    title={getEdRuleExplanation(finalEd)}
+                  >
+                    {finalEd}
+                  </span>
+                )}
+              </div>
+
+              {/* Right Column: Audio Button */}
+              <button
+                type="button"
+                onClick={() => handleSpeak(row.key, row.value)}
+                disabled={isPlaying}
+                className={`p-1.5 rounded-xl text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer shrink-0 ${
+                  isPlaying ? 'text-indigo-600 dark:text-indigo-400 animate-pulse bg-indigo-50 dark:bg-indigo-950/40' : ''
+                }`}
+                title={`Escuchar "${row.value}"`}
+              >
+                <Volume2 className="w-4 h-4" />
+              </button>
             </div>
           );
         })}
       </div>
 
-      {/* 3rd person note & -ed reminder */}
-      <div className="flex items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400 pt-1 flex-wrap border-t border-indigo-100/60 dark:border-white/[0.04]">
-        {tenses.thirdPersonPresent && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-gray-400 text-[11px]">3ª Persona Sing.:</span>
-            <span className="px-2 py-0.5 rounded-md bg-white dark:bg-[#161B28] font-bold text-gray-800 dark:text-gray-200 border border-gray-200/60 dark:border-white/[0.06] text-xs shadow-2xs">
-              {tenses.thirdPersonPresent}
-            </span>
-          </div>
-        )}
-
-        {!tenses.isIrregular && finalEd && (
-          <div className="flex items-center gap-1.5 text-purple-700 dark:text-purple-300 text-[11px] ml-auto">
-            <HelpCircle className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate max-w-xs sm:max-w-md">{getEdRuleExplanation(finalEd)}</span>
-          </div>
-        )}
-      </div>
+      {/* Phonetic -ed rule reminder note if regular */}
+      {!tenses.isIrregular && finalEd && (
+        <div className="flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300 p-2.5 px-3.5 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/40">
+          <HelpCircle className="w-4 h-4 shrink-0" />
+          <span className="text-[11px] leading-relaxed">{getEdRuleExplanation(finalEd)}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -9,7 +9,7 @@ describe('NotificationRepository', () => {
   let repo: NotificationRepository;
 
   beforeEach(async () => {
-    db = await createTestDatabase();
+    db = await createTestDatabase(false);
     repo = new NotificationRepository(db);
   });
 
@@ -20,12 +20,10 @@ describe('NotificationRepository', () => {
   it('retrieves default notification settings with activity defaults if none exist', async () => {
     const settings = await repo.getSettings('user_local');
     expect(settings.enabled).toBe(true);
-    expect(settings.scheduleMode).toBe('AUTO');
     expect(settings.manualTime).toBe('20:00');
     expect(settings.srsBatchThreshold).toBe(10);
     // Activity defaults
     expect(settings.srs.enabled).toBe(true);
-    expect(settings.srs.scheduleMode).toBe('AUTO');
     expect(settings.srs.manualTime).toBe('19:00');
     expect(settings.writing.enabled).toBe(true);
     expect(settings.writing.manualTime).toBe('21:00');
@@ -36,15 +34,11 @@ describe('NotificationRepository', () => {
       {
         srs: {
           enabled: true,
-          scheduleMode: 'MANUAL',
           manualTime: '18:30',
-          detectedTime: '19:00',
         },
         writing: {
           enabled: false,
-          scheduleMode: 'MANUAL',
           manualTime: '22:15',
-          detectedTime: '21:00',
         },
         srsBatchThreshold: 15,
       },
@@ -52,7 +46,6 @@ describe('NotificationRepository', () => {
     );
 
     expect(updated.srs.manualTime).toBe('18:30');
-    expect(updated.srs.scheduleMode).toBe('MANUAL');
     expect(updated.writing.enabled).toBe(false);
     expect(updated.writing.manualTime).toBe('22:15');
 

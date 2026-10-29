@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDatabase } from '@/shared/hooks/useDatabase';
 import { useSrsStore } from '@/features/srs/store/srsStore';
+import { useDebounce } from '@/shared/hooks/useDebounce';
 import {
   VocabItem,
   VocabContextExample,
@@ -14,13 +15,8 @@ import {
 } from '@/core/types/vocab';
 import { CoreCorpusCoverage } from '@/core/repositories/IVocabRepository';
 import {
-  CORE_VOCAB_DATA,
-  CORE_PHRASAL_DATA,
-  clearCoreCorpusMemory,
   searchCoreCorpusLocally,
   searchCorePhrasalLocally,
-  toDomainCoreVocab,
-  toDomainCorePhrase,
 } from '@/data/core-vocab-corpus';
 
 export interface NewVocabPayload {
@@ -34,7 +30,6 @@ export interface NewVocabPayload {
   ipaReceivedPronunciation?: string;
   ipaWeakForm?: string;
   phoneticEdEnding?: '/t/' | '/d/' | '/ɪd/' | null;
-  collocations?: string[];
   grammarPattern?: string | null;
   countability?: 'COUNTABLE' | 'UNCOUNTABLE' | 'BOTH' | null;
   connotation?: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
@@ -66,12 +61,12 @@ export interface VocabSuggestion {
   translationEs: string;
   cefrLevel: CefrLevel;
   partOfSpeech: PartOfSpeech;
-  frequencyBand: FrequencyBand;
+  frequencyBand?: FrequencyBand | null;
   isActive: boolean;
   isCore: boolean;
 }
 
-export function useVocabList() {
+export function useVocabList(initialPage = 1, pageSize = 12) {
   const { vocabRepo, cardRepo, isReady } = useDatabase();
 
   const [words, setWords] = useState<VocabItem[]>([]);
@@ -80,8 +75,26 @@ export function useVocabList() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Pagination & Counts (Server-side directly from SQLite)
+  const [currentPage, setCurrentPage] = useState(initialPage);
+  const [totalCount, setTotalCount] = useState(0);
+  const [coreCount, setCoreCount] = useState(0);
+  const [vaultCount, setVaultCount] = useState(0);
+  const [filteredCount, setFilteredCount] = useState(0);
+  const [cefrCounts, setCefrCounts] = useState<Record<string, number>>({
+    ALL: 0,
+    A1: 0,
+    A2: 0,
+    B1: 0,
+    B2: 0,
+    C1: 0,
+    C2: 0,
+  });
+
   // Filters & Sorting
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 200);
+
   const [selectedCefr, setSelectedCefr] = useState<string>('ALL');
   const [selectedDimension, setSelectedDimension] = useState<string>('ALL');
   const [onlyFalseFriends, setOnlyFalseFriends] = useState(false);
@@ -89,8 +102,40 @@ export function useVocabList() {
   const [frequencyBandFilter, setFrequencyBandFilter] = useState<string>('ALL');
   const [masteryStatusFilter, setMasteryStatusFilter] = useState<string>('ALL');
   const [selectedPartOfSpeech, setSelectedPartOfSpeech] = useState<string>('ALL');
-  const [accentPreference, setAccentPreference] = useState<'US' | 'UK'>('US');
+  const [accentPreference, setAccentPreferenceState] = useState<'US' | 'UK'>(() => {
+    try {
+      const saved = localStorage.getItem('ela_vocab_accent_preference');
+      if (saved === 'US' || saved === 'UK') return saved;
+    } catch {
+      // ignore
+    }
+    return 'US';
+  });
+
+  const setAccentPreference = useCallback((accent: 'US' | 'UK') => {
+    setAccentPreferenceState(accent);
+    try {
+      localStorage.setItem('ela_vocab_accent_preference', accent);
+    } catch {
+      // ignore
+    }
+  }, []);
   const [sortBy, setSortBy] = useState<'RECENT' | 'ALPHA_ASC' | 'ALPHA_DESC' | 'CEFR_ASC'>('RECENT');
+
+  // Reset to first page when any filter criteria changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    debouncedSearchQuery,
+    selectedCefr,
+    selectedDimension,
+    originFilter,
+    frequencyBandFilter,
+    masteryStatusFilter,
+    selectedPartOfSpeech,
+    onlyFalseFriends,
+    sortBy,
+  ]);
 
   const loadVocabData = useCallback(async () => {
     if (!vocabRepo || !isReady) return;
@@ -98,86 +143,41 @@ export function useVocabList() {
       setIsLoading(true);
       setError(null);
 
-      // 1. Fetch all SQLite saved words (seeded core words + active core words + personal vault additions)
-      const dbWords = await vocabRepo.getAllVocabs();
-      const dbWordsMap = new Map<string, VocabItem>();
-      for (const w of dbWords) {
-        dbWordsMap.set(w.id, w);
-        dbWordsMap.set(w.word.toLowerCase(), w);
-      }
+      // 1. Fetch exactly the current page of words from SQLite with native indexing & filtering
+      const pageResult = await vocabRepo.getVocabsPage({
+        page: currentPage,
+        pageSize,
+        search: debouncedSearchQuery,
+        cefrLevel: selectedCefr,
+        dimension: selectedDimension,
+        origin: originFilter,
+        frequencyBand: frequencyBandFilter,
+        masteryStatus: masteryStatusFilter,
+        partOfSpeech: selectedPartOfSpeech,
+        onlyFalseFriends,
+        sortBy,
+      });
 
-      // 2. If SQLite has seeded words, use the SQLite list directly plus any missing corpus lemmas
-      let combinedWords: VocabItem[] = [];
-      if (dbWords.length > 0) {
-        // Collect DB words
-        combinedWords = [...dbWords];
-        // Append any core words from JSON that might not be in DB yet
-        for (const raw of CORE_VOCAB_DATA) {
-          if (!dbWordsMap.has(raw.id) && !dbWordsMap.has(raw.word.toLowerCase())) {
-            combinedWords.push(toDomainCoreVocab(raw, 'INACTIVE'));
-          }
-        }
+      setWords(pageResult.items);
+      setTotalCount(pageResult.totalCount);
+      setCoreCount(pageResult.coreCount);
+      setVaultCount(pageResult.vaultCount);
+      setFilteredCount(pageResult.filteredCount);
+      setCefrCounts({
+        ALL: pageResult.totalCount,
+        ...pageResult.cefrCounts,
+      });
+
+      // 2. Pre-fetch context examples for only the current page items
+      const pageIds = pageResult.items.map((w) => w.id);
+      if (pageIds.length > 0) {
+        const exMap = await vocabRepo.getContextExamplesForVocabs(pageIds);
+        setExamplesMap(exMap);
       } else {
-        // 3. Fallback if DB was not yet seeded: synthesize complete lexical inventory
-        const fullCoreList: VocabItem[] = CORE_VOCAB_DATA.map((raw) => {
-          const existingInDb = dbWordsMap.get(raw.id) || dbWordsMap.get(raw.word.toLowerCase());
-          if (existingInDb && existingInDb.isCore) {
-            return existingInDb;
-          }
-          return toDomainCoreVocab(raw, 'INACTIVE');
-        });
-        const vaultWords = dbWords.filter((w) => !w.isCore);
-        combinedWords = [...vaultWords, ...fullCoreList];
+        setExamplesMap({});
       }
 
-      // 3. Append core phrasal units so they are first-class items in the catalog
-      let activePhraseIds = new Set<string>();
-      if (cardRepo) {
-        try {
-          const activeCards = await cardRepo.getCardsWithDetails('user_local');
-          activePhraseIds = new Set(
-            activeCards
-              .filter((c) => c.card.targetType === 'PHRASE')
-              .map((c) => c.card.targetId)
-          );
-        } catch {
-          activePhraseIds = new Set();
-        }
-      }
-
-      const phraseWords: VocabItem[] = CORE_PHRASAL_DATA.map((rawPhr) =>
-        toDomainCorePhrase(rawPhr, activePhraseIds.has(rawPhr.id) ? 'LEARNING' : 'INACTIVE')
-      );
-
-      combinedWords = [...combinedWords, ...phraseWords];
-
-      setWords(combinedWords);
-
-      // 4. Pre-fetch context examples for active words in a single batch query
-      const activeWordsSlice = combinedWords.filter((w) => w.masteryStatus !== 'INACTIVE').slice(0, 100);
-      const activeIds = activeWordsSlice.map((w) => w.id);
-      const exMap = await vocabRepo.getContextExamplesForVocabs(activeIds);
-
-      // Seed context examples for active phrases
-      for (const rawPhr of CORE_PHRASAL_DATA) {
-        if (activePhraseIds.has(rawPhr.id)) {
-          exMap[rawPhr.id] = [
-            {
-              id: `ctx_${rawPhr.id}_1`,
-              phraseId: rawPhr.id,
-              sentenceEn: rawPhr.example1,
-              sentenceEs: rawPhr.example1Es || rawPhr.meaningEs,
-              clozeTarget: rawPhr.text,
-              cefrLevel: rawPhr.cefrLevel,
-              createdAt: new Date().toISOString(),
-            },
-          ];
-        }
-      }
-
-      setExamplesMap(exMap);
-
-      // 5. Fetch Core Corpus Coverage statistics
+      // 3. Fetch aggregated Core Corpus Coverage in single grouped query
       const coverage = await vocabRepo.getCoreCorpusCoverage();
       setCoverageStats(coverage);
     } catch (err) {
@@ -185,34 +185,93 @@ export function useVocabList() {
     } finally {
       setIsLoading(false);
     }
-  }, [vocabRepo, isReady]);
+  }, [
+    vocabRepo,
+    isReady,
+    currentPage,
+    pageSize,
+    debouncedSearchQuery,
+    selectedCefr,
+    selectedDimension,
+    originFilter,
+    frequencyBandFilter,
+    masteryStatusFilter,
+    selectedPartOfSpeech,
+    onlyFalseFriends,
+    sortBy,
+  ]);
 
   useEffect(() => {
     loadVocabData();
   }, [loadVocabData]);
 
+  // Activate a Phrasal Verb directly into SRS
+  const activatePhrase = useCallback(
+    async (phraseId: string): Promise<boolean> => {
+      if (!cardRepo) return false;
+      try {
+        await cardRepo.activatePhraseCard(phraseId);
+
+        if (vocabRepo) {
+          await vocabRepo.updateMasteryStatus(phraseId, 'LEARNING');
+          const updatedItem = await vocabRepo.getVocabById(phraseId);
+          if (updatedItem) {
+            setWords((prev) =>
+              prev.map((w) => (w.id === phraseId ? updatedItem : w)),
+            );
+            const contexts = await vocabRepo.getContextExamples(phraseId);
+            if (contexts && contexts.length > 0) {
+              setExamplesMap((prev) => ({
+                ...prev,
+                [phraseId]: contexts,
+              }));
+              useSrsStore.getState().addVocabItem(updatedItem, contexts[0], `card_phr_${phraseId}`);
+            }
+          }
+        } else {
+          setWords((prev) =>
+            prev.map((w) => (w.id === phraseId ? { ...w, masteryStatus: 'LEARNING' } : w)),
+          );
+        }
+
+        const coverage = await vocabRepo?.getCoreCorpusCoverage();
+        if (coverage) setCoverageStats(coverage);
+
+        return true;
+      } catch (err) {
+        console.error('Error activating phrase:', err);
+        return false;
+      }
+    },
+    [cardRepo, vocabRepo],
+  );
+
   // Activate a word from the Core Corpus or activate an inactive item
   const activateWord = useCallback(
     async (id: string): Promise<VocabItem | null> => {
+      if (id.startsWith('phr_')) {
+        const ok = await activatePhrase(id);
+        if (ok && vocabRepo) {
+          return await vocabRepo.getVocabById(id);
+        }
+        return null;
+      }
+
       if (!vocabRepo) return null;
       try {
         const activated = await vocabRepo.activateVocabItem(id);
 
-        // Update in-memory state
         setWords((prev) =>
           prev.map((w) => (w.id === id || w.word.toLowerCase() === activated.word.toLowerCase() ? activated : w)),
         );
 
-        // Fetch examples if available
         const contexts = await vocabRepo.getContextExamples(activated.id);
         if (contexts.length > 0) {
           setExamplesMap((prev) => ({ ...prev, [activated.id]: contexts }));
         }
 
-        // Synchronize SRS store with agile card
         useSrsStore.getState().addVocabItem(activated, contexts[0] ?? null, `card_${activated.id}`);
 
-        // Refresh coverage stats
         const coverage = await vocabRepo.getCoreCorpusCoverage();
         setCoverageStats(coverage);
 
@@ -222,7 +281,7 @@ export function useVocabList() {
         return null;
       }
     },
-    [vocabRepo],
+    [vocabRepo, activatePhrase],
   );
 
   // Batch activate words by criteria (e.g. "Top 500 A1-A2" or "Top 3000")
@@ -233,20 +292,14 @@ export function useVocabList() {
         const activatedItems = await vocabRepo.batchActivateByCriteria(criteria);
 
         if (activatedItems.length > 0) {
-          // Synchronize SRS store with all newly activated items immediately
           useSrsStore.getState().addBatchVocabItems(activatedItems);
 
-          // Update context examples for the activated batch in a single batch query
           const activatedIds = activatedItems.map((item) => item.id);
           const batchContexts = await vocabRepo.getContextExamplesForVocabs(activatedIds);
           setExamplesMap((prev) => ({ ...prev, ...batchContexts }));
         }
 
-        // Reload vocab list and refresh coverage
         await loadVocabData();
-        const coverage = await vocabRepo.getCoreCorpusCoverage();
-        setCoverageStats(coverage);
-
         return activatedItems.length;
       } catch (err) {
         console.error('Error batch activating words:', err);
@@ -256,48 +309,7 @@ export function useVocabList() {
     [vocabRepo, loadVocabData],
   );
 
-  // Activate a Phrasal Verb directly into SRS
-  const activatePhrase = useCallback(
-    async (phraseId: string): Promise<boolean> => {
-      if (!cardRepo) return false;
-      try {
-        await cardRepo.activatePhraseCard(phraseId);
-
-        const targetPhr = CORE_PHRASAL_DATA.find((p) => p.id === phraseId);
-        if (targetPhr) {
-          const phraseVocabItem = toDomainCorePhrase(targetPhr, 'LEARNING');
-          const contextExample: VocabContextExample = {
-            id: `ctx_${targetPhr.id}_1`,
-            phraseId: targetPhr.id,
-            sentenceEn: targetPhr.example1,
-            sentenceEs: targetPhr.example1Es || targetPhr.meaningEs,
-            clozeTarget: targetPhr.text,
-            cefrLevel: targetPhr.cefrLevel,
-            createdAt: new Date().toISOString(),
-          };
-
-          // Update in-memory state
-          setWords((prev) =>
-            prev.map((w) => (w.id === phraseId ? { ...w, masteryStatus: 'LEARNING' } : w))
-          );
-          setExamplesMap((prev) => ({
-            ...prev,
-            [phraseId]: [contextExample],
-          }));
-
-          // Synchronize SRS store
-          useSrsStore.getState().addVocabItem(phraseVocabItem, contextExample, `card_phr_${targetPhr.id}`);
-        }
-        return true;
-      } catch (err) {
-        console.error('Error activating phrase:', err);
-        return false;
-      }
-    },
-    [cardRepo],
-  );
-
-  // Instant local suggestions (< 1ms) for search autocomplete dropdown
+  // Instant suggestions for search autocomplete dropdown
   const getSuggestions = useCallback(
     (query: string, limit = 8): VocabSuggestion[] => {
       const q = query.trim().toLowerCase();
@@ -336,6 +348,25 @@ export function useVocabList() {
         };
       });
 
+      // Match against currently loaded words if in-memory fixtures are empty
+      if (vocabSuggestions.length === 0 && phrasalSuggestions.length === 0) {
+        for (const w of words) {
+          if (vocabSuggestions.length >= limit) break;
+          if (w.word.toLowerCase().startsWith(q) || w.translationEs.toLowerCase().includes(q)) {
+            vocabSuggestions.push({
+              id: w.id,
+              word: w.word,
+              translationEs: w.translationEs,
+              cefrLevel: w.cefrLevel,
+              partOfSpeech: w.partOfSpeech,
+              frequencyBand: w.frequencyBand,
+              isActive: w.masteryStatus !== 'INACTIVE',
+              isCore: w.isCore,
+            });
+          }
+        }
+      }
+
       return [...vocabSuggestions, ...phrasalSuggestions].slice(0, limit);
     },
     [words],
@@ -358,7 +389,6 @@ export function useVocabList() {
         ipaReceivedPronunciation: payload.ipaReceivedPronunciation,
         ipaWeakForm: payload.ipaWeakForm,
         phoneticEdEnding: payload.phoneticEdEnding,
-        collocationsJson: payload.collocations ?? [],
         subcategory: payload.subcategory,
         domainCategory: payload.domainCategory,
         isFalseFriend: payload.isFalseFriend,
@@ -372,7 +402,6 @@ export function useVocabList() {
       });
 
       const createdExamples: VocabContextExample[] = [];
-      // Add graduated context examples if supplied
       if (payload.graduatedExamples) {
         if (payload.graduatedExamples.sentenceBasicEn) {
           const basicEx = await vocabRepo.addContextExample({
@@ -405,30 +434,6 @@ export function useVocabList() {
         createdExamples.push(example);
       }
 
-      // Add any additional context examples
-      if (payload.additionalExamples && payload.additionalExamples.length > 0) {
-        for (const extra of payload.additionalExamples) {
-          if (extra.sentenceEn && extra.sentenceEn.trim()) {
-            const example = await vocabRepo.addContextExample({
-              vocabId: created.id,
-              sentenceEn: extra.sentenceEn.trim(),
-              sentenceEs: extra.sentenceEs?.trim() || '',
-              clozeTarget: created.word,
-              cefrLevel: created.cefrLevel,
-            });
-            createdExamples.push(example);
-          }
-        }
-      }
-
-      if (createdExamples.length > 0) {
-        setExamplesMap((prev) => ({
-          ...prev,
-          [created.id]: createdExamples,
-        }));
-      }
-
-      // Add SRS flashcard by default unless explicitly disabled
       const cardId = `card_${created.id}`;
       if (payload.createSrsCard !== false && cardRepo) {
         const cooldownScheduledFor = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
@@ -447,23 +452,20 @@ export function useVocabList() {
         });
       }
 
-      // Synchronize in-memory SRS store
       useSrsStore.getState().addVocabItem(created, createdExamples[0] ?? null, cardId);
-
-      // Update in-memory words list immediately
-      setWords((prev) => [created, ...prev]);
+      await loadVocabData();
       return created;
     },
-    [vocabRepo, cardRepo],
+    [vocabRepo, cardRepo, loadVocabData],
   );
 
   const checkDuplicateWord = useCallback(
-    (inputWord: string): VocabItem[] => {
+    async (inputWord: string): Promise<VocabItem[]> => {
       const clean = inputWord.trim().toLowerCase();
-      if (!clean) return [];
-      return words.filter((w) => w.word.toLowerCase().trim() === clean);
+      if (!clean || !vocabRepo) return [];
+      return vocabRepo.findExistingByWord(clean);
     },
-    [words],
+    [vocabRepo],
   );
 
   const addMultipleWords = useCallback(
@@ -495,16 +497,12 @@ export function useVocabList() {
       const success = await vocabRepo.deleteVocab(id);
       if (success) {
         setWords((prev) => prev.filter((w) => w.id !== id));
-        setExamplesMap((prev) => {
-          const next = { ...prev };
-          delete next[id];
-          return next;
-        });
         useSrsStore.getState().removeVocabItem(id);
+        await loadVocabData();
       }
       return success;
     },
-    [vocabRepo],
+    [vocabRepo, loadVocabData],
   );
 
   const deleteMultipleWords = useCallback(
@@ -512,37 +510,30 @@ export function useVocabList() {
       if (!vocabRepo || ids.length === 0) return false;
       const count = await vocabRepo.deleteVocabs(ids);
       if (count > 0) {
-        const idSet = new Set(ids);
-        setWords((prev) => prev.filter((w) => !idSet.has(w.id)));
-        setExamplesMap((prev) => {
-          const next = { ...prev };
-          for (const id of ids) {
-            delete next[id];
-          }
-          return next;
-        });
         for (const id of ids) {
           useSrsStore.getState().removeVocabItem(id);
         }
+        await loadVocabData();
         return true;
       }
       return false;
     },
-    [vocabRepo],
+    [vocabRepo, loadVocabData],
   );
 
   const clearAllWords = useCallback(async (): Promise<boolean> => {
     if (!vocabRepo) return false;
     try {
       await vocabRepo.clearAllVocabs();
-      // Vaciar también el inventario de palabras del corpus en memoria para que no persistan como INACTIVE
-      clearCoreCorpusMemory();
-      // Reload vocab state so both DB words and corpus words disappear completely from the UI
-      await loadVocabData();
-      // Clear all items in SRS store
+      setWords([]);
+      setExamplesMap({});
+      setTotalCount(0);
+      setCoreCount(0);
+      setVaultCount(0);
+      setFilteredCount(0);
+
       useSrsStore.getState().setVocabList([]);
       useSrsStore.getState().setSelectedVocab(null);
-      useSrsStore.getState().setCurrentContext(null);
       useSrsStore.getState().setAvailableContexts([]);
       useSrsStore.getState().setSrsCard(null);
       return true;
@@ -550,7 +541,7 @@ export function useVocabList() {
       console.error('Error clearing all vocabs:', err);
       return false;
     }
-  }, [vocabRepo, loadVocabData]);
+  }, [vocabRepo]);
 
   const resetFilters = useCallback(() => {
     setSearchQuery('');
@@ -562,142 +553,10 @@ export function useVocabList() {
     setMasteryStatusFilter('ALL');
     setSelectedPartOfSpeech('ALL');
     setSortBy('RECENT');
+    setCurrentPage(1);
   }, []);
 
-  const sortedFilteredWords = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const isSearching = q.length > 0;
-    const includeDefinitions = q.length >= 3;
-
-    const list = words.filter((w) => {
-      // Origin Filter (CORE vs VAULT)
-      if (originFilter === 'CORE' && !w.isCore) return false;
-      if (originFilter === 'VAULT' && w.isCore) return false;
-
-      // Frequency Band Filter
-      if (frequencyBandFilter !== 'ALL' && w.frequencyBand !== frequencyBandFilter) return false;
-
-      // Mastery Status Filter
-      if (masteryStatusFilter !== 'ALL' && w.masteryStatus !== masteryStatusFilter) return false;
-
-      // False Friends Filter
-      if (onlyFalseFriends && !w.isFalseFriend) return false;
-
-      // CEFR Filter (checks global or senses)
-      if (selectedCefr !== 'ALL') {
-        const matchesGlobal = w.cefrLevel === selectedCefr;
-        const matchesSense = w.sensesJson?.some((s) => s.cefrLevel === selectedCefr);
-        if (!matchesGlobal && !matchesSense) return false;
-      }
-
-      // Dimension Filter
-      if (selectedDimension !== 'ALL' && w.grammaticalDimension !== selectedDimension) return false;
-
-      // Part of Speech Filter (checks primary PoS or any sense's PoS)
-      if (selectedPartOfSpeech !== 'ALL') {
-        const matchesGlobalPos = w.partOfSpeech === selectedPartOfSpeech;
-        const matchesSensePos = w.sensesJson?.some((s) => s.partOfSpeech === selectedPartOfSpeech);
-        if (!matchesGlobalPos && !matchesSensePos) return false;
-      }
-
-      // Search Query
-      if (isSearching) {
-        const matchWord = w.word.toLowerCase().includes(q);
-        const matchTranslation = w.translationEs.toLowerCase().includes(q);
-        const matchIpa = w.ipaGeneralAmerican?.toLowerCase().includes(q) || w.ipaReceivedPronunciation?.toLowerCase().includes(q);
-        const matchDef = includeDefinitions ? w.definitionEn.toLowerCase().includes(q) : false;
-        const matchSenses = w.sensesJson?.some((s) =>
-          s.translationEs.toLowerCase().includes(q) || (includeDefinitions && s.definitionEn.toLowerCase().includes(q))
-        );
-
-        if (!matchWord && !matchTranslation && !matchDef && !matchIpa && !matchSenses) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    const cefrRank: Record<string, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 };
-
-    // Search relevance score (lower score = higher priority)
-    const getRelevanceScore = (item: VocabItem): number => {
-      if (!isSearching) return 0;
-      const wordLower = item.word.toLowerCase();
-      const transLower = item.translationEs.toLowerCase();
-
-      if (wordLower === q) return 1;
-      if (wordLower.startsWith(q)) return 2;
-      if (transLower === q || transLower.startsWith(q)) return 3;
-      if (wordLower.includes(q)) return 4;
-      if (transLower.includes(q)) return 5;
-      if (item.ipaGeneralAmerican?.toLowerCase().includes(q)) return 6;
-      return 7;
-    };
-
-    return list.sort((a, b) => {
-      if (isSearching && sortBy === 'RECENT') {
-        const scoreDiff = getRelevanceScore(a) - getRelevanceScore(b);
-        if (scoreDiff !== 0) return scoreDiff;
-      }
-
-      switch (sortBy) {
-        case 'ALPHA_ASC':
-          return a.word.localeCompare(b.word);
-        case 'ALPHA_DESC':
-          return b.word.localeCompare(a.word);
-        case 'CEFR_ASC':
-          return (cefrRank[a.cefrLevel] ?? 99) - (cefrRank[b.cefrLevel] ?? 99);
-        case 'RECENT':
-        default:
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      }
-    });
-  }, [
-    words,
-    originFilter,
-    frequencyBandFilter,
-    masteryStatusFilter,
-    onlyFalseFriends,
-    selectedCefr,
-    selectedDimension,
-    selectedPartOfSpeech,
-    searchQuery,
-    sortBy,
-  ]);
-
-  const cefrCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      ALL: words.length,
-      A1: 0,
-      A2: 0,
-      B1: 0,
-      B2: 0,
-      C1: 0,
-      C2: 0,
-    };
-    for (const w of words) {
-      if (counts[w.cefrLevel] !== undefined) {
-        counts[w.cefrLevel]++;
-      }
-    }
-    return counts;
-  }, [words]);
-
-  const falseFriendsCount = useMemo(
-    () => words.filter((w) => w.isFalseFriend).length,
-    [words],
-  );
-
-  const coreCount = useMemo(
-    () => words.filter((w) => w.isCore).length,
-    [words],
-  );
-
-  const vaultCount = useMemo(
-    () => words.filter((w) => !w.isCore).length,
-    [words],
-  );
+  const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize));
 
   const hasActiveFilters = useMemo(
     () =>
@@ -722,13 +581,13 @@ export function useVocabList() {
   );
 
   return {
-    words: sortedFilteredWords,
+    words,
     allWords: words,
-    totalCount: words.length,
+    totalCount,
     coreCount,
     vaultCount,
-    filteredCount: sortedFilteredWords.length,
-    falseFriendsCount,
+    filteredCount,
+    falseFriendsCount: onlyFalseFriends ? filteredCount : 0,
     hasActiveFilters,
     examplesMap,
     coverageStats,
@@ -745,6 +604,9 @@ export function useVocabList() {
     accentPreference,
     sortBy,
     cefrCounts,
+    currentPage,
+    totalPages,
+    setCurrentPage,
     setSearchQuery,
     setSelectedCefr,
     setSelectedDimension,

@@ -5,13 +5,23 @@ import {
   ArrowLeft,
   Sparkles,
   CheckCircle2,
-  HelpCircle,
   Eye,
   RotateCcw,
   Sparkle,
   BookOpen,
   Target,
 } from 'lucide-react';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationNextIcon,
+  PaginationPrevious,
+  PaginationPreviousIcon,
+  PaginationSummary,
+} from '@heroui/react';
 import { SocraticFeedbackResponse, SocraticClue } from '@/infrastructure/ai/schemas';
 import { ReadingItem } from '@/data/reading-to-write-catalog';
 import { TargetWordItem } from '../store/writingStore';
@@ -47,9 +57,16 @@ export function WritingStageTwo({
   const [activeHighlightClue, setActiveHighlightClue] = useState<SocraticClue | null>(null);
   const [showDraft1Ref, setShowDraft1Ref] = useState(true);
   const [showReadingRef, setShowReadingRef] = useState(false);
+  const [currentClueIndex, setCurrentClueIndex] = useState(0);
 
-  // Filter visible clues to top 3 items for cognitive ease (RF-WRT-06)
-  const visibleClues = socraticResult.scaffolded_clues.slice(0, 3);
+  const clues = socraticResult.scaffolded_clues;
+  const safeClueIndex = Math.min(currentClueIndex, Math.max(0, clues.length - 1));
+  const currentClue = clues[safeClueIndex];
+
+  const handleClueChange = (newIndex: number) => {
+    setCurrentClueIndex(newIndex);
+    setActiveHighlightClue(null);
+  };
 
   // Render draft1 with non-destructive highlights preserving paragraph structure
   const renderHighlightedDraft1 = () => {
@@ -115,7 +132,7 @@ export function WritingStageTwo({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800 text-xs font-semibold flex items-center gap-1.5">
               <Sparkle className="w-3.5 h-3.5 text-indigo-500" />
-              <span>{visibleClues.length} aspectos a mejorar</span>
+              <span>{clues.length} {clues.length === 1 ? 'aspecto a mejorar' : 'aspectos a mejorar'}</span>
             </span>
           </div>
         </div>
@@ -131,33 +148,72 @@ export function WritingStageTwo({
 
       {/* Split-Screen Arena: Left = Clues / Right = Draft 2 Editor */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Clues (5 cols) */}
+        {/* Left Column: Clues with Pagination (5 cols) */}
         <section aria-label="Pistas de mejora" className="lg:col-span-5 space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-              <HelpCircle className="w-3.5 h-3.5" />
-              <span>Pistas de Mejora</span>
-            </span>
-            <span className="text-[11px] text-gray-400 font-mono">
-              Mostrando {visibleClues.length} de {socraticResult.scaffolded_clues.length}
-            </span>
-          </div>
-
-          <div className="space-y-4">
-            {visibleClues.map((clue, idx) => (
+          {clues.length > 0 && currentClue ? (
+            <>
               <ZpdScaffoldingCard
-                key={idx}
-                clue={clue}
-                index={idx}
+                clue={currentClue}
+                index={safeClueIndex}
                 onHighlight={setActiveHighlightClue}
               />
-            ))}
-          </div>
+
+              {/* HeroUI Pagination Component with summary at the bottom */}
+              <Pagination className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-2xl bg-white dark:bg-[#131722] border border-gray-200/90 dark:border-gray-800 shadow-2xs">
+                <PaginationSummary className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                  Mostrando {safeClueIndex + 1} de {clues.length}
+                </PaginationSummary>
+
+                {clues.length > 1 && (
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        aria-label="Pista anterior"
+                        isDisabled={safeClueIndex === 0}
+                        onPress={() => handleClueChange(Math.max(0, safeClueIndex - 1))}
+                        className="cursor-pointer"
+                      >
+                        <PaginationPreviousIcon />
+                      </PaginationPrevious>
+                    </PaginationItem>
+
+                    {clues.map((_, idx) => (
+                      <PaginationItem key={idx}>
+                        <PaginationLink
+                          isActive={idx === safeClueIndex}
+                          onPress={() => handleClueChange(idx)}
+                          aria-label={`Ir a pista ${idx + 1}`}
+                          className="cursor-pointer font-mono text-xs"
+                        >
+                          {idx + 1}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        aria-label="Siguiente pista"
+                        isDisabled={safeClueIndex >= clues.length - 1}
+                        onPress={() => handleClueChange(Math.min(clues.length - 1, safeClueIndex + 1))}
+                        className="cursor-pointer"
+                      >
+                        <PaginationNextIcon />
+                      </PaginationNext>
+                    </PaginationItem>
+                  </PaginationContent>
+                )}
+              </Pagination>
+            </>
+          ) : (
+            <div className="p-6 rounded-2xl bg-white dark:bg-[#131722] border border-gray-200/90 dark:border-gray-800 text-center text-xs text-gray-500">
+              No se identificaron pistas de mejora para este borrador.
+            </div>
+          )}
         </section>
 
         {/* Right Column: Draft 2 Editor & Reference (7 cols) */}
         <section aria-label="Editor de revisión" className="lg:col-span-7 space-y-4 sticky top-6">
-          <div className="bg-white dark:bg-[#131722] rounded-3xl p-6 sm:p-7 border border-gray-200/90 dark:border-gray-800 shadow-xs space-y-4">
+          <div className="bg-white dark:bg-[#131722] rounded-2xl sm:rounded-3xl p-6 sm:p-7 border border-gray-200/90 dark:border-gray-800 shadow-xs space-y-4">
             {/* Header & Toggle Draft 1 / Reading Reference */}
             <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800/80 flex-wrap gap-2">
               <div>

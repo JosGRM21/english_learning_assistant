@@ -3,9 +3,8 @@ import {
   Search,
   X,
   PlusCircle,
-  ArrowUpDown,
 } from 'lucide-react';
-import { Select, ListBox } from '@heroui/react';
+import { Button } from '@heroui/react';
 import { VocabSuggestion } from '../../hooks/useVocabList';
 import { VocabAdvancedFiltersPopover } from './VocabAdvancedFiltersPopover';
 
@@ -180,42 +179,45 @@ export function VocabSearchToolbar({
         <div className="flex items-center gap-2 flex-wrap shrink-0">
           {/* Quick Origin Segmented Switcher */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-[#161B28] p-1 rounded-xl border border-gray-200/60 dark:border-white/[0.04]">
-            <button
-              type="button"
-              onClick={() => onOriginChange('ALL')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            <Button
+              size="sm"
+              variant="ghost"
+              onPress={() => onOriginChange('ALL')}
+              className={`h-7 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 originFilter === 'ALL'
                   ? 'bg-white dark:bg-[#202638] text-indigo-600 dark:text-indigo-400 shadow-2xs'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
               }`}
             >
               Todos
-            </button>
-            <button
-              type="button"
-              onClick={() => onOriginChange('CORE')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onPress={() => onOriginChange('CORE')}
+              className={`h-7 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 originFilter === 'CORE'
                   ? 'bg-white dark:bg-[#202638] text-indigo-600 dark:text-indigo-400 shadow-2xs'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
               }`}
             >
               Core {coreCount !== undefined ? `(${coreCount})` : ''}
-            </button>
-            <button
-              type="button"
-              onClick={() => onOriginChange('VAULT')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onPress={() => onOriginChange('VAULT')}
+              className={`h-7 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 originFilter === 'VAULT'
                   ? 'bg-white dark:bg-[#202638] text-indigo-600 dark:text-indigo-400 shadow-2xs'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
               }`}
             >
               Mi Bóveda {vaultCount !== undefined ? `(${vaultCount})` : ''}
-            </button>
+            </Button>
           </div>
 
-          {/* Advanced Filters Popover Button */}
+          {/* Advanced Filters & Sorting Popover Button */}
           <VocabAdvancedFiltersPopover
             frequencyBandFilter={frequencyBandFilter}
             selectedDimension={selectedDimension}
@@ -224,57 +226,9 @@ export function VocabSearchToolbar({
             onSelectDimension={onSelectDimension}
             onSelectPartOfSpeech={onSelectPartOfSpeech}
             onResetAdvancedFilters={onResetAdvancedFilters}
+            sortBy={sortBy}
+            onSortChange={onSortChange}
           />
-
-          {/* Sort Selector */}
-          <Select
-            selectedKey={sortBy}
-            onSelectionChange={(key) => {
-              if (key) onSortChange(key as 'RECENT' | 'ALPHA_ASC' | 'ALPHA_DESC' | 'CEFR_ASC');
-            }}
-            aria-label="Criterio de ordenación"
-            className="w-36 sm:w-42"
-          >
-            <Select.Trigger className="h-9 px-2.5 text-xs bg-gray-50 hover:bg-gray-100 dark:bg-[#161B28] dark:hover:bg-[#1C2233] border border-gray-200/80 dark:border-white/[0.08] rounded-xl flex items-center justify-between gap-1.5 cursor-pointer transition-colors shadow-2xs">
-              <div className="flex items-center gap-1.5 truncate">
-                <ArrowUpDown className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                <Select.Value className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" />
-              </div>
-              <Select.Indicator className="text-gray-400 shrink-0" />
-            </Select.Trigger>
-            <Select.Popover className="p-1 rounded-xl bg-white dark:bg-[#161B28] border border-gray-200/80 dark:border-white/[0.08] shadow-2xl min-w-[190px] z-50">
-              <ListBox className="space-y-0.5 outline-none">
-                <ListBox.Item
-                  id="RECENT"
-                  textValue="Más recientes"
-                  className="px-2.5 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200"
-                >
-                  Más recientes
-                </ListBox.Item>
-                <ListBox.Item
-                  id="ALPHA_ASC"
-                  textValue="Alfabético (A → Z)"
-                  className="px-2.5 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200"
-                >
-                  Alfabético (A → Z)
-                </ListBox.Item>
-                <ListBox.Item
-                  id="ALPHA_DESC"
-                  textValue="Alfabético (Z → A)"
-                  className="px-2.5 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200"
-                >
-                  Alfabético (Z → A)
-                </ListBox.Item>
-                <ListBox.Item
-                  id="CEFR_ASC"
-                  textValue="Nivel CEFR (A1 → C2)"
-                  className="px-2.5 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-gray-700 dark:text-gray-200"
-                >
-                  Nivel CEFR (A1 → C2)
-                </ListBox.Item>
-              </ListBox>
-            </Select.Popover>
-          </Select>
         </div>
       </div>
     </div>

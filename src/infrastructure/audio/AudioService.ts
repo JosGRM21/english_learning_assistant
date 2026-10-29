@@ -2,8 +2,21 @@ import { invoke, Channel } from '@tauri-apps/api/core';
 import { isTauri } from '@/shared/utils/platform';
 import { KokoroEngine } from './KokoroEngine';
 
+export type AudioAccent = 'US' | 'UK';
+
+export const ACCENT_VOICES: Record<AudioAccent, string> = {
+  US: 'af_heart',
+  UK: 'bf_emma',
+} as const;
+
+export function getVoiceForAccent(accent?: AudioAccent): string {
+  if (accent === 'UK') return ACCENT_VOICES.UK;
+  return ACCENT_VOICES.US;
+}
+
 export interface NativeAudioChunkPayload {
-  samples: Float32Array | Uint8Array | number[];
+  samples_bytes?: Uint8Array | number[];
+  samples?: Float32Array | Uint8Array | number[];
   sample_rate: number;
   chunk_index: number;
   is_final: boolean;
@@ -17,14 +30,14 @@ export interface IAudioService {
   isBackendAvailable(): Promise<boolean>;
   getBackendVoices(): Promise<string[]>;
   getActiveDevice?(): 'webgpu' | 'wasm';
-  getActiveEngine?(): Promise<'native-avx2' | 'webgpu' | 'wasm' | 'webspeech'>;
-  getBuildTarget?(): Promise<'avx2-native' | 'legacy-universal' | 'web'>;
+  getActiveEngine?(): Promise<'native-avx2' | 'native-avx' | 'webgpu' | 'wasm' | 'webspeech'>;
+  getBuildTarget?(): Promise<'avx2-native' | 'avx-native' | 'legacy-universal' | 'web'>;
 }
 
 export class AudioService implements IAudioService {
   private audioCtx: AudioContext | null = null;
+  private masterGainNode: GainNode | null = null;
   private activeSources: Set<AudioBufferSourceNode> = new Set();
-  private activeGains: Set<GainNode> = new Set();
   private audioBufferCache: Map<string, AudioBuffer> = new Map();
   private currentCacheSamples = 0;
 
@@ -32,7 +45,7 @@ export class AudioService implements IAudioService {
   private prefetchAbortController: AbortController | null = null;
   private backendInitPromise: Promise<boolean> | null = null;
   private isNativeBackendReady: boolean | null = null;
-  private cachedBuildTarget: 'avx2-native' | 'legacy-universal' | null = null;
+  private cachedBuildTarget: 'avx2-native' | 'avx-native' | 'legacy-universal' | null = null;
 
   private static readonly MAX_CACHE_ENTRIES = 60;
   // Maximum ~3 minutes of 24kHz mono Float32 audio (~17.2 MB RAM cap)
@@ -99,6 +112,10 @@ export class AudioService implements IAudioService {
     });
   }
 
+  /**
+   * Initializes or returns the singleton AudioContext configured to native 24000 Hz Kokoro sample rate
+   * with a dedicated master GainNode connected to hardware destination.
+   */
   private getAudioContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
     if (!this.audioCtx) {
@@ -106,7 +123,27 @@ export class AudioService implements IAudioService {
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtxClass) {
-        this.audioCtx = new AudioCtxClass();
+        try {
+          this.audioCtx = new AudioCtxClass({ sampleRate: 24000, latencyHint: 'interactive' });
+        } catch {
+          this.audioCtx = new AudioCtxClass();
+        }
+
+        if (this.audioCtx && typeof this.audioCtx.createGain === 'function') {
+          try {
+            this.masterGainNode = this.audioCtx.createGain();
+            if (this.masterGainNode?.gain) {
+              if (typeof this.masterGainNode.gain.setValueAtTime === 'function') {
+                this.masterGainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime || 0);
+              } else {
+                this.masterGainNode.gain.value = 1.0;
+              }
+            }
+            this.masterGainNode.connect?.(this.audioCtx.destination);
+          } catch {
+            this.masterGainNode = null;
+          }
+        }
       }
     }
     return this.audioCtx;
@@ -178,12 +215,18 @@ export class AudioService implements IAudioService {
   /**
    * Returns the current application build target (native SIMD tier, legacy universal, or web).
    */
-  public async getBuildTarget(): Promise<'avx2-native' | 'legacy-universal' | 'web'> {
+  public async getBuildTarget(): Promise<'avx2-native' | 'avx-native' | 'legacy-universal' | 'web'> {
     if (!this.isTauri()) return 'web';
     if (this.cachedBuildTarget) return this.cachedBuildTarget;
     try {
       const target = await invoke<string>('get_build_target');
-      this.cachedBuildTarget = target === 'avx2-native' ? 'avx2-native' : 'legacy-universal';
+      if (target === 'avx2-native' || target.includes('avx2') || target.includes('avx512')) {
+        this.cachedBuildTarget = 'avx2-native';
+      } else if (target === 'avx-native' || target.includes('avx')) {
+        this.cachedBuildTarget = 'avx-native';
+      } else {
+        this.cachedBuildTarget = 'legacy-universal';
+      }
       return this.cachedBuildTarget;
     } catch {
       return 'legacy-universal';
@@ -193,12 +236,15 @@ export class AudioService implements IAudioService {
   /**
    * Returns the active TTS synthesis engine being utilized.
    */
-  public async getActiveEngine(): Promise<'native-avx2' | 'webgpu' | 'wasm' | 'webspeech'> {
+  public async getActiveEngine(): Promise<'native-avx2' | 'native-avx' | 'webgpu' | 'wasm' | 'webspeech'> {
     let isNativeReady = await this.isBackendAvailable();
     if (!isNativeReady && this.isTauri()) {
       isNativeReady = await this.initBackend();
     }
-    if (isNativeReady) return 'native-avx2';
+    if (isNativeReady) {
+      const target = await this.getBuildTarget();
+      return target === 'avx-native' ? 'native-avx' : 'native-avx2';
+    }
 
     if (KokoroEngine.isReady()) {
       return KokoroEngine.getActiveDevice();
@@ -238,8 +284,9 @@ export class AudioService implements IAudioService {
   }
 
   /**
-   * Converts incoming IPC or Worker sample payloads into a Float32Array<ArrayBuffer>
+   * Converts incoming binary IPC or Worker sample payloads into a Float32Array<ArrayBuffer>
    * compatible with Web Audio's AudioBuffer.copyToChannel().
+   * Provides true O(1) zero-copy conversion when raw bytes are 4-byte aligned.
    */
   private toFloat32Samples(
     raw: Float32Array | Uint8Array | number[],
@@ -253,6 +300,7 @@ export class AudioService implements IAudioService {
       return copy;
     }
     if (raw instanceof Uint8Array) {
+      // True zero-copy: if 4-byte aligned, create a direct Float32Array view over the ArrayBuffer
       if (
         raw.buffer instanceof ArrayBuffer &&
         raw.byteOffset % 4 === 0 &&
@@ -351,9 +399,17 @@ export class AudioService implements IAudioService {
               const onChunkChannel = new Channel<NativeAudioChunkPayload>();
               onChunkChannel.onmessage = (payload: NativeAudioChunkPayload) => {
                 if (signal.aborted) return;
-                const sampleCount = payload.samples?.length || 0;
+                const rawBytes = payload.samples_bytes;
+                const rawSamples = payload.samples;
+                const target =
+                  rawBytes instanceof Uint8Array
+                    ? rawBytes
+                    : Array.isArray(rawBytes)
+                      ? new Uint8Array(rawBytes)
+                      : (rawSamples || new Uint8Array(0));
+                const sampleCount = target?.length || 0;
                 if (sampleCount === 0) return;
-                pushChunk(payload.samples, payload.sample_rate || 24000);
+                pushChunk(target, payload.sample_rate || 24000);
               };
 
               invoke<void>('kokoro_synthesize_stream', {
@@ -400,7 +456,7 @@ export class AudioService implements IAudioService {
           const quickReady = await Promise.race([
             KokoroEngine.init(),
             new Promise<boolean>((resolve) => {
-              timeoutId = setTimeout(() => resolve(false), 2000);
+              timeoutId = setTimeout(() => resolve(false), 15000);
             }),
           ]).finally(() => {
             if (timeoutId) clearTimeout(timeoutId);
@@ -492,9 +548,17 @@ export class AudioService implements IAudioService {
           const onChunkChannel = new Channel<NativeAudioChunkPayload>();
           onChunkChannel.onmessage = (payload: NativeAudioChunkPayload) => {
             if (signal.aborted) return;
+            const rawBytes = payload.samples_bytes;
+            const rawSamples = payload.samples;
+            const target =
+              rawBytes instanceof Uint8Array
+                ? rawBytes
+                : Array.isArray(rawBytes)
+                  ? new Uint8Array(rawBytes)
+                  : (rawSamples || new Uint8Array(0));
             const buf = this.createAudioBufferFromSamples(
               ctx,
-              payload.samples,
+              target,
               payload.sample_rate || 24000,
             );
             if (buf) collectedBuffers.push(buf);
@@ -642,14 +706,9 @@ export class AudioService implements IAudioService {
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
 
-      const gainNode = typeof ctx.createGain === 'function' ? ctx.createGain() : null;
-      if (gainNode) {
-        if (gainNode.gain) {
-          gainNode.gain.value = 1.0;
-        }
-        source.connect(gainNode);
-        gainNode.connect(ctx.destination);
-        this.activeGains.add(gainNode);
+      // Route all audio sources through persistent master GainNode to avoid GC pressure
+      if (this.masterGainNode) {
+        source.connect(this.masterGainNode);
       } else {
         source.connect(ctx.destination);
       }
@@ -662,10 +721,6 @@ export class AudioService implements IAudioService {
         if (cleaned) return;
         cleaned = true;
         this.activeSources.delete(source);
-        if (gainNode) {
-          this.activeGains.delete(gainNode);
-          gainNode.disconnect?.();
-        }
         source.disconnect?.();
         inFlightCount = Math.max(0, inFlightCount - 1);
         checkStreamFinished();
@@ -750,14 +805,8 @@ export class AudioService implements IAudioService {
       const source = ctx.createBufferSource();
       source.buffer = buffer;
 
-      const gainNode = typeof ctx.createGain === 'function' ? ctx.createGain() : null;
-      if (gainNode) {
-        if (gainNode.gain) {
-          gainNode.gain.value = 1.0;
-        }
-        source.connect(gainNode);
-        gainNode.connect(ctx.destination);
-        this.activeGains.add(gainNode);
+      if (this.masterGainNode) {
+        source.connect(this.masterGainNode);
       } else {
         source.connect(ctx.destination);
       }
@@ -769,10 +818,6 @@ export class AudioService implements IAudioService {
         if (cleanedUp) return;
         cleanedUp = true;
         this.activeSources.delete(source);
-        if (gainNode) {
-          this.activeGains.delete(gainNode);
-          gainNode.disconnect?.();
-        }
         source.disconnect?.();
         resolve();
       };
@@ -891,7 +936,11 @@ export class AudioService implements IAudioService {
       const gain = ctx.createGain();
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      if (this.masterGainNode) {
+        gain.connect(this.masterGainNode);
+      } else {
+        gain.connect(ctx.destination);
+      }
 
       if (isCorrect) {
         osc.type = 'sine';
@@ -920,23 +969,21 @@ export class AudioService implements IAudioService {
   }
 
   private stopCurrentPlayback(): void {
-    if (this.audioCtx && this.audioCtx.state !== 'closed') {
+    if (this.audioCtx && this.audioCtx.state !== 'closed' && this.masterGainNode) {
       const now = this.audioCtx.currentTime || 0;
-      for (const gainNode of this.activeGains) {
-        try {
-          if (typeof gainNode.gain?.setValueAtTime === 'function') {
-            gainNode.gain.setValueAtTime(gainNode.gain.value ?? 1.0, now);
-            if (typeof gainNode.gain?.linearRampToValueAtTime === 'function') {
-              gainNode.gain.linearRampToValueAtTime(0.0001, now + 0.008);
-            }
-          }
-          gainNode.disconnect?.();
-        } catch {
-          // ignore
+      try {
+        const gainParam = this.masterGainNode.gain;
+        if (gainParam) {
+          gainParam.cancelScheduledValues?.(now);
+          gainParam.setValueAtTime?.(gainParam.value ?? 1.0, now);
+          gainParam.linearRampToValueAtTime?.(0.0001, now + 0.008);
+          // Restore master gain to 1.0 slightly after the ramp so subsequent playback starts cleanly
+          gainParam.setValueAtTime?.(1.0, now + 0.01);
         }
+      } catch {
+        // ignore
       }
     }
-    this.activeGains.clear();
 
     for (const source of this.activeSources) {
       try {
@@ -951,6 +998,18 @@ export class AudioService implements IAudioService {
       }
     }
     this.activeSources.clear();
+
+    // Immediately signal native backend to stop ongoing sentence synthesis in flight (< 5ms abort)
+    if (this.isTauri()) {
+      try {
+        const res = invoke('kokoro_stop');
+        if (res && typeof (res as any).catch === 'function') {
+          (res as any).catch(() => {});
+        }
+      } catch {
+        // ignore
+      }
+    }
   }
 
   public stop(): void {

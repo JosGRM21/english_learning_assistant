@@ -82,10 +82,11 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
         ['verb_tenses_json', 'TEXT'],
         ['domain_category', 'TEXT'],
         ['alternate_senses_json', 'TEXT'],
+        ['senses_json', 'TEXT'],
+        ['phrasal_verbs_json', 'TEXT'],
         ['frequency_band', 'TEXT'],
         ['is_core', 'INTEGER NOT NULL DEFAULT 1'],
         ['mastery_status', "TEXT NOT NULL DEFAULT 'INACTIVE'"],
-        ['collocations_json', 'TEXT'],
         ['is_separable', 'INTEGER'],
         ['phonetic_ed_ending', 'TEXT'],
         ['subcategory', 'TEXT'],
@@ -148,16 +149,51 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
     if (phraseCheck.rows.length > 0) {
       const phraseInfo = await sql<{ name: string }>`PRAGMA table_info(phraseological_units)`.execute(db);
       const existingCols = new Set(phraseInfo.rows.map((r: any) => (r.name || r.NAME || '').toLowerCase()));
-      if (!existingCols.has('pronoun_must_split')) {
-        try {
-          await sql.raw(`ALTER TABLE phraseological_units ADD COLUMN pronoun_must_split INTEGER NOT NULL DEFAULT 0`).execute(db);
-        } catch {
-          // Ignore
+
+      const phraseColsToAdd = [
+        ['definition_en', "TEXT NOT NULL DEFAULT ''"],
+        ['ipa_general_american', 'TEXT'],
+        ['ipa_received_pronunciation', 'TEXT'],
+        ['example_1_es', "TEXT NOT NULL DEFAULT ''"],
+        ['example_2_es', 'TEXT'],
+        ['pronoun_must_split', 'INTEGER NOT NULL DEFAULT 0'],
+        ['mastery_status', "TEXT NOT NULL DEFAULT 'INACTIVE'"],
+      ];
+
+      for (const [col, type] of phraseColsToAdd) {
+        if (!existingCols.has(col.split(' ')[0].toLowerCase())) {
+          try {
+            await sql.raw(`ALTER TABLE phraseological_units ADD COLUMN ${col} ${type}`).execute(db);
+          } catch (colErr: any) {
+            if (!isDuplicateColumnError(colErr)) {
+              console.warn(`[migrateExistingTableColumns] Could not add column ${col} to phraseological_units:`, colErr);
+            }
+          }
         }
       }
     }
   } catch (err) {
     console.warn('[migrateExistingTableColumns] phraseological_units check error:', err);
+  }
+
+  // 4b. vocab_context_examples
+  try {
+    const ctxCheck = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='vocab_context_examples'`.execute(db);
+    if (ctxCheck.rows.length > 0) {
+      const ctxInfo = await sql<{ name: string }>`PRAGMA table_info(vocab_context_examples)`.execute(db);
+      const existingCols = new Set(ctxInfo.rows.map((r: any) => (r.name || r.NAME || '').toLowerCase()));
+      if (!existingCols.has('sense_index')) {
+        try {
+          await sql.raw(`ALTER TABLE vocab_context_examples ADD COLUMN sense_index INTEGER NOT NULL DEFAULT 0`).execute(db);
+        } catch (colErr: any) {
+          if (!isDuplicateColumnError(colErr)) {
+            console.warn(`[migrateExistingTableColumns] Could not add sense_index to vocab_context_examples:`, colErr);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[migrateExistingTableColumns] vocab_context_examples check error:', err);
   }
 
   // 5. writing_evaluations
@@ -267,37 +303,11 @@ export async function migrateExistingTableColumns(db: Kysely<DatabaseSchema>): P
     console.warn('[migrateExistingTableColumns] writing_evaluations column alteration error:', err);
   }
 
-  // 6. writing_error_logs
+  // 6. writing_error_logs cleanup
   try {
-    const errCheck = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='writing_error_logs'`.execute(db);
-    if (errCheck.rows.length > 0) {
-      const errorLogInfo = await sql<{ name: string }>`PRAGMA table_info(writing_error_logs)`.execute(db);
-      const existingCols = new Set(errorLogInfo.rows.map((r: any) => (r.name || r.NAME || '').toLowerCase()));
-      const errColsToAdd = [
-        ['original_sentence', "TEXT NOT NULL DEFAULT ''"],
-        ['expanded_context', "TEXT NOT NULL DEFAULT ''"],
-        ['drill_format', "TEXT NOT NULL DEFAULT 'CONTEXTUAL_CLOZE'"],
-        ['drill_data_json', "TEXT NOT NULL DEFAULT '{}'"],
-        ['srs_card_id', 'TEXT'],
-        ['mastery_status', "TEXT NOT NULL DEFAULT 'LEARNING'"],
-        ['is_fossilized_alert', 'INTEGER NOT NULL DEFAULT 0'],
-        ['times_recidivist', 'INTEGER NOT NULL DEFAULT 0'],
-        ['is_resolved', 'INTEGER NOT NULL DEFAULT 0'],
-      ];
-      for (const [col, type] of errColsToAdd) {
-        if (!existingCols.has(col.split(' ')[0].toLowerCase())) {
-          try {
-            await sql.raw(`ALTER TABLE writing_error_logs ADD COLUMN ${col} ${type}`).execute(db);
-          } catch (colErr: any) {
-            if (!isDuplicateColumnError(colErr)) {
-              console.warn(`[migrateExistingTableColumns] Could not add column ${col} to writing_error_logs:`, colErr);
-            }
-          }
-        }
-      }
-    }
+    await sql.raw(`DROP TABLE IF EXISTS writing_error_logs`).execute(db);
   } catch (err) {
-    console.warn('[migrateExistingTableColumns] writing_error_logs column check error:', err);
+    console.warn('[migrateExistingTableColumns] writing_error_logs drop error:', err);
   }
 
   // 7. Sanitize writing_submissions to remove obsolete FOREIGN KEY (prompt_id) REFERENCES writing_prompts(id)
@@ -426,7 +436,7 @@ export async function runMigrations(db: Kysely<DatabaseSchema>): Promise<void> {
   // Migrate any existing table columns
   await migrateExistingTableColumns(db);
 
-  // Ensure app_settings & writing_error_logs table exist with updated schema
+  // Ensure app_settings exists and clean up deprecated writing_error_logs & error cards
   await executeSqlBatch(
     db,
     `
@@ -435,67 +445,45 @@ export async function runMigrations(db: Kysely<DatabaseSchema>): Promise<void> {
         value TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT (DATETIME('now'))
     );
-
-    CREATE TABLE IF NOT EXISTS writing_error_logs (
-        id TEXT PRIMARY KEY,
-        submission_id TEXT NOT NULL,
-        user_id TEXT NOT NULL DEFAULT 'user_local',
-        error_span TEXT NOT NULL,
-        error_type TEXT NOT NULL,
-        taxonomy_code TEXT NOT NULL,
-        is_l1_spanish_transfer INTEGER NOT NULL DEFAULT 1 CHECK(is_l1_spanish_transfer IN (0, 1)),
-        explanation_es TEXT NOT NULL,
-        native_reformulation TEXT NOT NULL,
-        original_sentence TEXT NOT NULL DEFAULT '',
-        expanded_context TEXT NOT NULL DEFAULT '',
-        drill_format TEXT NOT NULL DEFAULT 'CONTEXTUAL_CLOZE' CHECK(drill_format IN ('CONTEXTUAL_CLOZE', 'C_TEST', 'SENTENCE_REWRITE', 'CHUNK_SCRAMBLE')),
-        drill_data_json TEXT NOT NULL DEFAULT '{}',
-        srs_card_id TEXT,
-        mastery_status TEXT NOT NULL DEFAULT 'LEARNING' CHECK(mastery_status IN ('LEARNING', 'INTERNALIZED', 'RECIDIVIST')),
-        is_fossilized_alert INTEGER NOT NULL DEFAULT 0 CHECK(is_fossilized_alert IN (0, 1)),
-        times_recidivist INTEGER NOT NULL DEFAULT 0,
-        is_resolved INTEGER NOT NULL DEFAULT 0 CHECK(is_resolved IN (0, 1)),
-        created_at TEXT NOT NULL DEFAULT (DATETIME('now')),
-        FOREIGN KEY (submission_id) REFERENCES writing_submissions(id) ON DELETE CASCADE,
-        FOREIGN KEY (srs_card_id) REFERENCES srs_cards(id) ON DELETE SET NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_wel_user_taxonomy ON writing_error_logs(user_id, taxonomy_code);
-    CREATE INDEX IF NOT EXISTS idx_wel_submission ON writing_error_logs(submission_id);
-    CREATE INDEX IF NOT EXISTS idx_wel_srs_card ON writing_error_logs(srs_card_id);
+    DROP TABLE IF EXISTS writing_error_logs;
     `,
   );
 
-  // Ensure writing_error_logs columns exist if table was already created
-  try {
-    const errorLogInfo = await sql<{ name: string }>`PRAGMA table_info(writing_error_logs)`.execute(db);
-    const existingCols = new Set(errorLogInfo.rows.map((r: any) => (r.name || r.NAME || '').toLowerCase()));
-    const errColsToAdd = [
-      ['original_sentence', "TEXT NOT NULL DEFAULT ''"],
-      ['expanded_context', "TEXT NOT NULL DEFAULT ''"],
-      ['drill_format', "TEXT NOT NULL DEFAULT 'CONTEXTUAL_CLOZE'"],
-      ['drill_data_json', "TEXT NOT NULL DEFAULT '{}'"],
-      ['srs_card_id', 'TEXT'],
-      ['mastery_status', "TEXT NOT NULL DEFAULT 'LEARNING'"],
-      ['is_fossilized_alert', 'INTEGER NOT NULL DEFAULT 0'],
-      ['times_recidivist', 'INTEGER NOT NULL DEFAULT 0'],
-    ];
-    for (const [col, type] of errColsToAdd) {
-      if (!existingCols.has(col.split(' ')[0].toLowerCase())) {
-        try {
-          await sql.raw(`ALTER TABLE writing_error_logs ADD COLUMN ${col} ${type}`).execute(db);
-        } catch (colErr: any) {
-          if (!isDuplicateColumnError(colErr)) {
-            console.warn(`[runMigrations] Could not add column ${col} to writing_error_logs:`, colErr);
-          }
-        }
-      }
+  const srsCheck = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='srs_cards'`.execute(db);
+  if (srsCheck.rows.length > 0) {
+    await executeSqlBatch(
+      db,
+      `DELETE FROM srs_cards WHERE target_type = 'WRITING_ERROR' OR srs_profile = 'WRITING_ERROR_REFLECTIVE';`,
+    );
+  }
+
+  // Ensure high-performance composite and nocase indexes exist
+  await executeSqlBatch(
+    db,
+    `
+    CREATE INDEX IF NOT EXISTS idx_vocab_word_nocase ON vocab_items(word COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_vocab_core_criteria ON vocab_items(is_core, mastery_status, cefr_level, frequency_band);
+    CREATE INDEX IF NOT EXISTS idx_phrase_status_cefr ON phraseological_units(mastery_status, cefr_level);
+    CREATE INDEX IF NOT EXISTS idx_context_vocab_sense ON vocab_context_examples(vocab_id, sense_index);
+    CREATE INDEX IF NOT EXISTS idx_srs_user_due ON srs_cards(user_id, scheduled_for, state);
+    CREATE INDEX IF NOT EXISTS idx_srs_user_state ON srs_cards(user_id, state, scheduled_for);
+    CREATE INDEX IF NOT EXISTS idx_srs_weak ON srs_cards(user_id, target_type, stability);
+    CREATE INDEX IF NOT EXISTS idx_sub_user_date ON writing_submissions(user_id, submitted_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_notif_user_time ON notification_logs(user_id, sent_at DESC);
+    `,
+  );
+
+  // Migration 8: Ensure phrase context examples link to vocab_id as well
+  const contextCheck = await sql<{ name: string }>`SELECT name FROM sqlite_master WHERE type='table' AND name='vocab_context_examples'`.execute(db);
+  if (contextCheck.rows.length > 0) {
+    try {
+      await sql.raw(`UPDATE vocab_context_examples SET vocab_id = phrase_id WHERE vocab_id IS NULL AND phrase_id IS NOT NULL;`).execute(db);
+    } catch {
+      // Non-fatal if table or column is locked
     }
-  } catch (err) {
-    console.warn('[runMigrations] writing_error_logs column check error:', err);
   }
 
   // Ensure PRAGMA user_version is updated
-  await sql.raw(`PRAGMA user_version = 5`).execute(db);
+  await sql.raw(`PRAGMA user_version = 8`).execute(db);
 }
 

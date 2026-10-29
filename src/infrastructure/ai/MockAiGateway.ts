@@ -37,10 +37,28 @@ export class MockAiGateway implements IAiGateway {
         highlighted_area: area,
         sentence_context: userText.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('depend')) ?? userText,
         zpd_contrastive_es:
-          'En español usamos "de" ("depende de ti"), pero en inglés el verbo "depend" rige obligatoriamente la preposición dependiente fija "on" (o formalmente "upon").',
+          'En español decimos "depende de", pero en inglés el verbo "depend" siempre se combina con "on" (o formalmente "upon"). Por ejemplo: "It depends on the weather", nunca "depends of".',
         zpd_cloze_sentence: `${area.split(' ')[0]} [ ___ ] the circumstances`,
         zpd_expected_token: 'on',
-        zpd_native_model: `${area.split(' ')[0]} on the circumstances (Colocación nativa: depend on).`,
+        zpd_native_model: `${area.split(' ')[0]} on the circumstances (Uso nativo: depend on).`,
+      });
+    }
+
+    if (lower.includes('assist to') || lower.includes('assisted to') || lower.includes('assist at')) {
+      const area = lower.includes('assisted to') ? 'assisted to' : 'assist to';
+      clues.push({
+        paragraph_index: 1,
+        clue_type: 'FALSE_FRIEND',
+        is_l1_spanish_transfer: true,
+        hint_question_es:
+          "En inglés 'assist' significa 'ayudar'. ¿Qué verbo usamos para 'asistir o acudir a un evento o reunión' sin preposición?",
+        highlighted_area: area,
+        sentence_context: userText.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('assist')) ?? userText,
+        zpd_contrastive_es:
+          'Cuidado con el falso amigo: en inglés "assist" significa "ayudar o auxiliar" (ej. "assist a colleague"). Si quieres decir "asistir a una reunión, clase o evento", se usa el verbo "attend" sin preposición ("attend the meeting").',
+        zpd_cloze_sentence: 'I will [ ___ ] the meeting tomorrow.',
+        zpd_expected_token: 'attend',
+        zpd_native_model: 'I will attend the meeting tomorrow (Uso nativo: attend sin preposición).',
       });
     }
 
@@ -59,7 +77,7 @@ export class MockAiGateway implements IAiGateway {
         highlighted_area: area,
         sentence_context: userText.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('agree')) ?? userText,
         zpd_contrastive_es:
-          'En español usamos la perífrasis "estar de acuerdo", pero en inglés "agree" es un verbo directo por sí solo. Por lo tanto, no lleva verbo "to be". Decimos "I agree", nunca "I am agree".',
+          'En español usamos la frase "estar de acuerdo", pero en inglés "agree" ya es el verbo directamente. Por lo tanto no lleva "to be": decimos "I agree", nunca "I am agree".',
         zpd_cloze_sentence: 'I [ ___ ] with your proposal completely.',
         zpd_expected_token: 'agree',
         zpd_native_model: 'I agree with your proposal completely (Uso nativo: agree with).',
@@ -72,11 +90,11 @@ export class MockAiGateway implements IAiGateway {
         clue_type: 'FALSE_FRIEND',
         is_l1_spanish_transfer: true,
         hint_question_es:
-          "'Actually' es un falso amigo muy engañoso. ¿Recuerdas qué adverbio usamos en inglés para expresar 'en este momento/en la actualidad'?",
+          "'Actually' es un falso amigo muy engañoso. ¿Recuerdas qué adverbio usamos en inglés para expresar 'en este momento o actualmente'?",
         highlighted_area: 'actually',
         sentence_context: userText.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('actually')) ?? userText,
         zpd_contrastive_es:
-          '"Actually" no significa "actualmente", sino "en realidad" o "de hecho". Para referirte al tiempo presente o actual en inglés se utiliza "currently", "nowadays" o "at present".',
+          'Cuidado con este falso amigo: "actually" no significa "actualmente", sino "en realidad" o "de hecho". Para referirte a la actualidad en inglés se utiliza "currently" o "nowadays".',
         zpd_cloze_sentence: '[ ___ ], I am working on several high-priority tasks.',
         zpd_expected_token: 'currently',
         zpd_native_model: 'Currently, I am working on several high-priority tasks (Uso nativo: "currently" en vez de "actually").',
@@ -90,11 +108,11 @@ export class MockAiGateway implements IAiGateway {
         clue_type: 'TENSE_ASPECT',
         is_l1_spanish_transfer: true,
         hint_question_es:
-          "¿Recuerdas cómo conceptualiza el idioma inglés la edad? ¿Se 'tiene' la edad o se 'es' de esa edad?",
+          "¿Recuerdas cómo se expresa la edad en inglés? ¿Se 'tiene' la edad o se 'es' de esa edad?",
         highlighted_area: haveMatch[0],
         sentence_context: userText.split(/(?<=[.!?])\s+/).find((s) => s.toLowerCase().includes('years')) ?? userText,
         zpd_contrastive_es:
-          'En español "tenemos" años (posesión de tiempo), pero en la lingüística cognitiva anglosajona la edad es un estado de existencia que se expresa con el verbo "to be" ("I am 28 years old").',
+          'En español decimos que "tenemos" años, pero en inglés la edad se considera una cualidad que se expresa con el verbo "to be". Por ejemplo: "I am 28 years old", no "I have 28 years".',
         zpd_cloze_sentence: 'I [ ___ ] 25 years old.',
         zpd_expected_token: 'am',
         zpd_native_model: 'I am 25 years old (Uso nativo: estructura to be + edad).',
@@ -184,14 +202,6 @@ export class MockAiGateway implements IAiGateway {
         native_reformulation: lower2.includes('depends of') ? 'depends on' : 'depend on',
         original_sentence: sentenceWithDepend,
         expanded_context: sentenceWithDepend,
-        drill: {
-          format: 'CONTEXTUAL_CLOZE',
-          cloze_sentence: 'Success will depend [ ___ ] our consistent effort.',
-          expected_token: 'on',
-          hint_es: 'Preposición que rige depend/rely',
-          explanation_es: "¡Correcto! En inglés decimos 'depend on', nunca 'depend of'.",
-          transfer_prompt_es: "Escribe una oración sobre algo que dependa del tiempo o del esfuerzo.",
-        },
       });
     }
 
@@ -207,15 +217,6 @@ export class MockAiGateway implements IAiGateway {
         native_reformulation: lower2.includes('am agree') ? 'agree' : 'agree',
         original_sentence: sentenceWithAgree,
         expanded_context: sentenceWithAgree,
-        drill: {
-          format: 'SENTENCE_REWRITE',
-          prompt_instruction_es: 'Reescribe la oración utilizando el verbo agree directamente sin verbo to be',
-          source_sentence: 'I am agree with your proposed strategy.',
-          mandatory_keyword: 'agree',
-          model_solution: 'I agree with your proposed strategy.',
-          explanation_es: "'agree' es un verbo pleno; no lleva 'am' ni 'is'.",
-          transfer_prompt_es: "Escribe una oración expresando tu acuerdo con una idea.",
-        },
       });
     }
 
@@ -231,15 +232,6 @@ export class MockAiGateway implements IAiGateway {
         native_reformulation: 'currently',
         original_sentence: sentenceWithActually,
         expanded_context: sentenceWithActually,
-        drill: {
-          format: 'C_TEST',
-          sentence_with_prefix: 'Cu[___], we are developing the next major version.',
-          c_test_prefix: 'Cu',
-          expected_token: 'Currently',
-          expected_length: 9,
-          explanation_es: "'Currently' significa actualmente en el tiempo presente.",
-          transfer_prompt_es: "Escribe una oración sobre en qué estás trabajando actualmente.",
-        },
       });
     }
 

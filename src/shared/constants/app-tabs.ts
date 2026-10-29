@@ -4,7 +4,6 @@ import {
   Sparkles,
   AudioWaveform,
   PenTool,
-  ShieldAlert,
   Cpu,
   Settings,
   Info,
@@ -25,7 +24,6 @@ export type AppTab =
   | 'srs'
   | 'phonetics_lab'
   | 'writing'
-  | 'defossilization'
   | 'quota_matrix'
   | 'settings'
   | 'about';
@@ -72,13 +70,6 @@ export const APP_TABS: TabDefinition[] = [
     description: 'Práctica guiada de redacción con pistas de mejora y evaluación detallada',
   },
   {
-    id: 'defossilization',
-    label: 'Corrector de Hábitos',
-    icon: ShieldAlert,
-    activeColorClass: 'text-indigo-600 dark:text-indigo-400',
-    description: 'Práctica guiada para superar errores frecuentes y giros del español',
-  },
-  {
     id: 'quota_matrix',
     label: 'Modelos de IA',
     icon: Cpu,
@@ -112,7 +103,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     name: 'Producción & Práctica',
-    tabs: ['writing', 'defossilization'],
+    tabs: ['writing'],
   },
   {
     name: 'Sistema & Configuración',

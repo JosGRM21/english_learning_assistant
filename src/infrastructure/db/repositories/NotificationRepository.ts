@@ -1,12 +1,12 @@
-import { Kysely } from 'kysely';
+import { Kysely, sql } from 'kysely';
 import { DatabaseSchema } from '../../../core/types/database';
 import { INotificationRepository } from '../../../core/repositories/INotificationRepository';
 import {
   NotificationLog,
   NotificationSettings,
   NotificationType,
-  ScheduleMode,
 } from '../../../core/types/notifications';
+import { getLocalDateString } from '../../../shared/utils/date';
 
 export class NotificationRepository implements INotificationRepository {
   constructor(private readonly db: Kysely<DatabaseSchema>) {}
@@ -14,17 +14,11 @@ export class NotificationRepository implements INotificationRepository {
   private mapRowToSettings(row: {
     user_id: string;
     enabled: number;
-    schedule_mode: 'AUTO' | 'MANUAL';
     manual_time: string;
-    detected_time: string | null;
     srs_enabled?: number;
-    srs_schedule_mode?: 'AUTO' | 'MANUAL';
     srs_manual_time?: string;
-    srs_detected_time?: string | null;
     writing_enabled?: number;
-    writing_schedule_mode?: 'AUTO' | 'MANUAL';
     writing_manual_time?: string;
-    writing_detected_time?: string | null;
     streak_saver_enabled: number;
     srs_batch_enabled: number;
     srs_batch_threshold: number;
@@ -36,20 +30,14 @@ export class NotificationRepository implements INotificationRepository {
     return {
       userId: row.user_id,
       enabled: Boolean(row.enabled),
-      scheduleMode: row.schedule_mode as ScheduleMode,
       manualTime: row.manual_time,
-      detectedTime: row.detected_time,
       srs: {
         enabled: row.srs_enabled !== undefined ? Boolean(row.srs_enabled) : true,
-        scheduleMode: (row.srs_schedule_mode as ScheduleMode) || 'AUTO',
         manualTime: row.srs_manual_time || '19:00',
-        detectedTime: row.srs_detected_time || '19:00',
       },
       writing: {
         enabled: row.writing_enabled !== undefined ? Boolean(row.writing_enabled) : true,
-        scheduleMode: (row.writing_schedule_mode as ScheduleMode) || 'AUTO',
         manualTime: row.writing_manual_time || '21:00',
-        detectedTime: row.writing_detected_time || '21:00',
       },
       streakSaverEnabled: Boolean(row.streak_saver_enabled),
       srsBatchEnabled: Boolean(row.srs_batch_enabled),
@@ -76,20 +64,14 @@ export class NotificationRepository implements INotificationRepository {
     const defaultSettings: NotificationSettings = {
       userId,
       enabled: true,
-      scheduleMode: 'AUTO',
       manualTime: '20:00',
-      detectedTime: '19:30',
       srs: {
         enabled: true,
-        scheduleMode: 'AUTO',
         manualTime: '19:00',
-        detectedTime: '19:00',
       },
       writing: {
         enabled: true,
-        scheduleMode: 'AUTO',
         manualTime: '21:00',
-        detectedTime: '21:00',
       },
       streakSaverEnabled: true,
       srsBatchEnabled: true,
@@ -105,17 +87,17 @@ export class NotificationRepository implements INotificationRepository {
       .values({
         user_id: userId,
         enabled: 1,
-        schedule_mode: 'AUTO',
+        schedule_mode: 'MANUAL',
         manual_time: '20:00',
-        detected_time: '19:30',
+        detected_time: null,
         srs_enabled: 1,
-        srs_schedule_mode: 'AUTO',
+        srs_schedule_mode: 'MANUAL',
         srs_manual_time: '19:00',
-        srs_detected_time: '19:00',
+        srs_detected_time: null,
         writing_enabled: 1,
-        writing_schedule_mode: 'AUTO',
+        writing_schedule_mode: 'MANUAL',
         writing_manual_time: '21:00',
-        writing_detected_time: '21:00',
+        writing_detected_time: null,
         streak_saver_enabled: 1,
         srs_batch_enabled: 1,
         srs_batch_threshold: 10,
@@ -141,22 +123,16 @@ export class NotificationRepository implements INotificationRepository {
     };
 
     if (settings.enabled !== undefined) updateValues.enabled = settings.enabled ? 1 : 0;
-    if (settings.scheduleMode !== undefined) updateValues.schedule_mode = settings.scheduleMode;
     if (settings.manualTime !== undefined) updateValues.manual_time = settings.manualTime;
-    if (settings.detectedTime !== undefined) updateValues.detected_time = settings.detectedTime;
 
     if (settings.srs) {
       if (settings.srs.enabled !== undefined) updateValues.srs_enabled = settings.srs.enabled ? 1 : 0;
-      if (settings.srs.scheduleMode !== undefined) updateValues.srs_schedule_mode = settings.srs.scheduleMode;
       if (settings.srs.manualTime !== undefined) updateValues.srs_manual_time = settings.srs.manualTime;
-      if (settings.srs.detectedTime !== undefined) updateValues.srs_detected_time = settings.srs.detectedTime;
     }
 
     if (settings.writing) {
       if (settings.writing.enabled !== undefined) updateValues.writing_enabled = settings.writing.enabled ? 1 : 0;
-      if (settings.writing.scheduleMode !== undefined) updateValues.writing_schedule_mode = settings.writing.scheduleMode;
       if (settings.writing.manualTime !== undefined) updateValues.writing_manual_time = settings.writing.manualTime;
-      if (settings.writing.detectedTime !== undefined) updateValues.writing_detected_time = settings.writing.detectedTime;
     }
 
     if (settings.streakSaverEnabled !== undefined)
@@ -209,13 +185,14 @@ export class NotificationRepository implements INotificationRepository {
   }
 
   async getLogsToday(userId = 'user_local', todayDateStr?: string): Promise<NotificationLog[]> {
-    const datePrefix = todayDateStr ?? new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const datePrefix = todayDateStr ?? getLocalDateString();
     const rows = await this.db
       .selectFrom('notification_logs')
       .selectAll()
       .where('user_id', '=', userId)
       .where('sent_at', 'like', `${datePrefix}%`)
       .orderBy('sent_at', 'desc')
+      .orderBy(sql`rowid`, 'desc')
       .execute();
 
     return rows.map((r) => ({
@@ -234,6 +211,7 @@ export class NotificationRepository implements INotificationRepository {
       .selectAll()
       .where('user_id', '=', userId)
       .orderBy('sent_at', 'desc')
+      .orderBy(sql`rowid`, 'desc')
       .limit(1)
       .executeTakeFirst();
 
@@ -259,6 +237,7 @@ export class NotificationRepository implements INotificationRepository {
       .where('user_id', '=', userId)
       .where('notification_type', '=', type)
       .orderBy('sent_at', 'desc')
+      .orderBy(sql`rowid`, 'desc')
       .limit(1)
       .executeTakeFirst();
 
@@ -279,7 +258,7 @@ export class NotificationRepository implements INotificationRepository {
     todayDateStr?: string,
     userId = 'user_local',
   ): Promise<void> {
-    const datePrefix = todayDateStr ?? new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const datePrefix = todayDateStr ?? getLocalDateString();
     await this.db
       .deleteFrom('notification_logs')
       .where('user_id', '=', userId)

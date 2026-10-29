@@ -64,7 +64,7 @@ async function main() {
     console.error('❌ Error: No se encontraron claves API de Gemini configuradas.');
     console.error('Uso:');
     console.error('  $env:GEMINI_API_KEYS="AIzaSy...,AIzaSy..."');
-    console.error('  npx tsx scripts/vocab-generator/cli.ts [--input <archivo_semilla>] [--limit <numero>]');
+    console.error('  npx tsx scripts/vocab-generator/cli.ts [--input <archivo_semilla>] [--limit <numero>] [--batch-size <numero>]');
     console.error('Comandos auxiliares:');
     console.error('  npx tsx scripts/vocab-generator/cli.ts --clean-cache   (Limpia la caché de lotes)');
     console.error('  npx tsx scripts/vocab-generator/cli.ts --reset-corpus  (Vacía el archivo del catálogo)');
@@ -75,12 +75,15 @@ async function main() {
   // 2. Argumentos CLI
   let seedFilePath = 'scripts/.cache/seed_words.json';
   let limit: number | undefined;
+  let batchSize = 4;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--input' && args[i + 1]) {
       seedFilePath = args[i + 1];
     } else if (args[i] === '--limit' && args[i + 1]) {
       limit = parseInt(args[i + 1], 10);
+    } else if (args[i] === '--batch-size' && args[i + 1]) {
+      batchSize = parseInt(args[i + 1], 10);
     }
   }
 
@@ -126,9 +129,10 @@ async function main() {
 
   const finalLemmas = limit ? uniqueLemmas.slice(0, limit) : uniqueLemmas;
 
-  // 4. Instanciar y ejecutar el Pipeline (Lotes de 6 para soportar acepciones + phrasal verbs)
+  // 4. Instanciar y ejecutar el Pipeline (Lotes de 4 palabras, máx 10 peticiones/min por worker = ~40 palabras/min por worker)
   const pipeline = new VocabGeneratorPipeline(apiKeys, 'scripts/.cache/vocab_pipeline', {
-    batchSize: 6,
+    batchSize,
+    minIntervalMs: 6000,
     modelId: 'gemini-3.5-flash-lite',
     destinationCorpusPath: 'src/data/core-vocab-corpus.json',
   });

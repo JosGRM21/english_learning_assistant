@@ -1,52 +1,12 @@
-import { VocabItem, PhraseologicalUnit, VocabContextExample } from './vocab';
+import { VocabItem, PhraseologicalUnit, VocabContextExample, VocabSense } from './vocab';
 
-export type TargetType = 'VOCAB' | 'PHRASE' | 'WRITING_ERROR';
+export type TargetType = 'VOCAB' | 'PHRASE';
 
-export type SrsProfile = 'VOCAB_AGILE' | 'WRITING_ERROR_REFLECTIVE';
+export type SrsProfile = 'VOCAB_AGILE';
 
 export type CardState = 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING';
 
 export type FsrsGrade = 1 | 2 | 3 | 4; // 1: Again, 2: Hard, 3: Good, 4: Easy
-
-export type PositiveDrillFormat = 'CONTEXTUAL_CLOZE' | 'C_TEST' | 'SENTENCE_REWRITE' | 'CHUNK_SCRAMBLE';
-
-export interface PositiveDrillData {
-  format: PositiveDrillFormat;
-  clozeSentence?: string;
-  expectedToken?: string;
-  cTestPrompt?: string;
-  cTestPrefix?: string;
-  expectedLength?: number;
-  rewriteBaseSentence?: string;
-  rewriteKeyword?: string;
-  rewriteTargetSentence?: string;
-  scrambledChunks?: string[];
-  expectedSequence?: string[];
-  explanationEs: string;
-  sentenceContext: string;
-}
-
-export interface WritingErrorSrsItem {
-  id: string;
-  submissionId: string;
-  userId: string;
-  errorSpan: string;
-  errorType: string;
-  taxonomyCode: string;
-  isL1SpanishTransfer: boolean;
-  explanationEs: string;
-  nativeReformulation: string;
-  originalSentence: string;
-  expandedContext: string;
-  drillFormat: PositiveDrillFormat;
-  drillData: PositiveDrillData;
-  srsCardId?: string | null;
-  masteryStatus: 'LEARNING' | 'INTERNALIZED' | 'RECIDIVIST';
-  isFossilizedAlert: boolean;
-  timesRecidivist: number;
-  createdAt: string;
-  srsCard?: SrsCard;
-}
 
 export interface SrsCard {
   id: string;
@@ -83,7 +43,8 @@ export interface CardWithTarget {
   card: SrsCard;
   vocab?: VocabItem;
   phrase?: PhraseologicalUnit;
-  writingError?: WritingErrorSrsItem;
+  currentSenseIndex?: number;
+  currentSense?: VocabSense;
   currentContext?: VocabContextExample;
   allContexts: VocabContextExample[];
 }
@@ -93,3 +54,19 @@ export interface FsrsSchedulingResult {
   log: Omit<ReviewLog, 'id' | 'cardId' | 'reviewedAt'>;
   intervalDays: number;
 }
+
+export interface SrsGoalSettings {
+  activeGoal: 'TOP_500' | 'TOP_1000' | 'TOP_3000' | 'TOP_5000';
+  dailyNewCardsTarget: number;
+  overloadThreshold: number;
+  includePhrasalVerbs?: boolean;
+  phrasalVerbsRatio?: number;
+}
+
+export interface IngestionPlan {
+  isOverloaded: boolean;
+  overloadDueCount: number;
+  newCardsNeeded: number;
+  reason: 'NORMAL' | 'OVERLOAD_THROTTLED' | 'DAILY_QUOTA_REACHED';
+}
+

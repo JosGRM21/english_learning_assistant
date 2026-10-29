@@ -78,6 +78,8 @@ export interface WritingState {
   resetWriting: () => void;
 }
 
+let usageDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const useWritingStore = create<WritingState>((set, get) => ({
   activeTab: 'STUDIO',
   currentStage: 1,
@@ -105,11 +107,17 @@ export const useWritingStore = create<WritingState>((set, get) => ({
   setSelectedMission: (mission) => set({ selectedMission: mission }),
   setDraft1: (text) => {
     set({ draft1: text });
-    get().updateTargetWordUsage(text);
+    if (usageDebounceTimer) clearTimeout(usageDebounceTimer);
+    usageDebounceTimer = setTimeout(() => {
+      get().updateTargetWordUsage(text);
+    }, 200);
   },
   setDraft2: (text) => {
     set({ draft2: text });
-    get().updateTargetWordUsage(text);
+    if (usageDebounceTimer) clearTimeout(usageDebounceTimer);
+    usageDebounceTimer = setTimeout(() => {
+      get().updateTargetWordUsage(text);
+    }, 200);
   },
   setTargetCefr: (cefr) => set({ targetCefr: cefr }),
   setTargetWords: (words) => set({ targetWords: words }),

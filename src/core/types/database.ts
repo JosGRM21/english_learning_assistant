@@ -14,8 +14,15 @@ export interface VocabItemsTable {
   cefr_level: string;
   frequency_band: string | null;
   is_core: Generated<number>;
-  mastery_status: Generated<'INACTIVE' | 'NEW' | 'LEARNING' | 'RECEPTIVE_MASTERY' | 'PRODUCTIVE_MASTERY'>;
-  collocations_json: string | null;
+  mastery_status: Generated<
+    | 'INACTIVE'
+    | 'NEW'
+    | 'LEARNING'
+    | 'RECEPTIVE_MASTERY'
+    | 'RECEPTIVE_MASTERED'
+    | 'PRODUCTIVE_MASTERY'
+    | 'PRODUCTIVE_ACTIVE'
+  >;
   is_separable: number | null;
   phonetic_ed_ending: string | null;
   is_false_friend: number;
@@ -23,6 +30,8 @@ export interface VocabItemsTable {
   verb_tenses_json?: string | null;
   domain_category?: string | null;
   alternate_senses_json?: string | null;
+  senses_json?: string | null;
+  phrasal_verbs_json?: string | null;
   created_at: Generated<string>;
 }
 
@@ -32,16 +41,25 @@ export interface PhraseologicalUnitsTable {
   chunk_type: string;
   text: string;
   meaning_es: string;
-  definition_en: string;
+  definition_en: Generated<string>;
   ipa_general_american: string | null;
   ipa_received_pronunciation: string | null;
   phrasal_verb_type: string | null;
   pronoun_must_split: Generated<number>;
   example_1: string;
-  example_1_es: string;
+  example_1_es: Generated<string>;
   example_2: string | null;
   example_2_es: string | null;
   cefr_level: string;
+  mastery_status: Generated<
+    | 'INACTIVE'
+    | 'LEARNING'
+    | 'NEW'
+    | 'RECEPTIVE_MASTERY'
+    | 'RECEPTIVE_MASTERED'
+    | 'PRODUCTIVE_MASTERY'
+    | 'PRODUCTIVE_ACTIVE'
+  >;
   created_at: Generated<string>;
 }
 
@@ -49,6 +67,7 @@ export interface VocabContextExamplesTable {
   id: string;
   vocab_id: string | null;
   phrase_id: string | null;
+  sense_index: Generated<number>;
   sentence_en: string;
   sentence_es: string;
   cloze_target: string;
@@ -60,9 +79,9 @@ export interface VocabContextExamplesTable {
 export interface SrsCardsTable {
   id: string;
   user_id: Generated<string>;
-  target_type: 'VOCAB' | 'PHRASE' | 'WRITING_ERROR';
+  target_type: 'VOCAB' | 'PHRASE';
   target_id: string;
-  srs_profile: Generated<'VOCAB_AGILE' | 'WRITING_ERROR_REFLECTIVE'>;
+  srs_profile: Generated<'VOCAB_AGILE'>;
   state: 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING';
   stability: number;
   difficulty: number;
@@ -188,28 +207,6 @@ export interface AppSettingsTable {
   updated_at: Generated<string>;
 }
 
-export interface WritingErrorLogsTable {
-  id: string;
-  submission_id: string;
-  user_id: Generated<string>;
-  error_span: string;
-  error_type: string;
-  taxonomy_code: string;
-  is_l1_spanish_transfer: Generated<number>;
-  explanation_es: string;
-  native_reformulation: string;
-  original_sentence: Generated<string>;
-  expanded_context: Generated<string>;
-  drill_format: Generated<'CONTEXTUAL_CLOZE' | 'C_TEST' | 'SENTENCE_REWRITE' | 'CHUNK_SCRAMBLE'>;
-  drill_data_json: Generated<string>;
-  srs_card_id: string | null;
-  mastery_status: Generated<'LEARNING' | 'INTERNALIZED' | 'RECIDIVIST'>;
-  is_fossilized_alert: Generated<number>;
-  times_recidivist: Generated<number>;
-  is_resolved: Generated<number>;
-  created_at: Generated<string>;
-}
-
 export interface DatabaseSchema {
   vocab_items: VocabItemsTable;
   phraseological_units: PhraseologicalUnitsTable;
@@ -219,7 +216,6 @@ export interface DatabaseSchema {
   writing_submissions: WritingSubmissionsTable;
   writing_draft_revisions: WritingDraftRevisionsTable;
   writing_evaluations: WritingEvaluationsTable;
-  writing_error_logs: WritingErrorLogsTable;
   user_streaks: UserStreaksTable;
   notification_settings: NotificationSettingsTable;
   notification_logs: NotificationLogsTable;

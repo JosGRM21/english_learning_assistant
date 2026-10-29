@@ -85,8 +85,10 @@ export class RestoreService {
     const cards = Array.isArray(payload.cards) ? payload.cards : [];
     const reviews = Array.isArray(payload.reviews) ? payload.reviews : [];
 
-    // Map to keep track of vocab IDs to guarantee relational references
-    const cardIdSet = new Set<string>();
+    await db.transaction().execute(async (trxDb) => {
+      const db = trxDb;
+      // Map to keep track of vocab IDs to guarantee relational references
+      const cardIdSet = new Set<string>();
 
     for (const cardItem of cards) {
       if (typeof cardItem !== 'object' || cardItem === null) continue;
@@ -269,7 +271,7 @@ export class RestoreService {
         const meaningEs =
           (phraseRaw.meaningEs as string) || (phraseRaw.meaning_es as string) || textClean;
         const pCefr = normalizeCefr(phraseRaw.cefrLevel ?? phraseRaw.cefr_level);
-        const chunkType = (phraseRaw.chunkType as string) || (phraseRaw.chunk_type as string) || 'COLLOCATION';
+        const chunkType = (phraseRaw.chunkType as string) || (phraseRaw.chunk_type as string) || 'PHRASAL_VERB';
         const example1 = (phraseRaw.example1 as string) || (phraseRaw.example_1 as string) || textClean;
         const example2 = (phraseRaw.example2 as string) || (phraseRaw.example_2 as string) || null;
 
@@ -451,6 +453,7 @@ export class RestoreService {
       }
       stats.restoredReviews++;
     }
+    });
 
     return stats;
   }

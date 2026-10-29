@@ -16,7 +16,7 @@ export interface SocraticWritingStudioProps {
   onNavigateTab?: (tab: AppTab) => void;
 }
 
-export function SocraticWritingStudio({ onNavigateTab }: SocraticWritingStudioProps) {
+export function SocraticWritingStudio({ onNavigateTab: _onNavigateTab }: SocraticWritingStudioProps) {
   const [isReadingModalOpen, setIsReadingModalOpen] = useState(false);
 
   const {
@@ -51,6 +51,8 @@ export function SocraticWritingStudio({ onNavigateTab }: SocraticWritingStudioPr
     handleRequestSocratic,
     handleEvaluateFinal,
     handlePlayTts,
+    handleDeleteSubmission,
+    handleClearAllSubmissions,
     resetWriting,
   } = useWritingSession();
 
@@ -133,7 +135,6 @@ export function SocraticWritingStudio({ onNavigateTab }: SocraticWritingStudioPr
               draft2={draft2}
               isPlayingTts={isPlayingTts}
               onPlayTts={handlePlayTts}
-              onNavigateToDefossilization={() => onNavigateTab?.('defossilization')}
               onReset={resetWriting}
             />
           )}
@@ -146,6 +147,8 @@ export function SocraticWritingStudio({ onNavigateTab }: SocraticWritingStudioPr
           submissions={historySubmissions}
           isLoading={isLoadingHistory}
           onSelectSubmission={loadSubmissionIntoStudio}
+          onDeleteSubmission={handleDeleteSubmission}
+          onClearAllSubmissions={handleClearAllSubmissions}
           onNewWriting={() => {
             resetWriting();
             setActiveTab('STUDIO');

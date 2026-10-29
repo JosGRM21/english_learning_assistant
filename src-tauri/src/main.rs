@@ -101,6 +101,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             tts::kokoro_is_ready,
             tts::kokoro_init,
+            tts::kokoro_stop,
             tts::kokoro_synthesize_stream,
             tts::kokoro_get_voices,
             tts::get_build_target,
@@ -109,4 +110,3 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

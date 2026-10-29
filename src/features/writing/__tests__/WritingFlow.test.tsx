@@ -7,7 +7,6 @@ import { WritingStageOne } from '../components/WritingStageOne';
 import { WritingStageTwo } from '../components/WritingStageTwo';
 import { WritingStageThree } from '../components/WritingStageThree';
 import { SocraticClue, SocraticFeedbackResponse } from '@/infrastructure/ai/schemas';
-import { DiffVisualizer } from '../components/DiffVisualizer';
 
 describe('Writing Studio Components & Store', () => {
   beforeEach(() => {
@@ -71,9 +70,9 @@ describe('Writing Studio Components & Store', () => {
       zpd_native_model: 'Colocación nativa: depend on.',
     };
 
-    it('renders L1 Spanish transfer badge when is_l1_spanish_transfer is true (RF-WRT-09)', () => {
+    it('does not render technical L1 transfer badge in clue card', () => {
       render(<ZpdScaffoldingCard clue={mockClue} index={0} />);
-      expect(screen.getByText(/Interferencia L1 \(Español\)/i)).toBeDefined();
+      expect(screen.queryByText(/Interferencia L1 \(Español\)/i)).toBeNull();
     });
 
     it('renders direct natural expression and explanation for idiomatic conventions (Gaps)', () => {
@@ -154,6 +153,26 @@ describe('Writing Studio Components & Store', () => {
       render(<ZpdScaffoldingCard clue={mockClue} index={0} isApplied={true} />);
       expect(screen.getByText(/Modificado en Borrador 2/i)).toBeDefined();
     });
+
+    it('renders explicit error banner when AI omits required explanation in a gap clue', () => {
+      const incompleteClue: SocraticClue = {
+        paragraph_index: 1,
+        clue_type: 'FALSE_FRIEND',
+        is_l1_spanish_transfer: true,
+        hint_question_es: 'Revisa esta palabra.',
+        highlighted_area: 'assist to',
+        sentence_context: 'I assist to the meeting.',
+        // zpd_contrastive_es omitted!
+        zpd_expected_token: 'attend',
+        zpd_native_model: 'attend the meeting',
+      };
+
+      render(<ZpdScaffoldingCard clue={incompleteClue} index={0} />);
+      expect(screen.getByText(/Error al procesar la pista #1/i)).toBeDefined();
+      expect(screen.getByText(/La IA omitió la información pedagógica requerida/i)).toBeDefined();
+      // Ensure NO synthetic fallback text was shown!
+      expect(screen.queryByText(/partícula idiomática fija/i)).toBeNull();
+    });
   });
 
   describe('WritingStageTwo Robust Snippet Highlighting & Scaffolding', () => {
@@ -207,13 +226,13 @@ Finally, today I will finish everything.`;
       const marks = container.querySelectorAll('mark');
       expect(marks.length).toBeGreaterThan(0);
 
-      marks.forEach((mark) => {
+      marks.forEach((mark: HTMLElement) => {
         // Every mark must strictly be the standalone 'i'
         expect(mark.textContent).toBe('i');
       });
 
       // Verify that words like "This", "is", "writing" are NOT inside any mark
-      const markTexts = Array.from(marks).map((m) => m.textContent);
+      const markTexts = Array.from(marks).map((m: HTMLElement) => m.textContent);
       expect(markTexts).not.toContain('This');
       expect(markTexts).not.toContain('is');
       expect(markTexts).not.toContain('writing');
@@ -319,27 +338,6 @@ Finally, today I will finish everything.`;
     });
   });
 
-  describe('DiffVisualizer', () => {
-    it('computes word diff and allows switching to clean text mode', () => {
-      render(
-        <DiffVisualizer
-          original="I am agree with you"
-          updated="I agree with you"
-        />,
-      );
-
-      // Check metrics
-      expect(screen.getByText(/\+0 palabras/i)).toBeDefined();
-      expect(screen.getByText(/-1 eliminadas/i)).toBeDefined();
-
-      // Switch to Clean text mode
-      const cleanModeBtn = screen.getByRole('button', { name: /Texto Limpio/i });
-      fireEvent.click(cleanModeBtn);
-
-      expect(screen.getByText(/"I agree with you"/i)).toBeDefined();
-      expect(screen.getByRole('button', { name: /Copiar al portapapeles/i })).toBeDefined();
-    });
-  });
 
   describe('Reading-to-Write and Target Vocabulary in WritingStore', () => {
     it('selectReadingAndApply configures store for reading-to-write mode', () => {

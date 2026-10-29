@@ -231,24 +231,15 @@ export class BatchStorageManager {
             example2: pv.example2 ? pv.example2.trim() : null,
             example2Es: pv.example2Es ? pv.example2Es.trim() : null,
             cefrLevel: pv.cefrLevel,
+            masteryStatus: 'INACTIVE',
           });
         }
       }
 
-      // Consolidar colocaciones únicas enriquecidas de todas las acepciones
-      const consolidatedCollocations: string[] = [];
-      const seenCollocs = new Set<string>();
-      for (const sense of item.senses) {
-        if (sense.collocations && Array.isArray(sense.collocations)) {
-          for (const c of sense.collocations) {
-            const clean = c.trim();
-            if (clean && !seenCollocs.has(clean.toLowerCase())) {
-              seenCollocs.add(clean.toLowerCase());
-              consolidatedCollocations.push(clean);
-            }
-          }
-        }
-      }
+      // Si el sentido principal NO es un verbo, phoneticEdEnding a nivel raíz debe ser null
+      // (la información verbal se preserva en alternateSensesJson y verbTensesJson si aplica)
+      const isPrimaryVerb = firstSense.partOfSpeech === 'VERB';
+      const rootPhoneticEdEnding = isPrimaryVerb ? (item.phoneticEdEnding || null) : null;
 
       // Solo las acepciones alternas (a partir del índice 1) deben ir a alternateSensesJson
       // para evitar que la primera acepción aparezca duplicada en la UI
@@ -272,13 +263,13 @@ export class BatchStorageManager {
         connotation: firstSense.connotation || 'NEUTRAL',
         isCore: 1,
         masteryStatus: existing?.masteryStatus || 'INACTIVE',
-        collocationsJson: consolidatedCollocations,
         isSeparable: null,
-        phoneticEdEnding: item.phoneticEdEnding || null,
+        phoneticEdEnding: rootPhoneticEdEnding,
         isFalseFriend: item.isFalseFriend ? 1 : 0,
         falseFriendNote: item.falseFriendNote || null,
         verbTensesJson: item.verbTenses || null,
         domainCategory: 'Uso General',
+        sensesJson: item.senses || [],
         alternateSensesJson: alternateSenses.length > 0 ? alternateSenses : null,
         phrasalVerbsJson: item.phrasalVerbs || [],
         graduatedExamples: {
